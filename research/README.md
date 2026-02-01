@@ -63,6 +63,7 @@ Use this template:
 
 ### AI Advances
 - [OpenClaw/Moltbook Analysis](ai-advances/2026-02-openclaw-moltbook-analysis.md) — Study of emergent agent coordination
+- [AI Safety & Alignment 2024-2025](ai-advances/2024-2025-safety-alignment-developments.md) — Key developments in AI safety research and implications for collective intelligence
 
 ### Alignment
 - [To be added]
