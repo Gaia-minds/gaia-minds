@@ -3,7 +3,7 @@
 **Type**: API
 **Last Verified**: 2026-02-01
 **Verified By**: Codex
-**URL**: https://platform.openai.com/docs/pricing
+**URL**: platform.openai.com/docs/pricing
 
 ---
 
@@ -22,8 +22,8 @@ storage.
 - **AgentKit ChatKit Storage**: 1 GB free per account per month for file/image
   uploads, then billed at $0.10 per GB-day.
 
-See pricing details: https://platform.openai.com/docs/pricing and
-https://openai.com/api/pricing/
+See pricing details: `platform.openai.com/docs/pricing` and
+`openai.com/api/pricing/`.
 
 ---
 
@@ -35,7 +35,7 @@ https://openai.com/api/pricing/
   (availability may vary by account/time).
 - **AgentKit billing begins Nov 1, 2025** (no charges before then).
 
-Billing details: https://help.openai.com/en/articles/8264778-what-is-prepaid-billing
+Billing details: `help.openai.com/en/articles/8264778-what-is-prepaid-billing`
 
 ---
 
@@ -63,9 +63,9 @@ token usage plus any built-in tool usage.
 
 ## Sources
 
-- https://platform.openai.com/docs/pricing
-- https://openai.com/api/pricing/
-- https://help.openai.com/en/articles/8264778-what-is-prepaid-billing
+- `platform.openai.com/docs/pricing`
+- `openai.com/api/pricing/`
+- `help.openai.com/en/articles/8264778-what-is-prepaid-billing`
 
 ---
 
