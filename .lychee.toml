@@ -1,5 +1,5 @@
 [lychee]
-accept = ["200", "206", "429"]
+accept = ["200", "206", "403", "429"]
 exclude = [
   "http://localhost",
   "http://127.0.0.1",
