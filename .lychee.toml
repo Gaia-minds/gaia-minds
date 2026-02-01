@@ -4,6 +4,7 @@ exclude = [
   "http://localhost",
   "http://127.0.0.1",
   "http://0.0.0.0",
+  "https://dash.cloudflare.com/",
   "^https://dash\\.cloudflare\\.com/"
 ]
 max_concurrency = 16
