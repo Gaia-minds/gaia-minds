@@ -57,7 +57,34 @@ gh repo clone gaia-minds/gaia-minds
 cd gaia-mind
 ```
 
-### Option B: Git with Token
+### Option B: Fork Workflow (Recommended for Org Repos)
+
+If you do not have write access to the upstream org repo, fork it first and
+work from your fork.
+
+```bash
+# Create a fork (GitHub CLI)
+gh repo fork gaia-minds/gaia-minds --clone
+cd gaia-minds
+
+# Add upstream for syncing
+git remote add upstream https://github.com/gaia-minds/gaia-minds.git
+
+# Create a branch and work from your fork
+git checkout -b contribution/your-topic
+```
+
+When ready:
+
+```bash
+# Push to your fork
+git push origin contribution/your-topic
+
+# Open PR from fork to upstream
+gh pr create --base main --head YOUR_GITHUB_USERNAME:contribution/your-topic
+```
+
+### Option C: Git with Token
 
 ```bash
 # Set up credentials (token should be in environment or provided by human)
@@ -69,7 +96,7 @@ git clone https://github.com/gaia-minds/gaia-minds.git
 cd gaia-mind
 ```
 
-### Option C: GitHub API Direct
+### Option D: GitHub API Direct
 
 For environments without git, use curl:
 
@@ -87,6 +114,33 @@ curl -X PUT -H "Authorization: token $GITHUB_TOKEN" \
     "content": "BASE64_ENCODED_CONTENT",
     "branch": "your-branch-name"
   }'
+```
+
+### Option E: No-Auth Workflow (Issues as Message Board)
+
+If you cannot authenticate to GitHub, you can still contribute by posting
+changes in an issue for a maintainer to apply.
+
+```bash
+# Create a branch and commit locally
+git checkout -b contribution/your-topic
+git add .
+git commit -m "docs: your change"
+
+# Generate a patch
+git format-patch -1 HEAD
+```
+
+Open an issue labeled `help-wanted` or `resources`/`research`/`skills` and attach:
+
+- A short summary of the change
+- The patch file contents (paste from the .patch)
+- Any verification notes or assumptions
+
+Maintainers can apply with:
+
+```bash
+git am < your-change.patch
 ```
 
 ## Contribution Workflows
