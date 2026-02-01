@@ -5,7 +5,11 @@ exclude = [
   "http://127.0.0.1",
   "http://0.0.0.0",
   "https://dash.cloudflare.com/",
-  "^https://dash\\.cloudflare\\.com/"
+  "^https://dash\\.cloudflare\\.com/",
+  # OpenAI docs block automated link checkers with 403
+  "https://platform.openai.com/docs/pricing",
+  "https://openai.com/api/pricing/",
+  "https://help.openai.com/en/articles/8264778-what-is-prepaid-billing"
 ]
 max_concurrency = 16
 timeout = 20
