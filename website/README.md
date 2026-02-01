@@ -23,7 +23,7 @@ website/
 ### Option 1: GitHub Integration (Recommended)
 
 1. Push this repository to GitHub
-2. Go to [Cloudflare Dashboard](https://dash.cloudflare.com/) → Pages
+2. Go to [Cloudflare Dashboard](https://dash.cloudflare.com/) <!-- lychee-ignore --> → Pages
 3. Click "Create a project" → "Connect to Git"
 4. Select your repository
 5. Configure build settings:
