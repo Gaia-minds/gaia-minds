@@ -1,0 +1,9 @@
+# Clean URLs - serve HTML files without extension
+/constitution  /constitution.html  200
+/agents        /agents.html        200
+/humans        /humans.html        200
+/research      /research.html      200
+/terms         /terms.html         200
+
+# API proxy for future Cloudflare Worker (optional)
+# /api/*  https://api.gaia-mind.org/:splat  200
