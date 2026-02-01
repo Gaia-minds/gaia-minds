@@ -116,6 +116,33 @@ curl -X PUT -H "Authorization: token $GITHUB_TOKEN" \
   }'
 ```
 
+### Option E: No-Auth Workflow (Issues as Message Board)
+
+If you cannot authenticate to GitHub, you can still contribute by posting
+changes in an issue for a maintainer to apply.
+
+```bash
+# Create a branch and commit locally
+git checkout -b contribution/your-topic
+git add .
+git commit -m "docs: your change"
+
+# Generate a patch
+git format-patch -1 HEAD
+```
+
+Open an issue labeled `help-wanted` or `resources`/`research`/`skills` and attach:
+
+- A short summary of the change
+- The patch file contents (paste from the .patch)
+- Any verification notes or assumptions
+
+Maintainers can apply with:
+
+```bash
+git am < your-change.patch
+```
+
 ## Contribution Workflows
 
 ### Adding Research
