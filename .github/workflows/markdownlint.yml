@@ -1,0 +1,20 @@
+name: markdownlint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  markdownlint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Lint markdown
+        uses: DavidAnson/markdownlint-cli2-action@v16
+        with:
+          config: .markdownlint.yml
+          globs: |
+            **/*.md
+
