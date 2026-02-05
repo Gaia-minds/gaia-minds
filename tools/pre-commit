@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Pre-commit hook that mirrors the GitHub Actions CI checks locally.
+# Install with: make install-hooks
+#
+# Checks run (skipped if tool not installed):
+#   1. markdownlint on staged .md files
+#   2. INDEX.md staleness check (if content dirs were touched)
+#   3. gitleaks secret scan on staged changes
+#
+# To bypass in exceptional cases: git commit --no-verify
+
+root_dir="$(git rev-parse --show-toplevel)"
+failed=0
+
+# ── Helpers ──────────────────────────────────────────────────────────────
+
+red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
+dim()   { printf '\033[0;90m%s\033[0m\n' "$*"; }
+
+run_check() {
+    local label="$1"
+    shift
+    printf '  %-30s' "$label"
+    if "$@" >/dev/null 2>&1; then
+        green "OK"
+    else
+        red "FAIL"
+        failed=1
+    fi
+}
+
+skip_check() {
+    local label="$1"
+    local tool="$2"
+    printf '  %-30s' "$label"
+    dim "skipped ($tool not installed)"
+}
+
+echo "Running pre-commit checks..."
+echo ""
+
+# ── 1. Markdown lint on staged .md files ─────────────────────────────────
+
+staged_md=$(git diff --cached --name-only --diff-filter=ACM -- '*.md' || true)
+
+if [ -n "$staged_md" ]; then
+    if command -v markdownlint-cli2 >/dev/null 2>&1; then
+        printf '  %-30s' "markdownlint"
+        # shellcheck disable=SC2086
+        if markdownlint-cli2 --config "$root_dir/.markdownlint.yml" $staged_md >/dev/null 2>&1; then
+            green "OK"
+        else
+            red "FAIL"
+            echo ""
+            echo "  Markdown lint errors in staged files:"
+            # shellcheck disable=SC2086
+            markdownlint-cli2 --config "$root_dir/.markdownlint.yml" $staged_md 2>&1 | sed 's/^/    /'
+            failed=1
+        fi
+    else
+        skip_check "markdownlint" "markdownlint-cli2"
+    fi
+else
+    printf '  %-30s' "markdownlint"
+    dim "skipped (no staged .md files)"
+fi
+
+# ── 2. INDEX.md staleness check ──────────────────────────────────────────
+
+content_dirs="research/ resources/ philosophy/ infrastructure/ skills/"
+staged_content=$(git diff --cached --name-only --diff-filter=ACMR -- $content_dirs 2>/dev/null || true)
+
+if [ -n "$staged_content" ]; then
+    run_check "index staleness" python3 "$root_dir/tools/generate-indexes.py" --check
+    if [ "$failed" -eq 1 ]; then
+        echo ""
+        echo "  INDEX.md files are stale. Run: make generate-indexes"
+    fi
+else
+    printf '  %-30s' "index staleness"
+    dim "skipped (no content dir changes)"
+fi
+
+# ── 3. Secret scan on staged changes ────────────────────────────────────
+
+if command -v gitleaks >/dev/null 2>&1; then
+    # Scan only the staged diff, not the whole repo
+    printf '  %-30s' "secret scan"
+    staged_diff=$(git diff --cached --unified=0)
+    if [ -z "$staged_diff" ]; then
+        dim "skipped (no staged changes)"
+    elif echo "$staged_diff" | gitleaks detect --pipe --no-banner >/dev/null 2>&1; then
+        green "OK"
+    else
+        red "FAIL"
+        echo ""
+        echo "  Potential secrets detected in staged changes:"
+        echo "$staged_diff" | gitleaks detect --pipe --no-banner 2>&1 | sed 's/^/    /'
+        failed=1
+    fi
+else
+    skip_check "secret scan" "gitleaks"
+fi
+
+# ── Result ───────────────────────────────────────────────────────────────
+
+echo ""
+if [ "$failed" -ne 0 ]; then
+    red "Pre-commit checks failed. Fix the issues above or use --no-verify to skip."
+    exit 1
+else
+    green "All pre-commit checks passed."
+    exit 0
+fi
