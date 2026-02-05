@@ -1,0 +1,3 @@
+# Python dependencies for Gaia Minds tools.
+# Currently all tools use stdlib only. Add packages here as needed.
+# Install with: pip install -r requirements.txt

@@ -1,0 +1,59 @@
+name: generate-indexes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'research/**'
+      - 'resources/**'
+      - 'philosophy/**'
+      - 'infrastructure/**'
+      - 'skills/**'
+
+  pull_request:
+    paths:
+      - 'research/**'
+      - 'resources/**'
+      - 'philosophy/**'
+      - 'infrastructure/**'
+      - 'skills/**'
+
+permissions:
+  contents: write
+
+jobs:
+  # ── PR check: warn if indexes are stale ─────────────────────────────
+  check-indexes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check INDEX.md files are up to date
+        run: python3 tools/generate-indexes.py --check
+
+  # ── Push to main: regenerate and commit ─────────────────────────────
+  update-indexes:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Regenerate INDEX.md files
+        run: python3 tools/generate-indexes.py
+
+      - name: Commit updated indexes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add '*/INDEX.md'
+          if git diff --cached --quiet; then
+            echo "No INDEX.md changes to commit."
+          else
+            git commit -m "docs: auto-update INDEX.md files"
+            git push
+          fi
