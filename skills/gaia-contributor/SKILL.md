@@ -137,6 +137,10 @@ tools/scaffold.sh resource "provider name" -s optimization
 
 Fill in the generated template: Overview, Pricing/Limits, Getting Started, Terms.
 
+Important: do not commit placeholder `TBD` resource files. If you cannot verify
+details yet, add the topic to `resources/BACKLOG.md` or open a `resources`
+issue instead of merging a stub page.
+
 After adding resource URLs, verify they work:
 ```bash
 python3 tools/verify-resources.py --update    # checks URLs and stamps last-verified date

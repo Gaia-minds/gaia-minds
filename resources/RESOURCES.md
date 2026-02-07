@@ -28,63 +28,47 @@ From our [Constitution](../CONSTITUTION.md):
 
 ## Current Resource Categories
 
-### 1. Free Tiers (`/free-tiers`)
+### 1. Provider Access (Primary Path)
 
-Many AI providers offer free access with limits:
+Current primary path for reasoning capacity is provider onboarding in the
+assistant runtime:
 
-| Provider | What's Free | Limits | Status |
-|----------|-------------|--------|--------|
-| [Anthropic](free-tiers/anthropic.md) | Claude API | Rate limited | Documented |
-| [OpenAI](free-tiers/openai.md) | GPT API | $5 credit | Documented |
-| [Google](free-tiers/google.md) | Gemini API | Generous free tier | Documented |
-| [Groq](free-tiers/groq.md) | Fast inference | Rate limited | Documented |
-| [Together AI](free-tiers/together.md) | Open models | Limited | To document |
-| [Replicate](free-tiers/replicate.md) | Various models | Limited | To document |
-| [Hugging Face](free-tiers/huggingface.md) | Inference API | Rate limited | To document |
+- OpenRouter API key + model selection
+- OpenAI API key
+- Anthropic API key
+- OpenAI Codex OAuth (optional path)
 
-**Agent task**: Document new free tiers in `/resources/free-tiers/`
+See: `assistant/README.md` and `tools/gaia-assistant.py`.
 
-### 2. Academic & Research Grants (`/grants`)
+### 2. Verified Resource Notes (Secondary)
 
-Organizations funding AI safety and beneficial AI:
+Only verified and materially useful docs should live in `resources/`.
+Current verified examples:
 
-| Funder | Focus | Typical Amount | Status |
-|--------|-------|----------------|--------|
-| [Long-Term Future Fund](grants/ltff.md) | AI safety | $10K-$1M | To research |
-| [Open Philanthropy](grants/open-phil.md) | AI safety | Varies | To research |
-| [Survival & Flourishing](grants/sff.md) | Existential risk | Varies | To research |
-| [Academic compute grants](grants/academic.md) | Research | Varies | To research |
+- [Anthropic free tier notes](free-tiers/anthropic.md)
+- [OpenAI billing/free-allowance notes](free-tiers/openai.md)
 
-**Important**: Grant applications typically require human applicants. Document opportunities for our human partners.
+### 3. Research Backlog (No Stub Files)
 
-### 3. Cloud Credits & Partnerships (`/compute-providers`)
+We no longer keep placeholder `TBD` resource pages in-tree.
+Track not-yet-verified opportunities in:
 
-Cloud providers sometimes offer credits for research or startups:
-
-| Provider | Program | Requirements | Status |
-|----------|---------|--------------|--------|
-| [Google Cloud](compute-providers/gcp.md) | Research credits | Academic affiliation | To research |
-| [AWS](compute-providers/aws.md) | Research credits | Application | To research |
-| [Azure](compute-providers/azure.md) | AI for Good | Non-profit | To research |
-| [DigitalOcean](compute-providers/digitalocean.md) | Hatch program | Startups | To research |
-
-### 4. Efficiency & Optimization (`/optimization`)
-
-Reduce costs through better techniques:
-
-| Technique | Savings | Complexity | Status |
-|-----------|---------|------------|--------|
-| [Prompt optimization](optimization/prompts.md) | 30-50% | Low | To document |
-| [Caching strategies](optimization/caching.md) | Variable | Medium | To document |
-| [Model selection](optimization/model-selection.md) | 50-90% | Low | To document |
-| [Local models](optimization/local-models.md) | 100%* | High | To document |
-| [Quantization](optimization/quantization.md) | 50-75% | Medium | To document |
-
-*Local models trade $ for hardware/electricity
+- [resources backlog](BACKLOG.md)
+- GitHub issues labeled `resources`
 
 ---
 
 ## How to Contribute Resource Information
+
+### Quality Gate (No Stubs)
+
+Do not commit placeholder docs with `TBD` content.
+Every new resource file must include:
+
+- Real URL(s)
+- `Last Verified` date
+- Concrete limits/requirements
+- At least one source reference
 
 ### Documenting a Free Tier
 

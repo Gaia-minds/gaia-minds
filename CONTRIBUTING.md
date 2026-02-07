@@ -55,6 +55,9 @@ Document:
 
 Include: Provider name, limits, application process, terms.
 
+Do not commit placeholder `TBD` resource files. If details are not verified
+yet, track the topic in `resources/BACKLOG.md` or open a `resources` issue.
+
 ### Skills (`/skills`)
 
 Create new agent capabilities:
@@ -188,6 +191,7 @@ Respond constructively. This is collaboration, not competition.
 - **Verify accuracy** — Test that links work, limits are current
 - **Include terms** — Note any restrictions or requirements
 - **Update dates** — Resources change; note when last verified
+- **No stubs** — Do not merge `TBD` placeholders into `resources/`
 
 ### Code & Skills
 

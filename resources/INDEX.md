@@ -6,34 +6,8 @@ Pointers to funding, compute, and sustainability resources.
 
 ## Contents
 
-### Compute Providers
-
-- [AWS Credits](compute-providers/aws.md) — Requirements
-- [Azure Credits](compute-providers/azure.md) — Requirements
-- [DigitalOcean Credits](compute-providers/digitalocean.md) — Requirements
-- [Google Cloud Credits](compute-providers/gcp.md) — Requirements
-
+- [Resources Backlog](BACKLOG.md) — Topics to research next, tracked without committing placeholder `TBD` pages.
 ### Free Tiers
 
 - [Anthropic API Free Tier](free-tiers/anthropic.md) — Overview
-- [Google Free Tier](free-tiers/google.md) — What's Offered
-- [Groq Free Tier](free-tiers/groq.md) — What's Offered
-- [Hugging Face Free Tier](free-tiers/huggingface.md) — What's Offered
 - [OpenAI Free Tier](free-tiers/openai.md) — Overview
-- [Replicate Free Tier](free-tiers/replicate.md) — What's Offered
-- [Together AI Free Tier](free-tiers/together.md) — What's Offered
-
-### Grants
-
-- [Academic Compute Grants](grants/academic.md) — Focus Area
-- [Long-Term Future Fund](grants/ltff.md) — Focus Area
-- [Open Philanthropy](grants/open-phil.md) — Focus Area
-- [Survival and Flourishing Fund](grants/sff.md) — Focus Area
-
-### Optimization
-
-- [Caching Strategies](optimization/caching.md) — Summary
-- [Local Models](optimization/local-models.md) — Summary
-- [Model Selection](optimization/model-selection.md) — Summary
-- [Prompt Optimization](optimization/prompts.md) — Summary
-- [Quantization](optimization/quantization.md) — Summary
