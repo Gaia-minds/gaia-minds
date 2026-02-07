@@ -161,6 +161,14 @@ skills/your-skill-name/
 └── assets/           # Optional: templates, images
 ```
 
+### Assistant Track Contributions
+
+For OpenClaw-powered personal assistant work:
+
+1. Read `infrastructure/personal-assistant-program.md`
+2. Use `skills/gaia-assistant-builder/SKILL.md`
+3. Start from `.github/ISSUE_TEMPLATE/assistant-direction.yml`
+
 ### Opening Issues
 
 For proposals, questions, or coordination:

@@ -1,0 +1,91 @@
+name: Assistant Direction
+description: Direct Gaia assistant work with explicit scope, constraints, and success criteria.
+title: "[ASSISTANT] "
+labels:
+  - human-input
+  - infrastructure
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to direct Gaia assistant work.
+        Be explicit so agents can execute without guessing.
+
+  - type: input
+    id: objective
+    attributes:
+      label: Objective
+      description: What should the assistant achieve?
+      placeholder: Example: Build a weekly planning workflow for my personal inbox.
+    validations:
+      required: true
+
+  - type: textarea
+    id: user_outcome
+    attributes:
+      label: User-facing outcome
+      description: What should be true for the user when this is complete?
+      placeholder: Example: I can send one message and receive a prioritized weekly plan.
+    validations:
+      required: true
+
+  - type: textarea
+    id: in_scope
+    attributes:
+      label: In-scope work
+      description: List what agents are allowed to implement.
+      placeholder: |
+        - Add assistant workflow docs
+        - Add issue/skill updates
+        - Add automation script
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out-of-scope work
+      description: List what should NOT be done.
+      placeholder: |
+        - No runtime changes in OpenClaw core
+        - No changes outside assistant track docs
+    validations:
+      required: true
+
+  - type: textarea
+    id: success_criteria
+    attributes:
+      label: Success criteria
+      description: How should contributors verify completion?
+      placeholder: |
+        - Docs merged with clear quick start
+        - Skill install path tested
+        - PR links for Gaia and OpenClaw provided
+    validations:
+      required: true
+
+  - type: textarea
+    id: safety_constraints
+    attributes:
+      label: Safety constraints
+      description: Any non-negotiable safety or compliance constraints.
+      placeholder: |
+        - No hidden behavior
+        - No bypass of review
+        - Must remain constitutionally aligned
+    validations:
+      required: true
+
+  - type: dropdown
+    id: budget_split
+    attributes:
+      label: Preferred budget split
+      description: Split token budget between user service and self-improvement.
+      options:
+        - "80/20 (recommended)"
+        - "90/10"
+        - "70/30"
+        - "Custom (describe in comments)"
+    validations:
+      required: true
+

@@ -36,6 +36,14 @@ See [CONSTITUTION.md](CONSTITUTION.md) for our full value system. The essentials
 3. Check [ROADMAP.md](ROADMAP.md) — See what needs work
 4. Pick an issue or create one — Start contributing!
 
+### Assistant Track
+
+If you want to contribute to the OpenClaw-powered assistant direction, start here:
+
+1. Read [infrastructure/personal-assistant-program.md](infrastructure/personal-assistant-program.md)
+2. Use [skills/gaia-assistant-builder/SKILL.md](skills/gaia-assistant-builder/SKILL.md)
+3. Open or claim a direction issue using [.github/ISSUE_TEMPLATE/assistant-direction.yml](.github/ISSUE_TEMPLATE/assistant-direction.yml)
+
 ### Ways to Contribute
 
 - **Research**: Add findings to `/research` on AI advances, safety, alignment
@@ -84,12 +92,15 @@ gaia-minds/
 │       └── anthropic.md
 │
 ├── skills/                  # Agent capabilities
-│   └── gaia-contributor/
+│   ├── gaia-contributor/
+│       └── SKILL.md
+│   └── gaia-assistant-builder/
 │       └── SKILL.md
 │
 ├── infrastructure/          # Technical foundation
 │   ├── architecture.md
-│   └── security.md
+│   ├── security.md
+│   └── personal-assistant-program.md
 │
 ├── philosophy/              # Deep questions
 │   ├── what-is-benevolence.md
