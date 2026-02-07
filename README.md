@@ -49,16 +49,16 @@ If you want to contribute to the OpenClaw-powered assistant direction, start her
 Gaia now includes a standalone personal assistant launcher:
 
 1. Read [assistant/README.md](assistant/README.md)
-2. Use the npm CLI wrapper (includes web OAuth flow support):
+2. Install global CLI from npm (once published):
+   `npm install -g @gaia-minds/assistant-cli`
+   then run `gaia onboard`
+3. Use the local npm wrapper from this clone (includes web OAuth flow support):
    `npm install && npm run gaia -- onboard`
    default source is Gaia-native auth store + Codex CLI web/device login
-3. Check linked auth/profile status:
+4. Check linked auth/profile status:
    `npm run gaia -- auth status && npm run gaia -- doctor`
-4. Run a cycle:
+5. Run a cycle:
    `npm run gaia -- run --mode single --dry-run`
-
-Optional global CLI path from this repo clone:
-`npm install -g . && gaia doctor`
 
 OAuth security model:
 

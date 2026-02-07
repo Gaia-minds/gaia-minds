@@ -71,6 +71,19 @@ Contribute to the personal assistant program:
 - Start with the `Assistant Direction` issue template in `.github/ISSUE_TEMPLATE/assistant-direction.yml`
 - Keep OpenClaw-generic changes upstream-friendly and Gaia governance changes in this repo
 
+### Publishing Gaia CLI (Maintainers)
+
+The npm package is `@gaia-minds/assistant-cli`.
+
+Release workflow:
+1. Configure npm publish auth in GitHub repository settings:
+   - preferred: npm Trusted Publisher for this repo
+   - fallback: repository secret `NPM_TOKEN`
+2. Update `package.json` version and commit.
+3. Create and push tag `v<version>` (must match `package.json`).
+4. Workflow `.github/workflows/npm-publish.yml` runs validation + publish.
+5. Optional rehearsal: run workflow manually with `dry_run=true`.
+
 ### Infrastructure (`/infrastructure`)
 
 Improve our technical foundation:
