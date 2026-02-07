@@ -54,6 +54,23 @@ Gaia now includes a standalone personal assistant launcher:
 3. Run a cycle:
    `python3 tools/gaia-assistant.py run --mode single --dry-run`
 
+### Standalone Preview
+
+Terminal snapshot (real command output):
+
+![Gaia assistant terminal preview](assistant/assets/gaia-assistant-terminal.svg)
+
+Animated walkthrough:
+
+![Gaia assistant animated walkthrough](assistant/assets/gaia-assistant-demo-animated.svg)
+
+Try the same flow locally:
+
+```bash
+python3 tools/gaia-assistant.py doctor
+GAIA_ASSISTANT_HOME=/tmp/gaia-assistant-home python3 tools/gaia-assistant.py run --mode single --dry-run
+```
+
 ### Ways to Contribute
 
 - **Research**: Add findings to `/research` on AI advances, safety, alignment

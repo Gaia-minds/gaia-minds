@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760" fill="none">
+  <defs>
+    <style>
+      .frame { fill: #0A101D; }
+      .panel { fill: #11182B; stroke: #2A3552; }
+      .titlebar { fill: #1A2340; }
+      .text { fill: #D3DCFF; font-family: monospace; font-size: 18px; }
+      .cmd { fill: #7EE787; font-family: monospace; font-size: 20px; }
+      .ok { fill: #7EE787; font-family: monospace; font-size: 18px; }
+      .warn { fill: #F2CC60; font-family: monospace; font-size: 18px; }
+      .line {
+        opacity: 0;
+        animation: reveal 12s linear infinite;
+      }
+      .l1 { animation-delay: 0.2s; }
+      .l2 { animation-delay: 0.8s; }
+      .l3 { animation-delay: 1.4s; }
+      .l4 { animation-delay: 2.0s; }
+      .l5 { animation-delay: 2.6s; }
+      .l6 { animation-delay: 3.2s; }
+      .l7 { animation-delay: 4.2s; }
+      .l8 { animation-delay: 4.9s; }
+      .l9 { animation-delay: 5.6s; }
+      .l10 { animation-delay: 6.3s; }
+      .l11 { animation-delay: 7.0s; }
+      .l12 { animation-delay: 7.7s; }
+      .cursor {
+        animation: blink 1s steps(1, end) infinite;
+      }
+      .bar-bg { fill: #243558; }
+      .bar-fill {
+        fill: #7EE787;
+        transform-origin: 0 0;
+        animation: fillbar 12s linear infinite;
+      }
+      @keyframes reveal {
+        0% { opacity: 0; }
+        4% { opacity: 1; }
+        100% { opacity: 1; }
+      }
+      @keyframes blink {
+        0% { opacity: 0; }
+        50% { opacity: 1; }
+        100% { opacity: 0; }
+      }
+      @keyframes fillbar {
+        0% { transform: scaleX(0.08); }
+        35% { transform: scaleX(0.08); }
+        55% { transform: scaleX(0.56); }
+        100% { transform: scaleX(1); }
+      }
+    </style>
+  </defs>
+
+  <rect class="frame" width="1280" height="760" rx="20"/>
+  <rect class="panel" x="36" y="30" width="1208" height="700" rx="16"/>
+  <rect class="titlebar" x="36" y="30" width="1208" height="52" rx="16"/>
+  <circle cx="72" cy="56" r="8" fill="#FF5F57"/>
+  <circle cx="100" cy="56" r="8" fill="#FEBC2E"/>
+  <circle cx="128" cy="56" r="8" fill="#28C840"/>
+  <text x="160" y="62" fill="#D3DCFF" font-size="20" font-family="monospace">gaia-assistant animated walkthrough</text>
+
+  <text class="cmd line l1" x="70" y="130">$ python3 tools/gaia-assistant.py doctor</text>
+  <text class="text line l2" x="70" y="164">Gaia assistant doctor</text>
+  <text class="ok line l3" x="70" y="190">[ok]</text>
+  <text class="text line l3" x="122" y="190">required command found: python3</text>
+  <text class="ok line l4" x="70" y="216">[ok]</text>
+  <text class="text line l4" x="122" y="216">required command found: git</text>
+  <text class="warn line l5" x="70" y="242">[warn]</text>
+  <text class="text line l5" x="136" y="242">no API key env vars found</text>
+
+  <text class="cmd line l6" x="70" y="292">$ GAIA_ASSISTANT_HOME=/tmp/gaia-assistant-home-demo \</text>
+  <text class="cmd line l7" x="100" y="320">python3 tools/gaia-assistant.py run --mode single --dry-run</text>
+  <text class="text line l8" x="70" y="356">15:27:32 [INFO] Loaded config: gaia-agent v0.1.0</text>
+  <text class="text line l9" x="70" y="384">15:27:33 [INFO] Active track: assistant (service=80%, self_improvement=20%)</text>
+  <text class="text line l10" x="70" y="412">15:27:33 [INFO] No Anthropic client available -- skipping Claude reasoning (dry-run)</text>
+  <text class="text line l11" x="70" y="440">15:27:33 [INFO] No actions proposed this cycle.</text>
+  <text class="ok line l12" x="70" y="468">15:27:33 [INFO] Cycle 2 complete: 0 succeeded, 0 failed</text>
+
+  <rect x="70" y="526" width="1140" height="136" rx="12" fill="#0D1324" stroke="#324164"/>
+  <text x="92" y="562" fill="#AFC2F8" font-size="20" font-family="monospace">Progress to first successful local cycle</text>
+  <rect class="bar-bg" x="92" y="584" width="1098" height="22" rx="8"/>
+  <rect class="bar-fill" x="92" y="584" width="1098" height="22" rx="8"/>
+  <text class="text" x="92" y="640">Gaia can run standalone now; add provider auth when you are ready.</text>
+  <rect class="cursor" x="1026" y="305" width="12" height="24" fill="#D3DCFF"/>
+</svg>
