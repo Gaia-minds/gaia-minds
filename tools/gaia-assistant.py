@@ -26,6 +26,7 @@ DEFAULT_STATE_DIR = DEFAULT_HOME / "state"
 DEFAULT_CONFIG_PATH = DEFAULT_HOME / "config.json"
 AGENT_CONFIG_PATH = SCRIPT_DIR / "agent-config.yml"
 AGENT_LOOP_PATH = SCRIPT_DIR / "agent-loop.py"
+DEFAULT_LAUNCHER_HINT = "python3 tools/gaia-assistant.py"
 DEFAULT_GAIA_AUTH_STORE = DEFAULT_HOME / "auth-profiles.json"
 DEFAULT_CODEX_AUTH_PATH = Path(
     os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))
@@ -56,6 +57,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "default": "auto",
     },
 }
+
+
+def _launcher_hint() -> str:
+    hint = os.environ.get("GAIA_ASSISTANT_CLI_HINT", "").strip()
+    return hint if hint else DEFAULT_LAUNCHER_HINT
 
 
 def _load_json(path: Path) -> Dict[str, Any]:
@@ -450,13 +456,14 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     cfg = _load_json(cfg_path)
     if not cfg:
         print(f"[warn] launcher config not found yet: {cfg_path}")
-        print("       run `python3 tools/gaia-assistant.py init` or `... onboard`")
+        launcher = _launcher_hint()
+        print(f"       run `{launcher} init` or `{launcher} onboard`")
     else:
         cfg = _normalize_config(cfg)
         active = cfg.get("auth", {}).get("active_profile")
         if not isinstance(active, dict):
             print("[warn] no linked OAuth profile in launcher config")
-            print("       run `python3 tools/gaia-assistant.py onboard`")
+            print(f"       run `{_launcher_hint()} onboard`")
         else:
             credential, error = _read_linked_credential(active)
             if credential is None:
@@ -513,7 +520,7 @@ def cmd_onboard(args: argparse.Namespace) -> int:
         proceed = input("Start web OAuth login now? [Y/n]: ").strip().lower()
     if proceed in ("n", "no"):
         print("Skipped OAuth login. Run this later:")
-        print("  python3 tools/gaia-assistant.py auth login --provider openai-codex")
+        print(f"  {_launcher_hint()} auth login --provider openai-codex")
         return 0
 
     login_args = argparse.Namespace(
@@ -689,7 +696,7 @@ def cmd_auth_status(args: argparse.Namespace) -> int:
     active = cfg.get("auth", {}).get("active_profile")
     if not isinstance(active, dict):
         print("No linked auth profile in launcher config.")
-        print("Run: python3 tools/gaia-assistant.py auth login --provider openai-codex")
+        print(f"Run: {_launcher_hint()} auth login --provider openai-codex")
         return 1
 
     provider = str(active.get("provider", "")).strip()

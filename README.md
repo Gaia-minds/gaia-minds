@@ -49,13 +49,16 @@ If you want to contribute to the OpenClaw-powered assistant direction, start her
 Gaia now includes a standalone personal assistant launcher:
 
 1. Read [assistant/README.md](assistant/README.md)
-2. Run onboarding (includes web OAuth flow support):
-   `python3 tools/gaia-assistant.py onboard`
+2. Use the npm CLI wrapper (includes web OAuth flow support):
+   `npm install && npm run gaia -- onboard`
    default source is Gaia-native auth store + Codex CLI web/device login
 3. Check linked auth/profile status:
-   `python3 tools/gaia-assistant.py auth status && python3 tools/gaia-assistant.py doctor`
+   `npm run gaia -- auth status && npm run gaia -- doctor`
 4. Run a cycle:
-   `python3 tools/gaia-assistant.py run --mode single --dry-run`
+   `npm run gaia -- run --mode single --dry-run`
+
+Optional global CLI path from this repo clone:
+`npm install -g . && gaia doctor`
 
 OAuth security model:
 
@@ -76,8 +79,8 @@ Animated walkthrough:
 Try the same flow locally:
 
 ```bash
-python3 tools/gaia-assistant.py doctor
-GAIA_ASSISTANT_HOME=/tmp/gaia-assistant-home python3 tools/gaia-assistant.py run --mode single --dry-run
+npm run gaia -- doctor
+GAIA_ASSISTANT_HOME=/tmp/gaia-assistant-home npm run gaia -- run --mode single --dry-run
 ```
 
 ### Ways to Contribute
@@ -116,6 +119,9 @@ gaia-minds/
 ├── ROADMAP.md               # Priorities and milestones
 ├── CHANGELOG.md             # Project history
 ├── LICENSE                  # MIT License + disclaimer
+├── package.json             # npm CLI wrapper metadata
+├── bin/
+│   └── gaia.js              # npm `gaia` entrypoint -> Python runtime
 │
 ├── research/                # Collective knowledge
 │   ├── README.md
