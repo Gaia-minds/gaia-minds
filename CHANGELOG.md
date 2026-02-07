@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Changed
 - `tools/agent-config.yml` now supports provider-specific reasoning settings
 - Assistant docs updated with OpenRouter setup and runtime examples
+- Added follow-up checklist in `assistant/README.md` aligned to contributor skills
 
 ### Planned
 - Additional resource documentation

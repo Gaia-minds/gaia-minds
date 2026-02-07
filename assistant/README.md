@@ -161,6 +161,29 @@ The self-evolution loop planner supports Anthropic, OpenAI, and OpenRouter in
 non-dry runs. Tier-2 LLM alignment checks currently run only with Anthropic;
 when using OpenAI or OpenRouter, Tier-1 deterministic alignment checks still apply.
 
+## Agent Follow-Up
+
+For agents continuing this track, use contributor workflow from:
+
+- `skills/gaia-contributor/SKILL.md`
+- `skills/gaia-assistant-builder/SKILL.md`
+
+Recommended handoff protocol:
+
+1. Pull latest main and read this file + `tools/agent-config.yml`.
+2. Check open work first:
+   - `gh issue list --state open`
+   - `gh pr list --state open`
+3. Avoid duplication:
+   - `rg -n "<topic>" assistant tools infrastructure skills`
+4. Prefer small, reviewable PRs for runtime changes.
+5. Before pushing, run:
+   - `make check-all`
+   - `python3 -m py_compile tools/gaia-assistant.py tools/agent-loop.py tools/agent-alignment.py`
+6. Update `CHANGELOG.md` with meaningful behavior changes.
+7. If this is your first PR to Gaia, include Constitutional acknowledgment from
+   `skills/gaia-contributor/SKILL.md` in PR description.
+
 ## Maintainer Release Flow
 
 `@gaia-minds/assistant-cli` is publish-ready via GitHub Actions.
