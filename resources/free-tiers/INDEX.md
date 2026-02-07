@@ -6,12 +6,10 @@ terms, and verification status.
 | Provider | File | Status |
 | --- | --- | --- |
 | Anthropic | [anthropic.md](anthropic.md) | Needs verification |
-| Google | [google.md](google.md) | Needs verification |
-| Groq | [groq.md](groq.md) | Needs verification |
-| Hugging Face | [huggingface.md](huggingface.md) | Needs verification |
 | OpenAI | [openai.md](openai.md) | Limited free storage (verified 2026-02-01) |
-| Replicate | [replicate.md](replicate.md) | Needs verification |
-| Together | [together.md](together.md) | Needs verification |
+
+Additional providers are tracked in `resources/BACKLOG.md` until verified pages
+are added.
 
 ## Add A New Provider
 
