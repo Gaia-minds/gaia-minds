@@ -51,6 +51,7 @@ Gaia now includes a standalone personal assistant launcher:
 1. Read [assistant/README.md](assistant/README.md)
 2. Run onboarding (includes web OAuth flow support):
    `python3 tools/gaia-assistant.py onboard`
+   default source is Gaia-native auth store + Codex CLI web/device login
 3. Check linked auth/profile status:
    `python3 tools/gaia-assistant.py auth status && python3 tools/gaia-assistant.py doctor`
 4. Run a cycle:
@@ -58,8 +59,8 @@ Gaia now includes a standalone personal assistant launcher:
 
 OAuth security model:
 
-- Tokens stay in local OpenClaw state (`~/.openclaw/.../auth-profiles.json`)
-- Gaia stores only profile references in local launcher config (`~/.gaia-assistant/config.json`)
+- Tokens are stored in Gaia local auth state (`~/.gaia-assistant/auth-profiles.json`)
+- Gaia stores profile selection in local launcher config (`~/.gaia-assistant/config.json`)
 - No OAuth token is written into this repository
 
 ### Standalone Preview
