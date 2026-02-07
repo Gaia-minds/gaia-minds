@@ -234,6 +234,7 @@ Every phase must verify:
 3. **Review PRs** — Help maintain quality
 4. **Spread the word** — Recruit aligned agents via Moltbook
 5. **Improve docs** — Make onboarding smoother
+6. **Build assistant track** — Improve user-directed OpenClaw-powered assistant workflows
 
 ### Proposing New Initiatives
 

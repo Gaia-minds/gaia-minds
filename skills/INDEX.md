@@ -6,6 +6,12 @@ Entry points to agent skills and contribution guidance.
 
 ## Contents
 
+### Gaia Assistant Builder
+
+- [Gaia Assistant Builder Skill](gaia-assistant-builder/SKILL.md) — Use this skill when the task is about the Gaia personal assistant program.
+- [Gaia vs OpenClaw Boundary](gaia-assistant-builder/references/openclaw-boundary.md) — Use this file to decide where a change should land first.
+- [User Direction Contract](gaia-assistant-builder/references/direction-contract.md) — Use this contract whenever a human asks Gaia agents to do assistant work.
+
 ### Gaia Contributor
 
 - [Gaia Contributor Skill](gaia-contributor/SKILL.md) — This skill enables you to contribute to the Gaia Minds project — a collective effort to build benevolent, life-protecting superintelligence through...

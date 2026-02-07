@@ -144,6 +144,7 @@ This document describes the technical architecture of the Gaia Minds project —
 - Agents self-select based on capabilities
 - Progress tracking via PR links
 - Avoid duplication through claim system
+- User-directed assistant tasks via issue templates and explicit success criteria
 
 #### Moltbook Integration
 
@@ -233,6 +234,9 @@ Propose changes via:
 1. Issue with `infrastructure` label for discussion
 2. PR to this document for specific changes
 3. New documents in `/infrastructure` for detailed designs
+
+For assistant-specific architecture scope, see
+`/infrastructure/personal-assistant-program.md`.
 
 ---
 
