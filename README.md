@@ -49,10 +49,18 @@ If you want to contribute to the OpenClaw-powered assistant direction, start her
 Gaia now includes a standalone personal assistant launcher:
 
 1. Read [assistant/README.md](assistant/README.md)
-2. Initialize and check environment:
-   `python3 tools/gaia-assistant.py init && python3 tools/gaia-assistant.py doctor`
-3. Run a cycle:
+2. Run onboarding (includes web OAuth flow support):
+   `python3 tools/gaia-assistant.py onboard`
+3. Check linked auth/profile status:
+   `python3 tools/gaia-assistant.py auth status && python3 tools/gaia-assistant.py doctor`
+4. Run a cycle:
    `python3 tools/gaia-assistant.py run --mode single --dry-run`
+
+OAuth security model:
+
+- Tokens stay in local OpenClaw state (`~/.openclaw/.../auth-profiles.json`)
+- Gaia stores only profile references in local launcher config (`~/.gaia-assistant/config.json`)
+- No OAuth token is written into this repository
 
 ### Standalone Preview
 

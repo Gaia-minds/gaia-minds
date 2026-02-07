@@ -1,4 +1,4 @@
-.PHONY: docs-check verify-resources generate-indexes check-indexes check-all install-hooks uninstall-hooks assistant-init assistant-doctor assistant-run-dry
+.PHONY: docs-check verify-resources generate-indexes check-indexes check-all install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
 
 docs-check:
 	./tools/validate-docs.sh
@@ -26,6 +26,12 @@ uninstall-hooks:
 
 assistant-init:
 	python3 ./tools/gaia-assistant.py init
+
+assistant-onboard:
+	python3 ./tools/gaia-assistant.py onboard
+
+assistant-auth-status:
+	python3 ./tools/gaia-assistant.py auth status
 
 assistant-doctor:
 	python3 ./tools/gaia-assistant.py doctor
