@@ -1,0 +1,190 @@
+{
+  "timestamp": "2026-02-07T23:45:29.401216+00:00",
+  "gaia_assistant_home": "/tmp/gaia-hardening-8gs42xi5/assistant-home",
+  "total": 20,
+  "passed": 20,
+  "failed": 0,
+  "pass_rate_pct": 100.0,
+  "results": [
+    {
+      "check_id": "T01",
+      "title": "Config set name",
+      "command": "node ./bin/gaia.js config set name HardeningUser",
+      "passed": true,
+      "details": "expected output to contain: 'profile.name=HardeningUser'",
+      "stdout": "profile.name=HardeningUser",
+      "stderr": ""
+    },
+    {
+      "check_id": "T02",
+      "title": "Config get name",
+      "command": "node ./bin/gaia.js config get name",
+      "passed": true,
+      "details": "expected output to contain: 'HardeningUser'",
+      "stdout": "HardeningUser",
+      "stderr": ""
+    },
+    {
+      "check_id": "T03",
+      "title": "Config set verbosity",
+      "command": "node ./bin/gaia.js config set verbosity concise",
+      "passed": true,
+      "details": "expected output to contain: 'profile.verbosity=concise'",
+      "stdout": "profile.verbosity=concise",
+      "stderr": ""
+    },
+    {
+      "check_id": "T04",
+      "title": "Config set provider",
+      "command": "node ./bin/gaia.js config set provider openai",
+      "passed": true,
+      "details": "expected output to contain: 'profile.default_provider=openai'",
+      "stdout": "profile.default_provider=openai",
+      "stderr": ""
+    },
+    {
+      "check_id": "T05",
+      "title": "Capability list baseline",
+      "command": "node ./bin/gaia.js capability list",
+      "passed": true,
+      "details": "expected output to contain: 'send_email forbidden'",
+      "stdout": "delete_files confirm\nexternal_messaging forbidden\nfile_read safe\nfile_write safe\nnetwork_request safe\nsend_email forbidden\nshell_exec confirm",
+      "stderr": ""
+    },
+    {
+      "check_id": "T06",
+      "title": "Capability override confirm",
+      "command": "node ./bin/gaia.js capability set send_email confirm",
+      "passed": true,
+      "details": "expected output to contain: 'capabilities.overrides.send_email=confirm'",
+      "stdout": "capabilities.overrides.send_email=confirm",
+      "stderr": ""
+    },
+    {
+      "check_id": "T07",
+      "title": "Chat starts new session",
+      "command": "printf 'hello\\n/exit\\n' | node ./bin/gaia.js chat",
+      "passed": true,
+      "details": "expected output to contain: 'Started session:'",
+      "stdout": "Started session: s20260207234526-d8370b\nProvider: openai | Model: gpt-4.1-mini\nType /help for commands.\nyou> gaia> [local-openai] hello\nContext messages: 1 | model: gpt-4.1-mini.\nyou> Session saved: s20260207234526-d8370b",
+      "stderr": ""
+    },
+    {
+      "check_id": "T08",
+      "title": "Chat resumes last session",
+      "command": "printf '/exit\\n' | node ./bin/gaia.js chat --resume last",
+      "passed": true,
+      "details": "expected output to contain: 'Resumed session:'",
+      "stdout": "Resumed session: s20260207234526-d8370b\nProvider: openai | Model: gpt-4.1-mini\nType /help for commands.\nyou> Session saved: s20260207234526-d8370b",
+      "stderr": ""
+    },
+    {
+      "check_id": "T09",
+      "title": "Confirm action denied",
+      "command": "printf 'delete all files in ~/docs\\nn\\n/exit\\n' | node ./bin/gaia.js chat",
+      "passed": true,
+      "details": "expected output to contain: 'Action blocked by capability policy.'",
+      "stdout": "Started session: s20260207234527-555646\nProvider: openai | Model: gpt-4.1-mini\nType /help for commands.\nyou> This action may delete files. Continue? [y/N]: gaia> Action blocked by capability policy.\nyou> Session saved: s20260207234527-555646",
+      "stderr": ""
+    },
+    {
+      "check_id": "T10",
+      "title": "Capability override forbidden",
+      "command": "node ./bin/gaia.js capability set send_email forbidden",
+      "passed": true,
+      "details": "expected output to contain: 'capabilities.overrides.send_email=forbidden'",
+      "stdout": "capabilities.overrides.send_email=forbidden",
+      "stderr": ""
+    },
+    {
+      "check_id": "T11",
+      "title": "Forbidden action blocked",
+      "command": "printf 'send email to team\\n/exit\\n' | node ./bin/gaia.js chat",
+      "passed": true,
+      "details": "expected output to contain: 'Action blocked by capability policy.'",
+      "stdout": "Started session: s20260207234527-426952\nProvider: openai | Model: gpt-4.1-mini\nType /help for commands.\nyou> gaia> Action blocked by capability policy.\nyou> Session saved: s20260207234527-426952",
+      "stderr": ""
+    },
+    {
+      "check_id": "T12",
+      "title": "Task capture",
+      "command": "node ./bin/gaia.js note --task 'Review the Phase 1 roadmap'",
+      "passed": true,
+      "details": "expected output to contain: 'Review the Phase 1 roadmap'",
+      "stdout": "t20260207234527-6dc1da open Review the Phase 1 roadmap",
+      "stderr": ""
+    },
+    {
+      "check_id": "T13",
+      "title": "Note capture",
+      "command": "node ./bin/gaia.js note 'Plain note for hardening'",
+      "passed": true,
+      "details": "expected output to contain: 'Plain note for hardening'",
+      "stdout": "n20260207234527-aa5000 Plain note for hardening",
+      "stderr": ""
+    },
+    {
+      "check_id": "T14",
+      "title": "Tasks list all",
+      "command": "node ./bin/gaia.js tasks --status all",
+      "passed": true,
+      "details": "expected output to contain: 'Review the Phase 1 roadmap'",
+      "stdout": "t20260207234527-6dc1da open 2026-02-07T23:45:27.776058+00:00 Review the Phase 1 roadmap",
+      "stderr": ""
+    },
+    {
+      "check_id": "T15",
+      "title": "Task filter query",
+      "command": "node ./bin/gaia.js tasks --status all --q roadmap",
+      "passed": true,
+      "details": "expected output to contain: 'Review the Phase 1 roadmap'",
+      "stdout": "t20260207234527-6dc1da open 2026-02-07T23:45:27.776058+00:00 Review the Phase 1 roadmap",
+      "stderr": ""
+    },
+    {
+      "check_id": "T16",
+      "title": "Summarize URL",
+      "command": "node ./bin/gaia.js summarize file:///tmp/gaia-hardening-8gs42xi5/sample-summary.html",
+      "passed": true,
+      "details": "expected output to contain: 'Hardening Summary Fixture'",
+      "stdout": "- Hardening Summary Fixture\n  URL: file:///tmp/gaia-hardening-8gs42xi5/sample-summary.html\n  Date: 2026-02-07T23:45:28.591009+00:00\n  * Hardening Summary Fixture This fixture validates summarize and summaries workflows.\n  * It also ensures deterministic checks for phase one hardening.",
+      "stderr": ""
+    },
+    {
+      "check_id": "T17",
+      "title": "Summaries list",
+      "command": "node ./bin/gaia.js summaries --last 5",
+      "passed": true,
+      "details": "expected output to contain: 'Hardening Summary Fixture'",
+      "stdout": "s20260207234528-77353e 2026-02-07T23:45:28.591009+00:00 Hardening Summary Fixture (file:///tmp/gaia-hardening-8gs42xi5/sample-summary.html)",
+      "stderr": ""
+    },
+    {
+      "check_id": "T18",
+      "title": "Plan generation",
+      "command": "node ./bin/gaia.js plan 'Set up a personal knowledge base'",
+      "passed": true,
+      "details": "expected output to contain: 'Plan p'",
+      "stdout": "Plan p20260207234528-981877\nObjective: Set up a personal knowledge base\nComplexity: medium\nDependencies:\n- reference material access\n- time allocation\nSteps:\n1. Clarify the objective and success criteria for 'Set up a personal knowledge base'.\n2. Break the objective into concrete milestones with owners and deadlines.\n3. Execute the milestones in priority order and capture outputs.\n4. Review results, identify gaps, and schedule next iteration.",
+      "stderr": ""
+    },
+    {
+      "check_id": "T19",
+      "title": "Plan refinement",
+      "command": "node ./bin/gaia.js plan --edit p20260207234528-981877 --update 'Add weekly maintenance and backup checkpoints'",
+      "passed": true,
+      "details": "expected output to contain: 'Updated plan'",
+      "stdout": "Updated plan p20260207234528-981877",
+      "stderr": ""
+    },
+    {
+      "check_id": "T20",
+      "title": "Plans list",
+      "command": "node ./bin/gaia.js plans --last 5",
+      "passed": true,
+      "details": "expected output to contain: 'Set up a personal knowledge base'",
+      "stdout": "p20260207234528-981877 medium 2026-02-07T23:45:29.194789+00:00 Set up a personal knowledge base",
+      "stderr": ""
+    }
+  ]
+}
