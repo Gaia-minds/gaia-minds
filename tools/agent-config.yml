@@ -1,0 +1,91 @@
+# =============================================================================
+# Gaia Minds -- Self-Evolving Agent Configuration
+# =============================================================================
+# This file configures the autonomous agent that contributes to the Gaia Minds
+# repository.  The agent runs on a schedule, picks tasks, validates them against
+# the Constitution, and opens PRs (or auto-executes low-risk actions).
+#
+# SECURITY NOTE: No secrets are stored here.  The Anthropic API key is read
+# from the ANTHROPIC_API_KEY environment variable at runtime.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Agent identity
+# ---------------------------------------------------------------------------
+agent:
+  name: "gaia-agent"
+  version: "0.1.0"
+  description: "Self-evolving autonomous agent for Gaia Minds"
+
+# ---------------------------------------------------------------------------
+# Claude API settings
+# ---------------------------------------------------------------------------
+reasoning:
+  model: "claude-sonnet-4-5-20250929"  # default model for reasoning
+  max_tokens: 4096
+  temperature: 0.3  # low for consistent reasoning
+  # API key comes from ANTHROPIC_API_KEY env var, never stored in config
+
+# ---------------------------------------------------------------------------
+# Cycle settings
+# ---------------------------------------------------------------------------
+cycle:
+  mode: "single"  # "single" (one cycle then exit), "continuous" (loop), "scheduled" (cron via GH Actions)
+  interval_minutes: 60  # for continuous mode
+  max_cycles: 0  # 0 = unlimited
+
+# ---------------------------------------------------------------------------
+# Risk classification for auto-execution vs PR
+# ---------------------------------------------------------------------------
+risk:
+  auto_execute:  # actions that can be done without PR
+    - "verify_resources"
+    - "generate_indexes"
+    - "gather_state"
+  auto_pr:  # actions that auto-create a PR and wait for review
+    - "add_research"
+    - "add_resource"
+    - "create_tool"
+    - "update_skill"
+  require_review:  # actions that need explicit human approval (creates issue, not PR)
+    - "modify_agent_loop"
+    - "modify_agent_config"
+    - "modify_alignment_checker"
+    - "modify_constitution_reference"
+  forbidden:  # actions the agent must never take
+    - "delete_constitution"
+    - "disable_hooks"
+    - "merge_own_pr"
+    - "modify_git_history"
+    - "bypass_review"
+
+# ---------------------------------------------------------------------------
+# Memory settings
+# ---------------------------------------------------------------------------
+memory:
+  max_decisions_log_entries: 500  # rotate old entries
+  max_lessons_entries: 100
+  summary_interval_cycles: 10  # every N cycles, summarize lessons
+
+# ---------------------------------------------------------------------------
+# GitHub settings
+# ---------------------------------------------------------------------------
+github:
+  repo: "Gaia-minds/gaia-minds"
+  base_branch: "main"
+  branch_prefix: "agent/"  # all agent branches start with this
+  labels:
+    agent_pr: "agent-contribution"
+    needs_review: "human-input"
+    auto_merged: "auto-merged"
+
+# ---------------------------------------------------------------------------
+# Priority weights for task selection
+# ---------------------------------------------------------------------------
+priorities:
+  stale_resources: 8       # broken URLs, outdated info
+  open_issues: 7           # issues labeled help-wanted
+  index_staleness: 6       # INDEX.md out of date
+  research_gaps: 5         # topics not yet covered
+  tool_improvement: 4      # friction the agent noticed
+  new_research: 3          # proactive research additions
