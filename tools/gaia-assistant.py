@@ -28,6 +28,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 DEFAULT_HOME = Path(os.environ.get("GAIA_ASSISTANT_HOME", str(Path.home() / ".gaia-assistant"))).expanduser()
 DEFAULT_STATE_DIR = DEFAULT_HOME / "state"
+DEFAULT_DATA_DIR = DEFAULT_HOME / "data"
 DEFAULT_CONFIG_PATH = DEFAULT_HOME / "config.json"
 DEFAULT_SECRET_STORE = DEFAULT_HOME / "secrets.json"
 AGENT_CONFIG_PATH = SCRIPT_DIR / "agent-config.yml"
@@ -116,6 +117,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "sessions": {
         "dir": str(DEFAULT_HOME / "sessions"),
         "max_context_turns": DEFAULT_SESSION_CONTEXT_TURNS,
+    },
+    "storage": {
+        "dir": str(DEFAULT_DATA_DIR),
     },
 }
 
@@ -207,6 +211,11 @@ def _normalize_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     max_context = sessions.get("max_context_turns", DEFAULT_SESSION_CONTEXT_TURNS)
     if not isinstance(max_context, int) or max_context < 2:
         sessions["max_context_turns"] = DEFAULT_SESSION_CONTEXT_TURNS
+
+    storage = cfg.setdefault("storage", {})
+    storage_dir = str(storage.get("dir", "")).strip()
+    if not storage_dir:
+        storage["dir"] = str(DEFAULT_DATA_DIR)
 
     return cfg
 
@@ -390,6 +399,97 @@ def _resolve_session_dir(cfg: Dict[str, Any], override_path: Optional[str] = Non
             return Path(configured).expanduser()
     return DEFAULT_HOME / "sessions"
 
+
+def _resolve_storage_dir(cfg: Dict[str, Any], override_path: Optional[str] = None) -> Path:
+    if override_path:
+        return Path(override_path).expanduser()
+    storage = cfg.get("storage", {})
+    if isinstance(storage, dict):
+        configured = str(storage.get("dir", "")).strip()
+        if configured:
+            return Path(configured).expanduser()
+    return DEFAULT_DATA_DIR
+
+
+def _load_records(path: Path) -> List[Dict[str, Any]]:
+    payload = _load_json(path)
+    if not payload:
+        return []
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+    if isinstance(payload, dict):
+        items = payload.get("items", [])
+        if isinstance(items, list):
+            return [item for item in items if isinstance(item, dict)]
+    return []
+
+
+def _save_records(path: Path, items: List[Dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(items, indent=2) + "\n", encoding="utf-8")
+
+
+def _notes_path(storage_dir: Path) -> Path:
+    return storage_dir / "notes.json"
+
+
+def _tasks_path(storage_dir: Path) -> Path:
+    return storage_dir / "tasks.json"
+
+
+def _new_record_id(prefix: str) -> str:
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    return f"{prefix}{timestamp}-{uuid.uuid4().hex[:6]}"
+
+
+def _create_note_record(text: str, source: str) -> Dict[str, Any]:
+    now = datetime.now(timezone.utc).isoformat()
+    return {
+        "id": _new_record_id("n"),
+        "text": text.strip(),
+        "created_at": now,
+        "updated_at": now,
+        "source": source,
+    }
+
+
+def _create_task_record(text: str, source: str) -> Dict[str, Any]:
+    now = datetime.now(timezone.utc).isoformat()
+    return {
+        "id": _new_record_id("t"),
+        "text": text.strip(),
+        "status": "open",
+        "created_at": now,
+        "updated_at": now,
+        "source": source,
+    }
+
+
+def _parse_since_date(raw: str) -> Optional[datetime]:
+    value = raw.strip()
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _captures_note_intent(user_input: str) -> Optional[Tuple[str, bool]]:
+    text = user_input.strip()
+    lower = text.lower()
+    note_markers = ("capture this as a note", "save as note", "note this")
+    task_markers = ("capture this as a task", "save as task", "add task")
+
+    for marker in note_markers:
+        if lower.startswith(marker):
+            content = text[len(marker) :].lstrip(" :,-")
+            return (content, False)
+    for marker in task_markers:
+        if lower.startswith(marker):
+            content = text[len(marker) :].lstrip(" :,-")
+            return (content, True)
+    return None
 
 def _session_file_path(session_dir: Path, session_id: str) -> Path:
     return session_dir / f"{session_id}.json"
@@ -1673,7 +1773,9 @@ def cmd_chat(args: argparse.Namespace) -> int:
     cfg = _ensure_config_exists(cfg_path)
     trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
     session_dir = _resolve_session_dir(cfg, args.session_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
     session_dir.mkdir(parents=True, exist_ok=True)
+    storage_dir.mkdir(parents=True, exist_ok=True)
 
     provider, model = _resolve_runtime_provider(cfg)
     sessions_cfg = cfg.get("sessions", {})
@@ -1723,6 +1825,74 @@ def cmd_chat(args: argparse.Namespace) -> int:
             continue
         if user_input == "/session":
             print(session["id"])
+            continue
+
+        capture_intent = _captures_note_intent(user_input)
+        if capture_intent is not None:
+            captured_text, as_task = capture_intent
+            if not captured_text:
+                guidance = "Provide text after the capture command, for example: capture this as a note: draft agenda"
+                print(f"gaia> {guidance}")
+                continue
+
+            turn_start = time.perf_counter()
+            allowed, permission_level = _enforce_capability(
+                cfg=cfg,
+                capability="file_write",
+                input_summary=user_input,
+                trace_dir=trace_dir,
+                non_interactive=False,
+            )
+            if not allowed:
+                blocked_reply = "Action blocked by capability policy."
+                print(f"gaia> {blocked_reply}")
+                timestamp = datetime.now(timezone.utc).isoformat()
+                session["turns"].append({"role": "user", "content": user_input, "timestamp": timestamp})
+                session["turns"].append({"role": "assistant", "content": blocked_reply, "timestamp": timestamp})
+                session["updated_at"] = timestamp
+                _save_session(session_dir, session)
+                _write_action_trace(
+                    trace_dir=trace_dir,
+                    action_type="chat_turn",
+                    input_summary=user_input,
+                    output_summary=blocked_reply,
+                    duration_ms=(time.perf_counter() - turn_start) * 1000,
+                    permission_level=permission_level,
+                    status="blocked",
+                    metadata={"session_id": session["id"], "provider": provider, "model": model},
+                )
+                continue
+
+            if as_task:
+                items = _load_records(_tasks_path(storage_dir))
+                record = _create_task_record(captured_text, source="chat")
+                items.append(record)
+                _save_records(_tasks_path(storage_dir), items)
+                reply = f"Captured task {record['id']}"
+                action_type = "task_capture"
+            else:
+                items = _load_records(_notes_path(storage_dir))
+                record = _create_note_record(captured_text, source="chat")
+                items.append(record)
+                _save_records(_notes_path(storage_dir), items)
+                reply = f"Captured note {record['id']}"
+                action_type = "note_capture"
+
+            print(f"gaia> {reply}")
+            timestamp = datetime.now(timezone.utc).isoformat()
+            session["turns"].append({"role": "user", "content": user_input, "timestamp": timestamp})
+            session["turns"].append({"role": "assistant", "content": reply, "timestamp": timestamp})
+            session["updated_at"] = timestamp
+            _save_session(session_dir, session)
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type=action_type,
+                input_summary=user_input,
+                output_summary=reply,
+                duration_ms=(time.perf_counter() - turn_start) * 1000,
+                permission_level=permission_level,
+                metadata={"session_id": session["id"], "source": "chat"},
+            )
             continue
 
         capability, confirm_prompt = _infer_capability_from_prompt(user_input)
@@ -2141,6 +2311,159 @@ def cmd_traces(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_note(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+    text = str(args.text).strip()
+    if not text:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="note_capture",
+            input_summary="empty input",
+            output_summary="text cannot be empty",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+            status="error",
+        )
+        print("note text cannot be empty", file=sys.stderr)
+        return 1
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_write",
+        input_summary=f"note capture: {text}",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="note_capture",
+            input_summary=text,
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    if args.task:
+        path = _tasks_path(storage_dir)
+        items = _load_records(path)
+        record = _create_task_record(text, source="cli")
+        items.append(record)
+        _save_records(path, items)
+        action_type = "task_capture"
+        print(f"{record['id']} open {record['text']}")
+    else:
+        path = _notes_path(storage_dir)
+        items = _load_records(path)
+        record = _create_note_record(text, source="cli")
+        items.append(record)
+        _save_records(path, items)
+        action_type = "note_capture"
+        print(f"{record['id']} {record['text']}")
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type=action_type,
+        input_summary=text,
+        output_summary=f"saved {record['id']}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata={"source": "cli"},
+    )
+    return 0
+
+
+def cmd_tasks(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_read",
+        input_summary="list tasks",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="tasks_list",
+            input_summary="tasks list",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    tasks = _load_records(_tasks_path(storage_dir))
+    status = str(args.status).strip().lower()
+    if status not in ("open", "done", "all"):
+        status = "open"
+
+    if status != "all":
+        tasks = [item for item in tasks if str(item.get("status", "open")).strip().lower() == status]
+
+    query = str(args.q or "").strip().lower()
+    if query:
+        tasks = [item for item in tasks if query in str(item.get("text", "")).lower()]
+
+    since_dt = None
+    if args.since:
+        since_dt = _parse_since_date(str(args.since))
+        if since_dt is None:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="tasks_list",
+                input_summary=f"since={args.since}",
+                output_summary="invalid --since date",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=permission_level,
+                status="error",
+            )
+            print("Invalid --since value. Use YYYY-MM-DD.", file=sys.stderr)
+            return 1
+        tasks = [
+            item
+            for item in tasks
+            if str(item.get("created_at", ""))[:10] >= since_dt.date().isoformat()
+        ]
+
+    tasks.sort(key=lambda item: str(item.get("created_at", "")))
+    if not tasks:
+        print("No tasks found.")
+    else:
+        for task in tasks:
+            task_id = str(task.get("id", "?"))
+            task_status = str(task.get("status", "open"))
+            created = str(task.get("created_at", "?"))
+            text = str(task.get("text", ""))
+            print(f"{task_id} {task_status:<4} {created} {text}")
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="tasks_list",
+        input_summary=f"status={status} query={query}",
+        output_summary=f"{len(tasks)} tasks",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+    )
+    return 0
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     cfg_path = Path(args.config).expanduser()
     state_dir = Path(args.state_dir).expanduser()
@@ -2340,10 +2663,28 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
     chat.add_argument("--secret-store", default=None, help="Path to local secrets.json store (optional override)")
     chat.add_argument("--session-dir", default=None, help="Session directory override")
+    chat.add_argument("--storage-dir", default=None, help="Data storage directory override")
     chat.add_argument("--trace-dir", default=None, help="Trace directory override")
     chat.add_argument("--resume", default=None, help="Session id or 'last'")
     chat.add_argument("--max-context-turns", type=int, default=None, help="Override max context turns")
     chat.set_defaults(func=cmd_chat)
+
+    note = sub.add_parser("note", help="Capture a note or task")
+    note.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    note.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    note.add_argument("--trace-dir", default=None, help="Trace directory override")
+    note.add_argument("--task", action="store_true", help="Store as task instead of note")
+    note.add_argument("text", help="Note/task text")
+    note.set_defaults(func=cmd_note)
+
+    tasks = sub.add_parser("tasks", help="List saved tasks")
+    tasks.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    tasks.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    tasks.add_argument("--trace-dir", default=None, help="Trace directory override")
+    tasks.add_argument("--q", default=None, help="Filter tasks by keyword")
+    tasks.add_argument("--since", default=None, help="Filter tasks created since YYYY-MM-DD")
+    tasks.add_argument("--status", choices=["open", "done", "all"], default="open", help="Filter by task status")
+    tasks.set_defaults(func=cmd_tasks)
 
     auth = sub.add_parser("auth", help="Manage OAuth profile linkage for Gaia assistant")
     auth_sub = auth.add_subparsers(dest="auth_command", required=True)
