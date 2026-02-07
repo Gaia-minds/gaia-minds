@@ -8,10 +8,12 @@ provider auth patterns:
 1. Subscription OAuth flows (for providers that support it in your environment)
 2. Direct API key access
 
+Current npm release: `@gaia-minds/assistant-cli@0.1.0`
+
 ## Quick Start
 
 ```bash
-# Install from npm (recommended once published)
+# Install from npm (recommended)
 npm install -g @gaia-minds/assistant-cli
 gaia onboard
 gaia auth status

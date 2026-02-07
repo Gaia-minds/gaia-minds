@@ -124,7 +124,9 @@ DEFAULT_BUDGET_POLICY: Dict[str, Any] = {
 # ---------------------------------------------------------------------------
 
 CONFIG_PATH = SCRIPT_DIR / "agent-config.yml"
-MEMORY_DIR = SCRIPT_DIR / "agent-memory"
+MEMORY_DIR = Path(
+    os.environ.get("GAIA_AGENT_MEMORY_DIR", str(SCRIPT_DIR / "agent-memory"))
+).expanduser()
 DECISIONS_PATH = MEMORY_DIR / "decisions.jsonl"
 LESSONS_PATH = MEMORY_DIR / "lessons.jsonl"
 STATE_PATH = MEMORY_DIR / "state.json"
