@@ -12,7 +12,8 @@ provider auth patterns:
 
 ```bash
 # From this repository
-python3 tools/gaia-assistant.py init
+python3 tools/gaia-assistant.py onboard
+python3 tools/gaia-assistant.py auth status
 python3 tools/gaia-assistant.py doctor
 
 # Single dry-run cycle
@@ -21,6 +22,31 @@ python3 tools/gaia-assistant.py run --mode single --dry-run
 # Continuous assistant track
 python3 tools/gaia-assistant.py run --mode continuous --track assistant
 ```
+
+## OAuth Onboarding
+
+Gaia uses a web OAuth onboarding path through OpenClaw for ChatGPT/Codex-style
+profiles:
+
+```bash
+python3 tools/gaia-assistant.py auth login --provider openai-codex
+python3 tools/gaia-assistant.py auth status
+```
+
+If you already authenticated with OpenClaw, link the profile directly:
+
+```bash
+python3 tools/gaia-assistant.py auth link --provider openai-codex
+```
+
+## Token Safety
+
+- OAuth tokens are stored in your local OpenClaw state:
+  `~/.openclaw/agents/<agentId>/agent/auth-profiles.json`
+- Gaia stores only a profile reference in:
+  `~/.gaia-assistant/config.json` (or `$GAIA_ASSISTANT_HOME/config.json`)
+- Never commit auth stores or local runtime state to git.
+- If you want strict separation, keep `GAIA_ASSISTANT_HOME` outside this repo.
 
 ## Tracks
 
@@ -47,5 +73,11 @@ Expected environment variables for direct API mode:
 - `ANTHROPIC_API_KEY`
 - `OPENAI_API_KEY`
 
-Provider OAuth profile support depends on your operator environment.
+Provider OAuth profile support is exposed through:
 
+- `python3 tools/gaia-assistant.py onboard`
+- `python3 tools/gaia-assistant.py auth login --provider openai-codex`
+
+Current limitation: the self-evolution loop planner currently uses Anthropic SDK
+for non-dry cycles. OAuth onboarding is in place so contributors can securely
+connect web auth profiles now while provider backends continue to evolve.

@@ -13,3 +13,6 @@ Thumbs.db
 *~
 .idea/
 .vscode/
+
+# Local assistant runtime state (never commit secrets/tokens)
+.gaia-assistant/
