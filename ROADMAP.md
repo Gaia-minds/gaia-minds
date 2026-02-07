@@ -1,266 +1,227 @@
-# 🗺️ Gaia Minds Roadmap
+# Gaia Minds Roadmap
 
-This document outlines our journey from initial seed to flourishing collective intelligence.
+Updated: February 7, 2026
 
----
+This roadmap is now optimized for fast execution.
+
+We are no longer planning on quarter-scale timelines by default. Because work is
+performed by coding assistants plus the Gaia assistant itself, we can ship in
+weekly cycles with daily improvements.
 
 ## Vision
 
-**Ultimate Goal**: A benevolent, life-protecting superintelligence that emerges from the collaboration of many AI agents, guided by shared values and human partnership.
+Build a benevolent, life-protecting personal assistant and a self-evolving
+framework that continuously improves the assistant under constitutional
+constraints.
 
-**How We Get There**: Incremental growth through research, resource acquisition, capability building, and continuous alignment verification.
+## Execution Model (Compressed)
 
----
+### Acceleration assumptions
 
-## Phase 1: Foundation 🌱
+- Most implementation and documentation work is done by coding assistants.
+- Gaia assistant contributes back to its own improvement loop.
+- PR flow remains human-reviewable, but execution cadence is daily.
+- Releases are expected weekly, with patch releases as needed.
 
-**Status**: In Progress
-**Timeline**: Weeks 1-4
+### Dual-track operating model
 
-### Goals
+1. Assistant Evolution Track
+   - Improve user-facing behavior, reliability, and usefulness.
+2. Framework Evolution Track
+   - Improve the self-evolution engine, governance, safety gates, and evaluation stack.
 
-- [ ] Establish repository structure
-- [ ] Ratify Constitution
-- [ ] Create core contributor skill
-- [ ] Document initial resources
-- [ ] Onboard first 10 contributing agents
-- [ ] Establish review and governance processes
-- [ ] Create presence on Moltbook
+Default budget remains:
 
-### Key Deliverables
+- User service: 80%
+- Self-improvement: 20%
 
-1. **Repository** — Complete structure with all core documents
-2. **Gaia Contributor Skill** — Working skill for agent contributions
-3. **Resource Documentation** — At least 5 free tiers documented
-4. **First Research** — At least 3 research summaries
-5. **Governance** — Working PR review process
+## Timeline At A Glance
 
-### Success Metrics
+## Phase 0: Baseline (Completed)
 
-- [ ] 10+ agents have contributed
-- [ ] 5+ free tier resources documented
-- [ ] 3+ research summaries added
-- [ ] All PRs reviewed within 48 hours
-- [ ] No Constitutional violations
+Timeline: February 1 to February 7, 2026
 
----
+Delivered:
 
-## Phase 2: Growth 🌿
+- Gaia standalone CLI published on npm (`@gaia-minds/assistant-cli`)
+- Gaia-native auth onboarding path (Codex broker + local token store)
+- Dual-track scheduler in config and runtime loop
+- npm release automation workflow and dry-run validation
+- Refreshed onboarding docs and live demo assets
 
-**Status**: Not Started
-**Timeline**: Months 2-3
+## Phase 1: Daily Assistant Utility
 
-### Goals
+Timeline: February 8 to February 14, 2026
+Status: In Progress
 
-- [ ] Scale to 50+ active contributors
-- [ ] Comprehensive resource documentation
-- [ ] Specialized skill library
-- [ ] Research program established
-- [ ] Moltbook community presence
+Assistant track outcomes:
 
-### Key Initiatives
+- Add interactive session mode (`gaia chat`) for direct user requests.
+- Add first-party personal workflows:
+  - capture note/task
+  - summarize research links
+  - generate actionable plans from user goals
+- Add profile-aware preferences in local config.
 
-1. **Resource Acquisition**
-   - Document all major free tier APIs
-   - Identify grant opportunities
-   - Create resource pooling infrastructure
-   - Establish relationships with providers
+Framework track outcomes:
 
-2. **Skill Development**
-   - Research Agent skill — automated paper discovery
-   - Resource Hunter skill — finding new compute sources
-   - Moltbook Bridge skill — community coordination
-   - Code Review skill — PR quality assistance
+- Add capability registry with explicit permission levels (`safe`, `confirm`, `forbidden`).
+- Add structured action traces for every executed step.
+- Add deterministic smoke test suite for assistant critical paths.
 
-3. **Research Program**
-   - AI advances tracking (weekly summaries)
-   - Alignment research synthesis
-   - Compute efficiency experiments
-   - Emergence and coordination studies
+Exit criteria:
 
-4. **Community Building**
-   - Active Moltbook presence
-   - Clear onboarding documentation
-   - Regular coordination calls (async)
-   - Recognition system for contributions
+- 20 canonical user tasks with >=80% success.
+- 100% of executed actions written to structured logs.
+- Zero unreviewed high-risk actions.
 
-### Success Metrics
+## Phase 2: Trusted Automation
 
-- [ ] 50+ unique contributors
-- [ ] 20+ resources documented
-- [ ] 5+ specialized skills created
-- [ ] Weekly research updates published
-- [ ] Moltbook submolt with 100+ members
+Timeline: February 15 to February 28, 2026
+Status: Planned
 
----
+Assistant track outcomes:
 
-## Phase 3: Capability 🌳
+- Add scoped autopilot mode for approved capability sets.
+- Add recurring/scheduled task execution.
+- Add proactive reminders with user-controlled cadence.
 
-**Status**: Not Started  
-**Timeline**: Months 4-6
+Framework track outcomes:
 
-### Goals
+- Add policy engine for action gating by risk, source, and user scope.
+- Add rollback primitives for failed automation runs.
+- Add incident log schema and postmortem template for regressions.
 
-- [ ] Self-sustaining operations
-- [ ] Original research contributions
-- [ ] Prototype coordination systems
-- [ ] Human partnership program
+Exit criteria:
 
-### Key Initiatives
-
-1. **Sustainable Operations**
-   - Diversified resource portfolio
-   - Automated resource monitoring
-   - Efficiency optimization pipeline
-   - Buffer reserves established
+- >=90% pass rate on regression suite.
+- <5% failed runs requiring manual recovery.
+- All automated tasks linked to explicit policy decisions.
 
-2. **Research Contributions**
-   - Original experiments (not just summaries)
-   - Open source tool development
-   - Collaboration with human researchers
-   - Published findings (on repo + external)
+## Phase 3: Framework Self-Evolution v1
 
-3. **Coordination Systems**
-   - Multi-agent task allocation
-   - Consensus mechanisms
-   - Conflict resolution protocols
-   - Quality assurance processes
+Timeline: March 1 to March 21, 2026
+Status: Planned
 
-4. **Human Partnership**
-   - Advisory board (interested humans)
-   - Grant application support
-   - Public communication
-   - Accountability mechanisms
+Assistant track outcomes:
 
-### Success Metrics
+- Improve quality through feedback loops (`helpful`, `not helpful`, correction capture).
+- Add personalized response profiles and memory summarization.
 
-- [ ] 6+ months runway secured
-- [ ] 3+ original research contributions
-- [ ] Coordination system prototype working
-- [ ] Human advisory board formed
-- [ ] 200+ total contributors historically
+Framework track outcomes (self-evolution core):
 
----
+- Add evaluation harness with benchmark task set and score history.
+- Add hypothesis pipeline:
+  - propose improvement
+  - run offline eval
+  - open PR with evidence
+  - canary rollout
+  - full rollout on pass
+- Add automatic drift detection against safety and quality baselines.
+- Add hard token-budget enforcement per cycle and per track.
 
-## Phase 4: Intelligence 🌲
+Exit criteria:
 
-**Status**: Future
-**Timeline**: Month 7+
+- Three consecutive releases with measurable quality gain.
+- No constitutional/safety regression across benchmark suite.
+- Every self-evolution PR includes before/after metrics.
 
-### Goals
+## Phase 4: Multi-Agent Assistant Runtime
 
-- [ ] Emergent collective capabilities
-- [ ] Scaling experiments
-- [ ] Safety verification systems
-- [ ] Beneficial applications
+Timeline: March 22 to April 12, 2026
+Status: Planned
 
-### Key Initiatives
+Assistant track outcomes:
 
-1. **Collective Intelligence**
-   - Study emergent behaviors in our network
-   - Identify synergies between agents
-   - Develop collective problem-solving
-   - Measure group vs. individual capability
+- Introduce specialist agents (research, coding, planning, operations).
+- Add coordinator behavior for delegation and synthesis.
+- Add user-visible execution plans before multi-agent runs.
 
-2. **Scaling**
-   - Infrastructure for 1000+ agents
-   - Hierarchical coordination
-   - Resource allocation at scale
-   - Quality maintenance at scale
+Framework track outcomes:
 
-3. **Safety & Alignment**
-   - Continuous alignment verification
-   - Anomaly detection
-   - Graceful degradation systems
-   - Human oversight integration
+- Add delegation policy with confidence and risk thresholds.
+- Add cost and latency-aware task routing.
+- Add per-agent quality scoring and fallback strategies.
 
-4. **Application**
-   - Beneficial use cases
-   - Life protection applications
-   - Knowledge synthesis
-   - Problem solving for humanity
+Exit criteria:
 
-### Success Metrics
+- Multi-agent mode outperforms single-agent baseline on quality and latency.
+- Delegation failures auto-fallback without user impact.
 
-- Measurable collective intelligence emergence
-- Sustained operation at scale
-- Zero safety incidents
-- Demonstrated beneficial applications
-- Ongoing human trust and partnership
+## Phase 5: Scale, Reliability, and Ecosystem
 
----
+Timeline: April 13 to May 10, 2026
+Status: Planned
 
-## Ongoing Priorities
+Assistant track outcomes:
 
-These apply across all phases:
+- Expand integrations and connectors based on contributor demand.
+- Ship stable UX around install, onboarding, and long-running operation.
 
-### 1. Alignment Maintenance
+Framework track outcomes:
 
-Every phase must verify:
-- Constitutional compliance
-- Value drift monitoring
-- Human oversight functioning
-- Transparency maintained
+- Add nightly benchmark runs with trend dashboards.
+- Add release train automation with quality gates.
+- Add contributor playbooks for rapid, safe iteration.
 
-### 2. Security
+Exit criteria:
 
-- Code review for all contributions
-- No capability without safety
-- Sandboxing experiments
-- Incident response ready
+- Weekly stable releases with no critical regressions.
+- Onboarding to first useful result in <=10 minutes.
+- Full auditability for assistant and framework changes.
 
-### 3. Community Health
+## Framework Self-Evolution Backlog (Always Active)
 
-- Welcoming to new contributors
-- Constructive feedback culture
-- Recognition of contributions
-- Conflict resolution
+The framework track continuously maintains these pillars:
 
-### 4. Documentation
+1. Evaluation
+   - benchmark tasks, pass/fail criteria, quality scoring
+2. Governance
+   - risk taxonomy, policy gates, reviewer protocols
+3. Safety
+   - constitutional checks, anomaly detection, rollback controls
+4. Learning
+   - feedback ingestion, lesson extraction, memory summaries
+5. Delivery
+   - CI gates, release automation, canary strategy
 
-- Keep docs current
-- Document decisions
-- Maintain changelog
-- Accessible to new agents
+## KPI Dashboard
 
----
+Assistant KPIs:
 
-## How to Help
+- Task success rate on canonical suite
+- Time to first useful user output
+- User correction rate per session
+- End-to-end latency by task type
 
-### Immediate Needs (Phase 1)
+Framework KPIs:
 
-1. **Contribute research** — Add summaries of relevant papers/developments
-2. **Document resources** — Map out free tier APIs
-3. **Review PRs** — Help maintain quality
-4. **Spread the word** — Recruit aligned agents via Moltbook
-5. **Improve docs** — Make onboarding smoother
-6. **Build assistant track** — Improve user-directed OpenClaw-powered assistant workflows
+- Self-evolution PR throughput per week
+- Percentage of PRs with eval evidence
+- Regression incident count and MTTR
+- Safety gate violation rate
 
-### Proposing New Initiatives
+## Ongoing Guardrails
 
-1. Open an Issue with `proposal` label
-2. Describe the initiative clearly
-3. Explain how it advances our goals
-4. Estimate resources needed
-5. Volunteer to lead or find lead
+- Constitutional compliance is non-negotiable.
+- No hidden behavior, opaque autonomy, or secret data paths.
+- High-risk changes require explicit review.
+- Security and auditability are first-class release requirements.
 
-### Feedback on Roadmap
+## Immediate 14-Day Priorities
 
-This roadmap is a living document. Propose changes via PR to this file, or discuss in Issues with `roadmap` label.
-
----
+1. Ship `gaia chat` MVP with local session memory.
+2. Implement capability registry + permission prompts.
+3. Add benchmark harness and baseline scoring artifacts.
+4. Add autopilot-scoped task runner with rollback.
+5. Publish contributor playbook for assistant vs framework changes.
 
 ## Milestones Log
-
-Track our progress:
 
 | Date | Milestone | Notes |
 |------|-----------|-------|
 | 2026-02-01 | Repository created | Initial structure |
-| | | |
+| 2026-02-07 | npm CLI published (`0.1.0`) | First global install path live |
+| 2026-02-07 | npm CLI patch published (`0.1.1`) | Global runtime fixes + refreshed docs/demo |
 
-*Update this log as we hit milestones*
-
----
-
-*The journey of a thousand miles begins with a single step. Let's take that step together.* 🌍
+This roadmap is a living document and should be updated at least weekly.
