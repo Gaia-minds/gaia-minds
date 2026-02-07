@@ -42,6 +42,15 @@ DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
 DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
 DEFAULT_OPENROUTER_MODEL = "openrouter/auto"
 ONBOARD_PROVIDER_CHOICES = ("openrouter", "openai", "anthropic", "openai-codex")
+PROFILE_VERBOSITY_CHOICES = ("concise", "balanced", "detailed")
+PROFILE_PROVIDER_CHOICES = ("openrouter", "openai", "anthropic", "openai-codex")
+PROFILE_KEY_MAP = {
+    "name": ("profile", "name"),
+    "timezone": ("profile", "timezone"),
+    "verbosity": ("profile", "verbosity"),
+    "provider": ("profile", "default_provider"),
+    "default_provider": ("profile", "default_provider"),
+}
 
 
 DEFAULT_CONFIG: Dict[str, Any] = {
@@ -78,6 +87,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "tracks": {
         "default": "auto",
+    },
+    "profile": {
+        "name": "",
+        "timezone": "UTC",
+        "verbosity": "balanced",
+        "default_provider": "anthropic",
     },
 }
 
@@ -137,7 +152,71 @@ def _normalize_config(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     tracks = cfg.setdefault("tracks", {})
     tracks.setdefault("default", "auto")
+
+    profile = cfg.setdefault("profile", {})
+    profile.setdefault("name", "")
+    profile.setdefault("timezone", "UTC")
+    profile.setdefault("verbosity", "balanced")
+    profile.setdefault("default_provider", "anthropic")
+
+    verbosity = str(profile.get("verbosity", "")).strip().lower()
+    if verbosity not in PROFILE_VERBOSITY_CHOICES:
+        profile["verbosity"] = "balanced"
+
+    default_provider = str(profile.get("default_provider", "")).strip().lower()
+    if default_provider not in PROFILE_PROVIDER_CHOICES:
+        profile["default_provider"] = "anthropic"
+
     return cfg
+
+
+def _config_path_for_key(key: str) -> Optional[Tuple[str, str]]:
+    return PROFILE_KEY_MAP.get(key.strip().lower())
+
+
+def _get_nested_value(cfg: Dict[str, Any], path: Tuple[str, str]) -> Any:
+    section, field = path
+    section_value = cfg.get(section, {})
+    if not isinstance(section_value, dict):
+        return None
+    return section_value.get(field)
+
+
+def _set_nested_value(cfg: Dict[str, Any], path: Tuple[str, str], value: Any) -> None:
+    section, field = path
+    section_value = cfg.setdefault(section, {})
+    if not isinstance(section_value, dict):
+        section_value = {}
+        cfg[section] = section_value
+    section_value[field] = value
+
+
+def _normalize_profile_value(key: str, value: str) -> Tuple[Optional[str], Optional[str]]:
+    canonical_key = key.strip().lower()
+    raw = value.strip()
+    if canonical_key == "verbosity":
+        normalized = raw.lower()
+        if normalized not in PROFILE_VERBOSITY_CHOICES:
+            return None, (
+                f"Invalid verbosity '{value}'. "
+                f"Expected one of: {', '.join(PROFILE_VERBOSITY_CHOICES)}."
+            )
+        return normalized, None
+    if canonical_key in ("provider", "default_provider"):
+        normalized = raw.lower()
+        if normalized not in PROFILE_PROVIDER_CHOICES:
+            return None, (
+                f"Invalid provider '{value}'. "
+                f"Expected one of: {', '.join(PROFILE_PROVIDER_CHOICES)}."
+            )
+        return normalized, None
+    if canonical_key == "timezone":
+        if not raw:
+            return None, "timezone cannot be empty."
+        return raw, None
+    if canonical_key == "name":
+        return raw, None
+    return None, f"Unsupported key: {key}"
 
 
 def _ensure_config_exists(cfg_path: Path) -> Dict[str, Any]:
@@ -1104,6 +1183,63 @@ def cmd_auth_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_config_get(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    key = str(args.key).strip().lower()
+    path = _config_path_for_key(key)
+    if path is None:
+        print(
+            "Unsupported key. Supported keys: "
+            + ", ".join(sorted(PROFILE_KEY_MAP.keys())),
+            file=sys.stderr,
+        )
+        return 1
+
+    value = _get_nested_value(cfg, path)
+    if value is None:
+        print("", end="")
+        return 0
+    if isinstance(value, (dict, list)):
+        print(json.dumps(value, indent=2))
+    else:
+        print(value)
+    return 0
+
+
+def cmd_config_set(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    key = str(args.key).strip().lower()
+    path = _config_path_for_key(key)
+    if path is None:
+        print(
+            "Unsupported key. Supported keys: "
+            + ", ".join(sorted(PROFILE_KEY_MAP.keys())),
+            file=sys.stderr,
+        )
+        return 1
+
+    normalized, error = _normalize_profile_value(key, str(args.value))
+    if error:
+        print(error, file=sys.stderr)
+        return 1
+    assert normalized is not None
+    _set_nested_value(cfg, path, normalized)
+
+    if key in ("provider", "default_provider"):
+        reasoning = cfg.setdefault("reasoning", {})
+        if not isinstance(reasoning, dict):
+            reasoning = {}
+            cfg["reasoning"] = reasoning
+        reasoning["provider"] = normalized
+        reasoning["model"] = _default_model_for_provider(normalized)
+
+    _write_json(cfg_path, _normalize_config(cfg))
+    print(f"{path[0]}.{path[1]}={normalized}")
+    return 0
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     cfg_path = Path(args.config).expanduser()
     state_dir = Path(args.state_dir).expanduser()
@@ -1152,9 +1288,12 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     reasoning_cfg = cfg.get("reasoning", {})
     reasoning_cfg = reasoning_cfg if isinstance(reasoning_cfg, dict) else {}
+    profile_cfg = cfg.get("profile", {})
+    profile_cfg = profile_cfg if isinstance(profile_cfg, dict) else {}
+    profile_provider = str(profile_cfg.get("default_provider", "")).strip()
     configured_provider = str(reasoning_cfg.get("provider", "")).strip()
     configured_model = str(reasoning_cfg.get("model", "")).strip()
-    effective_provider = str(args.reasoning_provider or configured_provider).strip()
+    effective_provider = str(args.reasoning_provider or configured_provider or profile_provider).strip()
     effective_model = str(args.reasoning_model or configured_model).strip()
 
     if args.track != "auto":
@@ -1164,6 +1303,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     if effective_model:
         env["GAIA_REASONING_MODEL"] = effective_model
     env["GAIA_AGENT_MEMORY_DIR"] = str(state_dir)
+    env["GAIA_ASSISTANT_VERBOSITY"] = str(profile_cfg.get("verbosity", "balanced")).strip() or "balanced"
+    profile_tz = str(profile_cfg.get("timezone", "UTC")).strip()
+    if profile_tz:
+        env["TZ"] = profile_tz
 
     runtime_cfg = cfg.get("runtime", {})
     if args.mode == "continuous" and "interval_minutes" in runtime_cfg:
@@ -1180,6 +1323,11 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"Reasoning model override: {args.reasoning_model}")
     elif effective_model:
         print(f"Reasoning model: {effective_model} (from launcher config)")
+    profile_name = str(profile_cfg.get("name", "")).strip()
+    if profile_name:
+        print(f"Profile name: {profile_name}")
+    print(f"Profile verbosity: {env['GAIA_ASSISTANT_VERBOSITY']}")
+    print(f"Profile timezone: {profile_tz or 'UTC'}")
     if loaded_from_secret:
         print(f"Loaded API credentials from secret store: {', '.join(loaded_from_secret)}")
 
@@ -1252,6 +1400,20 @@ def build_parser() -> argparse.ArgumentParser:
     doctor = sub.add_parser("doctor", help="Validate local environment and auth readiness")
     doctor.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
     doctor.set_defaults(func=cmd_doctor)
+
+    config = sub.add_parser("config", help="Read or write local assistant preferences")
+    config_sub = config.add_subparsers(dest="config_command", required=True)
+
+    config_set = config_sub.add_parser("set", help="Set a preference value")
+    config_set.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    config_set.add_argument("key", choices=sorted(PROFILE_KEY_MAP.keys()), help="Preference key")
+    config_set.add_argument("value", help="Preference value")
+    config_set.set_defaults(func=cmd_config_set)
+
+    config_get = config_sub.add_parser("get", help="Get a preference value")
+    config_get.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    config_get.add_argument("key", choices=sorted(PROFILE_KEY_MAP.keys()), help="Preference key")
+    config_get.set_defaults(func=cmd_config_get)
 
     auth = sub.add_parser("auth", help="Manage OAuth profile linkage for Gaia assistant")
     auth_sub = auth.add_subparsers(dest="auth_command", required=True)
