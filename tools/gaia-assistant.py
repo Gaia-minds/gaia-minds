@@ -15,8 +15,10 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -44,6 +46,16 @@ DEFAULT_OPENROUTER_MODEL = "openrouter/auto"
 ONBOARD_PROVIDER_CHOICES = ("openrouter", "openai", "anthropic", "openai-codex")
 PROFILE_VERBOSITY_CHOICES = ("concise", "balanced", "detailed")
 PROFILE_PROVIDER_CHOICES = ("openrouter", "openai", "anthropic", "openai-codex")
+PERMISSION_LEVEL_CHOICES = ("safe", "confirm", "forbidden")
+DEFAULT_CAPABILITY_LEVELS = {
+    "file_read": "safe",
+    "file_write": "safe",
+    "network_request": "safe",
+    "shell_exec": "confirm",
+    "delete_files": "confirm",
+    "send_email": "forbidden",
+    "external_messaging": "forbidden",
+}
 PROFILE_KEY_MAP = {
     "name": ("profile", "name"),
     "timezone": ("profile", "timezone"),
@@ -93,6 +105,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "timezone": "UTC",
         "verbosity": "balanced",
         "default_provider": "anthropic",
+    },
+    "capabilities": {
+        "overrides": {},
+    },
+    "traces": {
+        "dir": str(DEFAULT_HOME / "traces"),
     },
 }
 
@@ -167,6 +185,16 @@ def _normalize_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     if default_provider not in PROFILE_PROVIDER_CHOICES:
         profile["default_provider"] = "anthropic"
 
+    capabilities = cfg.setdefault("capabilities", {})
+    overrides = capabilities.setdefault("overrides", {})
+    if not isinstance(overrides, dict):
+        capabilities["overrides"] = {}
+
+    traces = cfg.setdefault("traces", {})
+    traces_dir = str(traces.get("dir", "")).strip()
+    if not traces_dir:
+        traces["dir"] = str(DEFAULT_HOME / "traces")
+
     return cfg
 
 
@@ -218,6 +246,117 @@ def _normalize_profile_value(key: str, value: str) -> Tuple[Optional[str], Optio
         return raw, None
     return None, f"Unsupported key: {key}"
 
+
+def _resolve_trace_dir(cfg: Dict[str, Any], override_path: Optional[str] = None) -> Path:
+    if override_path:
+        return Path(override_path).expanduser()
+    traces = cfg.get("traces", {})
+    if isinstance(traces, dict):
+        configured = str(traces.get("dir", "")).strip()
+        if configured:
+            return Path(configured).expanduser()
+    return DEFAULT_HOME / "traces"
+
+
+def _append_jsonl(path: Path, payload: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=True) + "\n")
+
+
+def _summarize_text(value: Any, max_chars: int = 180) -> str:
+    text = str(value).replace("\n", " ").strip()
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 3] + "..."
+
+
+def _trace_action_path(trace_dir: Path) -> Path:
+    return trace_dir / "actions.jsonl"
+
+
+def _write_action_trace(
+    trace_dir: Path,
+    action_type: str,
+    input_summary: str,
+    output_summary: str,
+    duration_ms: float,
+    permission_level: str,
+    status: str = "ok",
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    record: Dict[str, Any] = {
+        "id": str(uuid.uuid4()),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "action_type": action_type,
+        "input_summary": _summarize_text(input_summary),
+        "output_summary": _summarize_text(output_summary),
+        "duration_ms": round(max(duration_ms, 0.0), 3),
+        "permission_level": permission_level,
+        "status": status,
+        "schema_version": 1,
+    }
+    if metadata:
+        record["metadata"] = metadata
+    _append_jsonl(_trace_action_path(trace_dir), record)
+    return record
+
+
+def _read_action_traces(trace_dir: Path) -> List[Dict[str, Any]]:
+    path = _trace_action_path(trace_dir)
+    if not path.exists():
+        return []
+    traces: List[Dict[str, Any]] = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            traces.append(payload)
+    return traces
+
+
+def _capability_registry(cfg: Dict[str, Any]) -> Dict[str, str]:
+    registry = dict(DEFAULT_CAPABILITY_LEVELS)
+    capabilities = cfg.get("capabilities", {})
+    overrides = {}
+    if isinstance(capabilities, dict):
+        raw_overrides = capabilities.get("overrides", {})
+        if isinstance(raw_overrides, dict):
+            overrides = raw_overrides
+    for capability, level in overrides.items():
+        normalized_level = str(level).strip().lower()
+        if normalized_level in PERMISSION_LEVEL_CHOICES:
+            registry[str(capability).strip()] = normalized_level
+    return registry
+
+
+def _permission_for_capability(cfg: Dict[str, Any], capability: str) -> str:
+    registry = _capability_registry(cfg)
+    return registry.get(capability, "confirm")
+
+
+def _check_capability_permission(
+    cfg: Dict[str, Any],
+    capability: str,
+    user_prompt: Optional[str],
+    non_interactive: bool,
+) -> Tuple[bool, str, str]:
+    level = _permission_for_capability(cfg, capability)
+    if level == "safe":
+        return True, level, "allowed"
+    if level == "forbidden":
+        return False, level, f"blocked by policy for capability '{capability}'"
+
+    prompt = user_prompt or f"Capability '{capability}' requires confirmation. Continue?"
+    allowed = _prompt_yes_no(prompt, default=False, non_interactive=non_interactive)
+    if allowed:
+        return True, level, "allowed after confirmation"
+    return False, level, "user denied confirmation"
 
 def _ensure_config_exists(cfg_path: Path) -> Dict[str, Any]:
     cfg = _load_json(cfg_path)
@@ -1186,9 +1325,20 @@ def cmd_auth_status(args: argparse.Namespace) -> int:
 def cmd_config_get(args: argparse.Namespace) -> int:
     cfg_path = Path(args.config).expanduser()
     cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg)
+    start = time.perf_counter()
     key = str(args.key).strip().lower()
     path = _config_path_for_key(key)
     if path is None:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="config_get",
+            input_summary=f"key={key}",
+            output_summary="unsupported key",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+            status="error",
+        )
         print(
             "Unsupported key. Supported keys: "
             + ", ".join(sorted(PROFILE_KEY_MAP.keys())),
@@ -1198,21 +1348,48 @@ def cmd_config_get(args: argparse.Namespace) -> int:
 
     value = _get_nested_value(cfg, path)
     if value is None:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="config_get",
+            input_summary=f"key={key}",
+            output_summary="empty value",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+        )
         print("", end="")
         return 0
     if isinstance(value, (dict, list)):
         print(json.dumps(value, indent=2))
     else:
         print(value)
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="config_get",
+        input_summary=f"key={key}",
+        output_summary=f"value={_summarize_text(value)}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level="safe",
+    )
     return 0
 
 
 def cmd_config_set(args: argparse.Namespace) -> int:
     cfg_path = Path(args.config).expanduser()
     cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg)
+    start = time.perf_counter()
     key = str(args.key).strip().lower()
     path = _config_path_for_key(key)
     if path is None:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="config_set",
+            input_summary=f"key={key}",
+            output_summary="unsupported key",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+            status="error",
+        )
         print(
             "Unsupported key. Supported keys: "
             + ", ".join(sorted(PROFILE_KEY_MAP.keys())),
@@ -1220,8 +1397,37 @@ def cmd_config_set(args: argparse.Namespace) -> int:
         )
         return 1
 
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_write",
+        input_summary=f"config set {key}",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="config_set",
+            input_summary=f"key={key}",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
     normalized, error = _normalize_profile_value(key, str(args.value))
     if error:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="config_set",
+            input_summary=f"key={key}",
+            output_summary=error,
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
         print(error, file=sys.stderr)
         return 1
     assert normalized is not None
@@ -1236,7 +1442,209 @@ def cmd_config_set(args: argparse.Namespace) -> int:
         reasoning["model"] = _default_model_for_provider(normalized)
 
     _write_json(cfg_path, _normalize_config(cfg))
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="config_set",
+        input_summary=f"key={key}",
+        output_summary=f"set to {normalized}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+    )
     print(f"{path[0]}.{path[1]}={normalized}")
+    return 0
+
+
+def _log_permission_decision(
+    trace_dir: Path,
+    capability: str,
+    input_summary: str,
+    allowed: bool,
+    permission_level: str,
+    reason: str,
+    duration_ms: float,
+) -> None:
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="permission_decision",
+        input_summary=f"{capability}: {input_summary}",
+        output_summary=reason,
+        duration_ms=duration_ms,
+        permission_level=permission_level,
+        status="ok" if allowed else "blocked",
+        metadata={"capability": capability, "allowed": allowed},
+    )
+
+
+def _enforce_capability(
+    cfg: Dict[str, Any],
+    capability: str,
+    input_summary: str,
+    trace_dir: Path,
+    non_interactive: bool = False,
+    prompt: Optional[str] = None,
+) -> Tuple[bool, str]:
+    start = time.perf_counter()
+    allowed, level, reason = _check_capability_permission(
+        cfg=cfg,
+        capability=capability,
+        user_prompt=prompt,
+        non_interactive=non_interactive,
+    )
+    duration_ms = (time.perf_counter() - start) * 1000
+    _log_permission_decision(
+        trace_dir=trace_dir,
+        capability=capability,
+        input_summary=input_summary,
+        allowed=allowed,
+        permission_level=level,
+        reason=reason,
+        duration_ms=duration_ms,
+    )
+    return allowed, level
+
+
+def cmd_capability_list(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_read",
+        input_summary="capability list",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="capability_list",
+            input_summary="capability list",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    registry = _capability_registry(cfg)
+    for capability in sorted(registry):
+        print(f"{capability} {registry[capability]}")
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="capability_list",
+        input_summary="capability list",
+        output_summary=f"{len(registry)} capabilities",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+    )
+    return 0
+
+
+def cmd_capability_set(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg)
+    start = time.perf_counter()
+    capability = str(args.capability).strip()
+    if not capability:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="capability_set",
+            input_summary="capability empty",
+            output_summary="capability cannot be empty",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+            status="error",
+        )
+        print("capability cannot be empty", file=sys.stderr)
+        return 1
+
+    level = str(args.level).strip().lower()
+    if level not in PERMISSION_LEVEL_CHOICES:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="capability_set",
+            input_summary=f"{capability}={level}",
+            output_summary="invalid level",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+            status="error",
+        )
+        print(
+            f"Invalid level '{args.level}'. "
+            f"Expected one of: {', '.join(PERMISSION_LEVEL_CHOICES)}.",
+            file=sys.stderr,
+        )
+        return 1
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_write",
+        input_summary=f"capability set {capability}",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="capability_set",
+            input_summary=f"{capability}={level}",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    capabilities = cfg.setdefault("capabilities", {})
+    if not isinstance(capabilities, dict):
+        capabilities = {}
+        cfg["capabilities"] = capabilities
+    overrides = capabilities.setdefault("overrides", {})
+    if not isinstance(overrides, dict):
+        overrides = {}
+        capabilities["overrides"] = overrides
+    overrides[capability] = level
+    _write_json(cfg_path, _normalize_config(cfg))
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="capability_set",
+        input_summary=f"{capability}={level}",
+        output_summary="override updated",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+    )
+    print(f"capabilities.overrides.{capability}={level}")
+    return 0
+
+
+def cmd_traces(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    traces = _read_action_traces(trace_dir)
+    if args.type:
+        wanted = str(args.type).strip()
+        traces = [item for item in traces if str(item.get("action_type", "")).strip() == wanted]
+
+    if args.last and args.last > 0:
+        traces = traces[-args.last :]
+
+    if not traces:
+        print(f"No traces found in {trace_dir}")
+        return 0
+
+    for item in traces:
+        ts = str(item.get("timestamp", "?")).strip()
+        action_type = str(item.get("action_type", "?")).strip()
+        level = str(item.get("permission_level", "?")).strip()
+        status = str(item.get("status", "?")).strip()
+        summary = _summarize_text(item.get("output_summary", ""), max_chars=100)
+        print(f"{ts} | {action_type:<20} | {level:<9} | {status:<7} | {summary}")
     return 0
 
 
@@ -1414,6 +1822,26 @@ def build_parser() -> argparse.ArgumentParser:
     config_get.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
     config_get.add_argument("key", choices=sorted(PROFILE_KEY_MAP.keys()), help="Preference key")
     config_get.set_defaults(func=cmd_config_get)
+
+    capability = sub.add_parser("capability", help="Inspect or override capability permissions")
+    capability_sub = capability.add_subparsers(dest="capability_command", required=True)
+
+    capability_list = capability_sub.add_parser("list", help="List effective capability levels")
+    capability_list.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    capability_list.set_defaults(func=cmd_capability_list)
+
+    capability_set = capability_sub.add_parser("set", help="Set local capability override")
+    capability_set.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    capability_set.add_argument("capability", help="Capability name (for example: shell_exec)")
+    capability_set.add_argument("level", choices=list(PERMISSION_LEVEL_CHOICES), help="Permission level")
+    capability_set.set_defaults(func=cmd_capability_set)
+
+    traces = sub.add_parser("traces", help="Show structured action traces")
+    traces.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    traces.add_argument("--trace-dir", default=None, help="Trace directory override")
+    traces.add_argument("--last", type=int, default=20, help="Number of recent trace entries to show")
+    traces.add_argument("--type", default=None, help="Filter by action type")
+    traces.set_defaults(func=cmd_traces)
 
     auth = sub.add_parser("auth", help="Manage OAuth profile linkage for Gaia assistant")
     auth_sub = auth.add_subparsers(dest="auth_command", required=True)
