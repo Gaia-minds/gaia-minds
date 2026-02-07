@@ -1,4 +1,4 @@
-.PHONY: docs-check verify-resources generate-indexes check-indexes check-all install-hooks uninstall-hooks
+.PHONY: docs-check verify-resources generate-indexes check-indexes check-all install-hooks uninstall-hooks assistant-init assistant-doctor assistant-run-dry
 
 docs-check:
 	./tools/validate-docs.sh
@@ -23,3 +23,12 @@ install-hooks:
 uninstall-hooks:
 	@rm -f .git/hooks/pre-commit
 	@echo "Pre-commit hook removed."
+
+assistant-init:
+	python3 ./tools/gaia-assistant.py init
+
+assistant-doctor:
+	python3 ./tools/gaia-assistant.py doctor
+
+assistant-run-dry:
+	python3 ./tools/gaia-assistant.py run --mode single --dry-run

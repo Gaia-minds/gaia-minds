@@ -17,7 +17,8 @@ Read these first:
 
 1. `CONSTITUTION.md`
 2. `infrastructure/personal-assistant-program.md`
-3. `tools/agent-config.yml` and `tools/agent-loop.py` for self-evolving loop behavior
+3. `assistant/README.md` for standalone runtime bootstrap
+4. `tools/agent-config.yml` and `tools/agent-loop.py` for self-evolving loop behavior
 
 Then load references from this skill as needed:
 
@@ -70,4 +71,3 @@ For cross-repo work:
 - [ ] Uses the user-direction contract when task is human-directed
 - [ ] Includes validation output (`make check-all` at minimum)
 - [ ] Regenerates indexes if needed
-

@@ -79,6 +79,14 @@ This symlinks `tools/pre-commit` into `.git/hooks/`. On every `git commit`, it a
 make check-all
 ```
 
+### Run standalone Gaia assistant bootstrap and health checks
+
+```bash
+make assistant-init
+make assistant-doctor
+make assistant-run-dry
+```
+
 ## Architecture
 
 The repository is organized into knowledge domains, each with its own directory:

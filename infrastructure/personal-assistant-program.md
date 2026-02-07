@@ -19,12 +19,22 @@ In scope:
 - Contributor workflow for assistant-related work
 - Governance and budget policy for self-improvement cycles
 - Integration guidance for OpenClaw-based agent operators
+- Standalone Gaia personal assistant runtime bootstrap
 
 Out of scope:
 
 - Rebuilding OpenClaw runtime features in Gaia
 - Private or opaque coordination mechanisms
 - Unbounded autonomous self-modification
+
+## Runtime Modes
+
+Gaia assistant supports two operational modes:
+
+1. Standalone mode (Gaia runtime via `tools/gaia-assistant.py`)
+2. OpenClaw-powered mode (Gaia policy/skills on top of OpenClaw runtime)
+
+Standalone quick start is documented in `assistant/README.md`.
 
 ## Operating Model
 
@@ -46,6 +56,9 @@ Recommended default split:
 - Self-Improvement Lane: `20%`
 
 If a different split is requested, document it in the direction issue.
+
+Track scheduling and allowed action policies are defined in
+`tools/agent-config.yml` under `evolution`.
 
 ## User Direction Hook
 
