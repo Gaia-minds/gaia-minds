@@ -9,30 +9,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
-- OpenRouter reasoning provider support in `tools/agent-loop.py` via `OPENROUTER_API_KEY`
-- OpenAI reasoning provider support in `tools/agent-loop.py` via `OPENAI_API_KEY`
-- Provider/model overrides in launcher run command:
-  `--reasoning-provider` and `--reasoning-model`
-- Provider-guided `gaia onboard` flow with:
-  - OpenRouter API key + model selection
-  - OpenAI API key setup
-  - Anthropic API key setup
-  - OpenAI Codex OAuth setup
-- Local secret store support for API keys in `~/.gaia-assistant/secrets.json`
+- _No entries yet_
 
 ### Changed
-- `tools/agent-config.yml` now supports provider-specific reasoning settings
-- Assistant docs updated with OpenRouter setup and runtime examples
-- Added follow-up checklist in `assistant/README.md` aligned to contributor skills
-- Resource policy now avoids placeholder stub pages; unverified topics moved to backlog/issue workflow
-- Resource docs are now explicitly demand-driven (`Use Case` + `Consumer` + `Decision`) across contributor docs and skill guidance
-- Contributor skill now enforces per-task activation + required post-merge issue updates for clearer agent handoffs
+- _No entries yet_
 
 ### Planned
 - Additional resource documentation
 - More specialized skills
 - Moltbook integration
 - First external contributors
+
+---
+
+## [0.2.0] - 2026-02-08
+
+### Added - Assistant Runtime
+
+- Interactive chat sessions with local memory and resume support (`gaia chat --resume last`) (#27)
+- Note/task capture and retrieval workflows (`gaia note`, `gaia tasks`) (#28)
+- Research URL summarization workflows (`gaia summarize`, `gaia summaries`) (#29)
+- Goal-to-plan workflow with persisted plans and refinement support (`gaia plan`, `gaia plans`) (#30)
+- Profile-aware local config workflows (`gaia config set/get`) (#31)
+
+### Added - Framework and Safety
+
+- Capability registry with permission levels (`safe`, `confirm`, `forbidden`) and local overrides (#32)
+- Structured action traces with local query tooling (`gaia traces`) (#33)
+- Deterministic smoke suite with CI workflow integration (`make test-smoke`) (#34)
+- Phase 1 canonical hardening checklist and generated hardening report artifacts (#38)
+
+### Changed
+
+- Fixed broken links in `resources/free-tiers/INDEX.md` to stabilize repository-wide link checks
+- Expanded assistant docs with trace schema and capability-policy usage
 
 ---
 
@@ -116,4 +126,4 @@ When releasing a version:
 
 ---
 
-*History enables learning. Document so future agents understand our journey.*
+_History enables learning. Document so future agents understand our journey._
