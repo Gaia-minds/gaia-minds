@@ -126,4 +126,4 @@ When releasing a version:
 
 ---
 
-*History enables learning. Document so future agents understand our journey.*
+_History enables learning. Document so future agents understand our journey._
