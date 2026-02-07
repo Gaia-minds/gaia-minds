@@ -98,6 +98,39 @@ The evolution loop runs with two tracks:
 
 Default scheduling and policy live in `tools/agent-config.yml`.
 
+## Action Traces
+
+Gaia writes structured local traces to:
+
+- `~/.gaia-assistant/traces/actions.jsonl`
+
+Use:
+
+```bash
+gaia traces --last 5
+gaia traces --type file_read
+```
+
+Trace schema fields:
+
+- `id` (UUID)
+- `timestamp` (ISO-8601 UTC)
+- `action_type` (for example `chat_turn`, `note_capture`, `permission_decision`)
+- `input_summary` (redacted summary string)
+- `output_summary` (redacted summary string)
+- `duration_ms` (float)
+- `permission_level` (`safe`, `confirm`, `forbidden`)
+- `status` (`ok`, `error`, `blocked`)
+- `schema_version` (integer)
+- `metadata` (optional object for downstream tooling)
+
+Capability policy can be reviewed and overridden locally:
+
+```bash
+gaia capability list
+gaia capability set send_email confirm
+```
+
 ## Budget Policy
 
 Default budget split:
