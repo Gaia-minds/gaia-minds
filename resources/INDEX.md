@@ -20,7 +20,6 @@ Pointers to funding, compute, and sustainability resources.
 - [Groq Free Tier](free-tiers/groq.md) — What's Offered
 - [Hugging Face Free Tier](free-tiers/huggingface.md) — What's Offered
 - [OpenAI Free Tier](free-tiers/openai.md) — Overview
-- [Provider Name Free Tier](free-tiers/_TEMPLATE.md) — What's Offered
 - [Replicate Free Tier](free-tiers/replicate.md) — What's Offered
 - [Together AI Free Tier](free-tiers/together.md) — What's Offered
 

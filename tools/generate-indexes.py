@@ -183,7 +183,8 @@ def scan_directory(content_dir: Path) -> dict[str | None, list[FileEntry]]:
         for fname in sorted(files):
             if not fname.endswith(".md"):
                 continue
-            if fname in SKIP_FILES:
+            # Skip known top-level docs and underscore-prefixed templates/helpers.
+            if fname in SKIP_FILES or fname.startswith("_"):
                 continue
 
             fpath = root_path / fname
