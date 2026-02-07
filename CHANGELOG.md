@@ -8,6 +8,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- OpenRouter reasoning provider support in `tools/agent-loop.py` via `OPENROUTER_API_KEY`
+- OpenAI reasoning provider support in `tools/agent-loop.py` via `OPENAI_API_KEY`
+- Provider/model overrides in launcher run command:
+  `--reasoning-provider` and `--reasoning-model`
+- Provider-guided `gaia onboard` flow with:
+  - OpenRouter API key + model selection
+  - OpenAI API key setup
+  - Anthropic API key setup
+  - OpenAI Codex OAuth setup
+- Local secret store support for API keys in `~/.gaia-assistant/secrets.json`
+
+### Changed
+- `tools/agent-config.yml` now supports provider-specific reasoning settings
+- Assistant docs updated with OpenRouter setup and runtime examples
+
 ### Planned
 - Additional resource documentation
 - More specialized skills

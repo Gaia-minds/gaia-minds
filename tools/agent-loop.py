@@ -3,7 +3,7 @@
 
 This is the reasoning core of an autonomous agent that:
 1. Gathers state from the repository and GitHub
-2. Asks Claude what to do (with Constitution as system constraint)
+2. Asks the configured reasoning provider what to do
 3. Checks alignment of proposed actions
 4. Executes approved actions
 5. Writes memory (decisions, lessons, state)
@@ -25,6 +25,8 @@ import logging
 import os
 import sys
 import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -41,7 +43,6 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from agent_alignment import (  # noqa: E402
     AlignmentResult,
     check_alignment,
-    classify_risk,
     load_constitution,
 )
 from agent_actions import (  # noqa: E402
@@ -118,6 +119,11 @@ DEFAULT_BUDGET_POLICY: Dict[str, Any] = {
     "hard_cycle_token_cap": 12000,
 }
 
+DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
+DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
+DEFAULT_OPENROUTER_MODEL = "openrouter/auto"
+SUPPORTED_REASONING_PROVIDERS = {"anthropic", "openai", "openrouter"}
+
 
 # ---------------------------------------------------------------------------
 # Config
@@ -146,6 +152,181 @@ def load_config(path: Path = CONFIG_PATH) -> Dict[str, Any]:
         key, val = match.group(1).strip(), match.group(2).strip()
         config[key] = val
     return config
+
+
+def _resolve_reasoning_provider(config: Dict[str, Any]) -> str:
+    """Resolve reasoning provider from env override or config."""
+    override = os.environ.get("GAIA_REASONING_PROVIDER", "").strip().lower()
+    if override:
+        if override in SUPPORTED_REASONING_PROVIDERS:
+            return override
+        log.warning(
+            "Unsupported GAIA_REASONING_PROVIDER=%s; falling back to config/default",
+            override,
+        )
+
+    reasoning_cfg = config.get("reasoning", {})
+    if not isinstance(reasoning_cfg, dict):
+        reasoning_cfg = {}
+    configured = str(reasoning_cfg.get("provider", "anthropic")).strip().lower()
+    if configured in SUPPORTED_REASONING_PROVIDERS:
+        return configured
+    return "anthropic"
+
+
+def _resolve_reasoning_model(config: Dict[str, Any], provider: str) -> str:
+    """Resolve reasoning model from env overrides and config."""
+    direct_override = os.environ.get("GAIA_REASONING_MODEL", "").strip()
+    if direct_override:
+        return direct_override
+
+    reasoning = config.get("reasoning", {})
+    reasoning = reasoning if isinstance(reasoning, dict) else {}
+    models_cfg = reasoning.get("models", {})
+    models_cfg = models_cfg if isinstance(models_cfg, dict) else {}
+
+    if provider == "openai":
+        env_model = os.environ.get("OPENAI_MODEL", "").strip()
+        if env_model:
+            return env_model
+
+        configured_openai_model = str(models_cfg.get("openai", "")).strip()
+        if configured_openai_model:
+            return configured_openai_model
+
+        openai_cfg = reasoning.get("openai", {})
+        if isinstance(openai_cfg, dict):
+            openai_model = str(openai_cfg.get("model", "")).strip()
+            if openai_model:
+                return openai_model
+
+        legacy_model = str(reasoning.get("model", "")).strip()
+        if legacy_model and legacy_model != DEFAULT_ANTHROPIC_MODEL:
+            return legacy_model
+
+        return DEFAULT_OPENAI_MODEL
+
+    if provider == "openrouter":
+        env_model = os.environ.get("OPENROUTER_MODEL", "").strip()
+        if env_model:
+            return env_model
+
+        configured_openrouter_model = str(models_cfg.get("openrouter", "")).strip()
+        if configured_openrouter_model:
+            return configured_openrouter_model
+
+        openrouter_cfg = reasoning.get("openrouter", {})
+        if isinstance(openrouter_cfg, dict):
+            openrouter_model = str(openrouter_cfg.get("model", "")).strip()
+            if openrouter_model:
+                return openrouter_model
+
+        legacy_model = str(reasoning.get("model", "")).strip()
+        if legacy_model and legacy_model != DEFAULT_ANTHROPIC_MODEL:
+            return legacy_model
+
+        return DEFAULT_OPENROUTER_MODEL
+
+    env_model = os.environ.get("ANTHROPIC_MODEL", "").strip()
+    if env_model:
+        return env_model
+
+    configured_anthropic_model = str(models_cfg.get("anthropic", "")).strip()
+    if configured_anthropic_model:
+        return configured_anthropic_model
+
+    legacy_model = str(reasoning.get("model", "")).strip()
+    return legacy_model or DEFAULT_ANTHROPIC_MODEL
+
+
+def _resolve_openai_runtime(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Resolve OpenAI runtime settings from config and env."""
+    reasoning = config.get("reasoning", {})
+    reasoning = reasoning if isinstance(reasoning, dict) else {}
+    openai_cfg = reasoning.get("openai", {})
+    openai_cfg = openai_cfg if isinstance(openai_cfg, dict) else {}
+
+    base_url = str(
+        os.environ.get(
+            "OPENAI_BASE_URL",
+            openai_cfg.get("base_url", "https://api.openai.com/v1"),
+        )
+    ).strip()
+    if not base_url:
+        base_url = "https://api.openai.com/v1"
+    base_url = base_url.rstrip("/")
+
+    timeout_raw = os.environ.get(
+        "OPENAI_TIMEOUT_SECONDS",
+        str(openai_cfg.get("timeout_seconds", 120)),
+    )
+    try:
+        timeout_seconds = int(str(timeout_raw).strip())
+    except ValueError:
+        timeout_seconds = 120
+    if timeout_seconds < 1:
+        timeout_seconds = 120
+
+    return {
+        "api_key": os.environ.get("OPENAI_API_KEY", "").strip(),
+        "base_url": base_url,
+        "timeout_seconds": timeout_seconds,
+    }
+
+
+def _resolve_openrouter_runtime(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Resolve OpenRouter runtime settings from config and env."""
+    reasoning = config.get("reasoning", {})
+    reasoning = reasoning if isinstance(reasoning, dict) else {}
+    openrouter_cfg = reasoning.get("openrouter", {})
+    openrouter_cfg = openrouter_cfg if isinstance(openrouter_cfg, dict) else {}
+
+    base_url = str(
+        os.environ.get(
+            "OPENROUTER_BASE_URL",
+            openrouter_cfg.get("base_url", "https://openrouter.ai/api/v1"),
+        )
+    ).strip()
+    if not base_url:
+        base_url = "https://openrouter.ai/api/v1"
+    base_url = base_url.rstrip("/")
+
+    app_name = str(
+        os.environ.get(
+            "OPENROUTER_APP_NAME",
+            openrouter_cfg.get("app_name", "gaia-minds-agent"),
+        )
+    ).strip()
+    if not app_name:
+        app_name = "gaia-minds-agent"
+
+    app_url = str(
+        os.environ.get(
+            "OPENROUTER_APP_URL",
+            openrouter_cfg.get("app_url", "https://github.com/Gaia-minds/gaia-minds"),
+        )
+    ).strip()
+    if not app_url:
+        app_url = "https://github.com/Gaia-minds/gaia-minds"
+
+    timeout_raw = os.environ.get(
+        "OPENROUTER_TIMEOUT_SECONDS",
+        str(openrouter_cfg.get("timeout_seconds", 120)),
+    )
+    try:
+        timeout_seconds = int(str(timeout_raw).strip())
+    except ValueError:
+        timeout_seconds = 120
+    if timeout_seconds < 1:
+        timeout_seconds = 120
+
+    return {
+        "api_key": os.environ.get("OPENROUTER_API_KEY", "").strip(),
+        "base_url": base_url,
+        "app_name": app_name,
+        "app_url": app_url,
+        "timeout_seconds": timeout_seconds,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -390,7 +571,7 @@ def action_allowed_in_track(action_type: str, active_track: str, config: Dict[st
 
 
 # ---------------------------------------------------------------------------
-# Claude reasoning
+# Reasoning
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT_TEMPLATE = """\
@@ -482,19 +663,168 @@ def state_to_summary(state: RepoState) -> Dict[str, Any]:
     }
 
 
-def ask_claude_for_plan(
+def _strip_markdown_fences(text: str) -> str:
+    """Remove markdown code fences from LLM text responses."""
+    out = text.strip()
+    if out.startswith("```"):
+        lines = out.splitlines()
+        lines = [line for line in lines if not line.strip().startswith("```")]
+        out = "\n".join(lines)
+    return out.strip()
+
+
+def _extract_anthropic_text(response: Any) -> str:
+    """Extract plain text from an Anthropic response object."""
+    text = ""
+    for block in response.content:
+        if hasattr(block, "text"):
+            text += block.text
+    return text
+
+
+def _extract_chat_completion_text(payload: Dict[str, Any], provider_name: str) -> str:
+    """Extract assistant message text from chat completion payload."""
+    choices = payload.get("choices", [])
+    if not isinstance(choices, list) or not choices:
+        raise ValueError(f"{provider_name} response missing choices")
+    message = choices[0].get("message", {}) if isinstance(choices[0], dict) else {}
+    if not isinstance(message, dict):
+        raise ValueError(f"{provider_name} response has invalid message payload")
+    content = message.get("content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: List[str] = []
+        for item in content:
+            if isinstance(item, dict):
+                text_value = item.get("text")
+                if isinstance(text_value, str):
+                    parts.append(text_value)
+        return "".join(parts)
+    raise ValueError(f"{provider_name} response content is not text")
+
+
+def _openai_chat_completion(
+    client: Dict[str, Any],
+    model: str,
+    system_prompt: str,
+    user_prompt: str,
+    max_tokens: int,
+    temperature: float,
+) -> str:
+    """Call OpenAI chat completions API and return text response."""
+    endpoint = f"{client['base_url']}/chat/completions"
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+    }
+    headers = {
+        "Authorization": f"Bearer {client['api_key']}",
+        "Content-Type": "application/json",
+    }
+    request = urllib.request.Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=int(client["timeout_seconds"])) as response:
+            raw = response.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        details = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"OpenAI API returned HTTP {exc.code}: {details[:400]}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"OpenAI request failed: {exc}") from exc
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("OpenAI API returned non-JSON response") from exc
+
+    return _extract_chat_completion_text(parsed, "OpenAI")
+
+
+def _openrouter_chat_completion(
+    client: Dict[str, Any],
+    model: str,
+    system_prompt: str,
+    user_prompt: str,
+    max_tokens: int,
+    temperature: float,
+) -> str:
+    """Call OpenRouter chat completions API and return text response."""
+    endpoint = f"{client['base_url']}/chat/completions"
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+    }
+    headers = {
+        "Authorization": f"Bearer {client['api_key']}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": client["app_url"],
+        "X-Title": client["app_name"],
+    }
+    request = urllib.request.Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=int(client["timeout_seconds"])) as response:
+            raw = response.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        details = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"OpenRouter API returned HTTP {exc.code}: {details[:400]}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"OpenRouter request failed: {exc}") from exc
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("OpenRouter API returned non-JSON response") from exc
+
+    return _extract_chat_completion_text(parsed, "OpenRouter")
+
+
+def ask_model_for_plan(
     client: Any,
     config: Dict[str, Any],
     state: RepoState,
     memory: Dict[str, Any],
     constitution: str,
     active_track: str,
+    provider: str,
+    model: str,
 ) -> Dict[str, Any]:
-    """Ask Claude to analyze state and propose actions."""
+    """Ask the configured reasoning provider to analyze state and propose actions."""
     reasoning_config = config.get("reasoning", {})
-    model = reasoning_config.get("model", "claude-sonnet-4-5-20250929")
+    reasoning_config = reasoning_config if isinstance(reasoning_config, dict) else {}
     max_tokens = reasoning_config.get("max_tokens", 4096)
     temperature = reasoning_config.get("temperature", 0.3)
+    try:
+        max_tokens_int = int(max_tokens)
+    except (TypeError, ValueError):
+        max_tokens_int = 4096
+    if max_tokens_int < 1:
+        max_tokens_int = 4096
+    try:
+        temperature_float = float(temperature)
+    except (TypeError, ValueError):
+        temperature_float = 0.3
 
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(constitution=constitution)
 
@@ -513,42 +843,62 @@ def ask_claude_for_plan(
         budget_policy_json=json.dumps(budget_policy, indent=2),
     )
 
-    log.info("Asking Claude (%s) for a plan...", model)
+    log.info("Asking reasoning provider '%s' (%s) for a plan...", provider, model)
     log.debug("System prompt: %d chars, User prompt: %d chars", len(system_prompt), len(user_prompt))
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=max_tokens,
-        temperature=temperature,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_prompt}],
-    )
+    text: str
+    try:
+        if provider == "anthropic":
+            response = client.messages.create(
+                model=model,
+                max_tokens=max_tokens_int,
+                temperature=temperature_float,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+            text = _extract_anthropic_text(response)
+        elif provider == "openai":
+            if not isinstance(client, dict):
+                raise RuntimeError("OpenAI client is misconfigured")
+            text = _openai_chat_completion(
+                client=client,
+                model=model,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                max_tokens=max_tokens_int,
+                temperature=temperature_float,
+            )
+        elif provider == "openrouter":
+            if not isinstance(client, dict):
+                raise RuntimeError("OpenRouter client is misconfigured")
+            text = _openrouter_chat_completion(
+                client=client,
+                model=model,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                max_tokens=max_tokens_int,
+                temperature=temperature_float,
+            )
+        else:
+            raise RuntimeError(f"Unsupported reasoning provider: {provider}")
+    except Exception as exc:
+        log.error("Reasoning request failed (%s/%s): %s", provider, model, exc)
+        return {"reasoning": f"Reasoning request failed: {exc}", "actions": []}
 
-    # Extract text from response
-    text = ""
-    for block in response.content:
-        if hasattr(block, "text"):
-            text += block.text
-
-    # Parse JSON from response
-    # Handle case where Claude wraps in code fences
-    text = text.strip()
-    if text.startswith("```"):
-        # Remove code fences
-        lines = text.splitlines()
-        lines = [l for l in lines if not l.strip().startswith("```")]
-        text = "\n".join(lines)
+    # Parse JSON from response text.
+    text = _strip_markdown_fences(text)
 
     try:
         plan = json.loads(text)
     except json.JSONDecodeError as exc:
-        log.error("Failed to parse Claude's response as JSON: %s", exc)
+        log.error("Failed to parse reasoning response as JSON: %s", exc)
         log.error("Raw response: %s", text[:500])
         plan = {"reasoning": f"Failed to parse response: {exc}", "actions": []}
 
     actions = plan.get("actions", [])
     log.info(
-        "Claude proposed %d action(s): %s",
+        "Reasoning provider '%s' proposed %d action(s): %s",
+        provider,
         len(actions),
         ", ".join(a.get("type", "?") for a in actions) or "(none)",
     )
@@ -566,6 +916,8 @@ def run_cycle(
     config: Dict[str, Any],
     client: Any,
     cycle_number: int,
+    reasoning_provider: str,
+    reasoning_model: str,
     dry_run: bool = False,
 ) -> List[ActionResult]:
     """Run one complete agent cycle."""
@@ -590,12 +942,30 @@ def run_cycle(
     # 3. Load constitution
     constitution = load_constitution(repo_root)
 
-    # 4. Ask Claude for a plan
+    # 4. Ask reasoning provider for a plan
     if client is None:
-        log.info("No Anthropic client available -- skipping Claude reasoning (dry-run)")
-        plan = {"reasoning": f"No API client (dry-run without SDK/key), active_track={active_track}", "actions": []}
+        log.info(
+            "No API client available for provider '%s' -- skipping reasoning (dry-run)",
+            reasoning_provider,
+        )
+        plan = {
+            "reasoning": (
+                f"No API client (dry-run without provider credentials), "
+                f"provider={reasoning_provider}, active_track={active_track}"
+            ),
+            "actions": [],
+        }
     else:
-        plan = ask_claude_for_plan(client, config, state, memory, constitution, active_track)
+        plan = ask_model_for_plan(
+            client=client,
+            config=config,
+            state=state,
+            memory=memory,
+            constitution=constitution,
+            active_track=active_track,
+            provider=reasoning_provider,
+            model=reasoning_model,
+        )
 
     actions = plan.get("actions", [])
     if not actions:
@@ -632,8 +1002,8 @@ def run_cycle(
             action,
             constitution,
             json.dumps(memory.get("recent_decisions", [])[-5:]),
-            client=client if _HAS_ANTHROPIC else None,
-            model=config.get("reasoning", {}).get("model", "claude-sonnet-4-5-20250929"),
+            client=client if reasoning_provider == "anthropic" and _HAS_ANTHROPIC else None,
+            model=reasoning_model,
         )
 
         log.info(
@@ -817,23 +1187,6 @@ def main() -> int:
     level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(level=level, format=LOG_FORMAT, datefmt=LOG_DATE_FORMAT, stream=sys.stderr)
 
-    # Check for anthropic SDK (not needed in dry-run)
-    if not _HAS_ANTHROPIC and not args.dry_run:
-        log.error(
-            "The 'anthropic' package is required. Install it:\n"
-            "  pip install anthropic\n"
-            "Or: pip install -r requirements.txt"
-        )
-        return 1
-
-    # Check for API key (not needed in dry-run)
-    if not os.environ.get("ANTHROPIC_API_KEY") and not args.dry_run:
-        log.error(
-            "ANTHROPIC_API_KEY environment variable is not set.\n"
-            "  export ANTHROPIC_API_KEY='your-key-here'"
-        )
-        return 1
-
     # Load config
     config_path = Path(args.config)
     if not config_path.exists():
@@ -841,18 +1194,89 @@ def main() -> int:
         return 1
 
     config = load_config(config_path)
+    if not isinstance(config, dict):
+        log.error("Config file is invalid: expected a YAML mapping at %s", config_path)
+        return 1
+
+    reasoning_provider = _resolve_reasoning_provider(config)
+    reasoning_model = _resolve_reasoning_model(config, reasoning_provider)
+    openai_runtime: Optional[Dict[str, Any]] = None
+    openrouter_runtime: Optional[Dict[str, Any]] = None
+    if reasoning_provider == "openai":
+        openai_runtime = _resolve_openai_runtime(config)
+    if reasoning_provider == "openrouter":
+        openrouter_runtime = _resolve_openrouter_runtime(config)
+    log.info("Reasoning provider selected: %s (model: %s)", reasoning_provider, reasoning_model)
+
+    # Validate provider runtime requirements (except in dry-run).
+    if not args.dry_run:
+        if reasoning_provider == "anthropic":
+            if not _HAS_ANTHROPIC:
+                log.error(
+                    "Reasoning provider is 'anthropic' but the 'anthropic' package is missing.\n"
+                    "Install it:\n"
+                    "  pip install anthropic\n"
+                    "Or: pip install -r requirements.txt"
+                )
+                return 1
+            if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+                log.error(
+                    "Reasoning provider is 'anthropic' but ANTHROPIC_API_KEY is not set.\n"
+                    "  export ANTHROPIC_API_KEY='your-key-here'"
+                )
+                return 1
+        elif reasoning_provider == "openrouter":
+            assert openrouter_runtime is not None
+            if not openrouter_runtime.get("api_key"):
+                log.error(
+                    "Reasoning provider is 'openrouter' but OPENROUTER_API_KEY is not set.\n"
+                    "  export OPENROUTER_API_KEY='your-key-here'"
+                )
+                return 1
+        elif reasoning_provider == "openai":
+            assert openai_runtime is not None
+            if not openai_runtime.get("api_key"):
+                log.error(
+                    "Reasoning provider is 'openai' but OPENAI_API_KEY is not set.\n"
+                    "  export OPENAI_API_KEY='your-key-here'"
+                )
+                return 1
+        else:
+            log.error(
+                "Unsupported reasoning provider '%s'. Supported: anthropic, openai, openrouter",
+                reasoning_provider,
+            )
+            return 1
+
     log.info("Loaded config: %s v%s", config.get("agent", {}).get("name", "?"), config.get("agent", {}).get("version", "?"))
 
     # Determine mode
     mode = args.mode or config.get("cycle", {}).get("mode", "single")
 
-    # Initialize Anthropic client
-    if _HAS_ANTHROPIC and os.environ.get("ANTHROPIC_API_KEY"):
-        client = anthropic.Anthropic()
-        log.info("Anthropic client initialized (model: %s)", config.get("reasoning", {}).get("model", "?"))
+    # Initialize provider client.
+    client: Any = None
+    if reasoning_provider == "anthropic" and _HAS_ANTHROPIC and os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", "").strip())
+        log.info("Anthropic client initialized (model: %s)", reasoning_model)
+    elif reasoning_provider == "openai" and openai_runtime and openai_runtime.get("api_key"):
+        client = openai_runtime
+        log.info(
+            "OpenAI client initialized (model: %s, base_url: %s)",
+            reasoning_model,
+            openai_runtime.get("base_url"),
+        )
+    elif reasoning_provider == "openrouter" and openrouter_runtime and openrouter_runtime.get("api_key"):
+        client = openrouter_runtime
+        log.info(
+            "OpenRouter client initialized (model: %s, base_url: %s)",
+            reasoning_model,
+            openrouter_runtime.get("base_url"),
+        )
     else:
-        client = None
-        log.info("No Anthropic client (dry-run or missing SDK/key)")
+        log.info(
+            "No provider client initialized (provider=%s, likely dry-run or missing credentials)",
+            reasoning_provider,
+        )
 
     # Ensure memory directory exists
     MEMORY_DIR.mkdir(parents=True, exist_ok=True)
@@ -873,7 +1297,14 @@ def main() -> int:
         log.info("Running single cycle (#%d)...", cycle_number)
         # Check PR feedback before planning
         check_pr_feedback(config, cycle_number)
-        results = run_cycle(config, client, cycle_number, dry_run=args.dry_run)
+        results = run_cycle(
+            config=config,
+            client=client,
+            cycle_number=cycle_number,
+            reasoning_provider=reasoning_provider,
+            reasoning_model=reasoning_model,
+            dry_run=args.dry_run,
+        )
         succeeded = sum(1 for r in results if r.success)
         failed = sum(1 for r in results if not r.success)
         log.info("Cycle %d complete: %d succeeded, %d failed", cycle_number, succeeded, failed)
@@ -888,7 +1319,14 @@ def main() -> int:
             cycles_run = 0
             while True:
                 check_pr_feedback(config, cycle_number)
-                results = run_cycle(config, client, cycle_number, dry_run=args.dry_run)
+                results = run_cycle(
+                    config=config,
+                    client=client,
+                    cycle_number=cycle_number,
+                    reasoning_provider=reasoning_provider,
+                    reasoning_model=reasoning_model,
+                    dry_run=args.dry_run,
+                )
                 succeeded = sum(1 for r in results if r.success)
                 failed = sum(1 for r in results if not r.success)
                 log.info("Cycle %d complete: %d succeeded, %d failed", cycle_number, succeeded, failed)

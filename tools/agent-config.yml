@@ -5,8 +5,8 @@
 # repository.  The agent runs on a schedule, picks tasks, validates them against
 # the Constitution, and opens PRs (or auto-executes low-risk actions).
 #
-# SECURITY NOTE: No secrets are stored here.  The Anthropic API key is read
-# from the ANTHROPIC_API_KEY environment variable at runtime.
+# SECURITY NOTE: No secrets are stored here. API keys are read from
+# environment variables at runtime.
 # =============================================================================
 
 # ---------------------------------------------------------------------------
@@ -18,13 +18,28 @@ agent:
   description: "Self-evolving autonomous agent for Gaia Minds"
 
 # ---------------------------------------------------------------------------
-# Claude API settings
+# Reasoning provider settings
 # ---------------------------------------------------------------------------
 reasoning:
-  model: "claude-sonnet-4-5-20250929"  # default model for reasoning
+  provider: "anthropic"  # anthropic | openai | openrouter
+  models:
+    anthropic: "claude-sonnet-4-5-20250929"
+    openai: "gpt-4.1-mini"
+    openrouter: "openrouter/auto"
   max_tokens: 4096
   temperature: 0.3  # low for consistent reasoning
-  # API key comes from ANTHROPIC_API_KEY env var, never stored in config
+  openai:
+    base_url: "https://api.openai.com/v1"
+    timeout_seconds: 120
+  openrouter:
+    base_url: "https://openrouter.ai/api/v1"
+    app_name: "gaia-minds-agent"
+    app_url: "https://github.com/Gaia-minds/gaia-minds"
+    timeout_seconds: 120
+  # API keys are read from env vars, never stored in config:
+  # - ANTHROPIC_API_KEY (for anthropic provider)
+  # - OPENAI_API_KEY (for openai provider)
+  # - OPENROUTER_API_KEY (for openrouter provider)
 
 # ---------------------------------------------------------------------------
 # Cycle settings

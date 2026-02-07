@@ -36,20 +36,43 @@ npm install -g .
 gaia doctor
 ```
 
-## OAuth Onboarding
+## Provider Onboarding
 
-Gaia uses its own local auth store for ChatGPT/Codex-style profiles.
-The default OAuth broker is Codex CLI (web/device flow):
+Run the guided onboarding wizard:
+
+```bash
+gaia onboard
+```
+
+The wizard lets you choose provider and connection style:
+
+1. `openrouter` -> API key + model selection
+2. `openai` -> API key
+3. `anthropic` -> API key
+4. `openai-codex` -> OAuth via Codex CLI
+
+Direct non-interactive examples:
+
+```bash
+# OpenRouter
+gaia onboard --provider openrouter --api-key "$OPENROUTER_API_KEY" --model openrouter/auto --yes
+
+# Anthropic
+gaia onboard --provider anthropic --api-key "$ANTHROPIC_API_KEY" --yes
+
+# OpenAI API key
+gaia onboard --provider openai --api-key "$OPENAI_API_KEY" --model gpt-4.1-mini --yes
+
+# OpenAI Codex OAuth
+gaia onboard --provider openai-codex --yes
+```
+
+Gaia still supports explicit auth commands if you prefer manual control.
+For Codex OAuth:
 
 ```bash
 npm run gaia -- auth login --source codex-cli --provider openai-codex
 npm run gaia -- auth status
-```
-
-If you already authenticated with Codex CLI, import/link without re-running login:
-
-```bash
-npm run gaia -- auth link --source codex-cli --provider openai-codex
 ```
 
 Optional compatibility path (legacy): link from OpenClaw profile store.
@@ -59,6 +82,8 @@ Use `--source openclaw`.
 
 - OAuth tokens are stored in Gaia local state:
   `~/.gaia-assistant/auth-profiles.json` (or `$GAIA_ASSISTANT_HOME/auth-profiles.json`)
+- API keys can be stored in Gaia local secret store:
+  `~/.gaia-assistant/secrets.json` (or `$GAIA_ASSISTANT_HOME/secrets.json`)
 - Launcher config stores profile selection metadata in:
   `~/.gaia-assistant/config.json` (or `$GAIA_ASSISTANT_HOME/config.json`)
 - Never commit auth stores or local runtime state to git.
@@ -88,6 +113,36 @@ Expected environment variables for direct API mode:
 
 - `ANTHROPIC_API_KEY`
 - `OPENAI_API_KEY`
+- `OPENROUTER_API_KEY`
+
+Reasoning provider selection is configured by onboarding in launcher config,
+and can be overridden per run:
+
+```bash
+# one-off override from Gaia launcher
+gaia run --mode single --reasoning-provider openai --reasoning-model gpt-4.1-mini
+gaia run --mode single --reasoning-provider openrouter --reasoning-model openrouter/auto
+
+# npm/local clone equivalent
+npm run gaia -- run --mode single --reasoning-provider openai --reasoning-model gpt-4.1-mini
+npm run gaia -- run --mode single --reasoning-provider openrouter --reasoning-model openrouter/auto
+```
+
+OpenRouter quick setup:
+
+```bash
+export OPENROUTER_API_KEY="your-openrouter-key"
+gaia onboard --provider openrouter
+gaia run --mode single --reasoning-provider openrouter --reasoning-model openrouter/auto
+```
+
+OpenAI quick setup:
+
+```bash
+export OPENAI_API_KEY="your-openai-key"
+gaia onboard --provider openai --model gpt-4.1-mini
+gaia run --mode single --reasoning-provider openai --reasoning-model gpt-4.1-mini
+```
 
 Provider OAuth profile support is exposed through Gaia-native commands:
 
@@ -102,9 +157,9 @@ Direct Python fallback (if preferred):
 
 OpenClaw linking remains available as an optional compatibility source.
 
-Current limitation: the self-evolution loop planner currently uses Anthropic SDK
-for non-dry cycles. OAuth onboarding is in place so contributors can securely
-connect web auth profiles now while provider backends continue to evolve.
+The self-evolution loop planner supports Anthropic, OpenAI, and OpenRouter in
+non-dry runs. Tier-2 LLM alignment checks currently run only with Anthropic;
+when using OpenAI or OpenRouter, Tier-1 deterministic alignment checks still apply.
 
 ## Maintainer Release Flow
 
