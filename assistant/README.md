@@ -11,7 +11,13 @@ provider auth patterns:
 ## Quick Start
 
 ```bash
-# From this repository
+# Install from npm (recommended once published)
+npm install -g @gaia-minds/assistant-cli
+gaia onboard
+gaia auth status
+gaia doctor
+
+# Local development from this repository
 npm install
 npm run gaia -- onboard
 npm run gaia -- auth status
@@ -83,6 +89,8 @@ Expected environment variables for direct API mode:
 
 Provider OAuth profile support is exposed through Gaia-native commands:
 
+- `gaia onboard`
+- `gaia auth login --source codex-cli --provider openai-codex`
 - `npm run gaia -- onboard`
 - `npm run gaia -- auth login --source codex-cli --provider openai-codex`
 
@@ -95,3 +103,15 @@ OpenClaw linking remains available as an optional compatibility source.
 Current limitation: the self-evolution loop planner currently uses Anthropic SDK
 for non-dry cycles. OAuth onboarding is in place so contributors can securely
 connect web auth profiles now while provider backends continue to evolve.
+
+## Maintainer Release Flow
+
+`@gaia-minds/assistant-cli` is publish-ready via GitHub Actions.
+
+1. Ensure npm auth is configured in repository settings:
+   - preferred: npm Trusted Publisher for this repo/workflow
+   - fallback: repository secret `NPM_TOKEN`
+2. Bump version in `package.json` and create a tag like `v0.1.0`.
+3. Push the version commit and tag.
+4. GitHub Action `.github/workflows/npm-publish.yml` validates and publishes.
+5. For rehearsal, run workflow manually with `dry_run=true`.
