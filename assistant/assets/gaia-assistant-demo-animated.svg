@@ -88,6 +88,6 @@
   <rect x="64" y="538" width="1150" height="16" rx="8" class="bar-fill"/>
 
   <text x="64" y="596" class="text line l14">assistant track readiness: npm global install + OAuth onboarding + dry-run loop</text>
-  <text x="64" y="626" class="text line l15">release channel: @gaia-minds/assistant-cli@0.1.0</text>
+  <text x="64" y="626" class="text line l15">release channel: @gaia-minds/assistant-cli@0.1.1</text>
   <text x="64" y="666" class="cmd line l16">$ gaia onboard<tspan class="cursor">_</tspan></text>
 </svg>

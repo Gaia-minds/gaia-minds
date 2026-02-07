@@ -34,7 +34,7 @@ See `assistant/README.md` for full runtime and release docs.
 
 ## Current Status (As Of February 7, 2026)
 
-- npm package is live: `@gaia-minds/assistant-cli@0.1.0`
+- npm package is live: `@gaia-minds/assistant-cli@0.1.1`
 - Global CLI (`gaia`) supports onboarding, auth status, doctor, and dry-run loop execution
 - Runtime includes Gaia-native auth path with Codex CLI OAuth broker (`codex login --device-auth`)
 - Self-evolution loop runs in two tracks:
