@@ -10,8 +10,10 @@ from __future__ import annotations
 import argparse
 import base64
 import getpass
+import html
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -437,6 +439,14 @@ def _tasks_path(storage_dir: Path) -> Path:
     return storage_dir / "tasks.json"
 
 
+def _summaries_path(storage_dir: Path) -> Path:
+    return storage_dir / "summaries.json"
+
+
+def _plans_path(storage_dir: Path) -> Path:
+    return storage_dir / "plans.json"
+
+
 def _new_record_id(prefix: str) -> str:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     return f"{prefix}{timestamp}-{uuid.uuid4().hex[:6]}"
@@ -490,6 +500,55 @@ def _captures_note_intent(user_input: str) -> Optional[Tuple[str, bool]]:
             content = text[len(marker) :].lstrip(" :,-")
             return (content, True)
     return None
+
+
+def _extract_title_and_text(raw_html: str) -> Tuple[str, str]:
+    title = ""
+    title_match = re.search(r"<title[^>]*>(.*?)</title>", raw_html, flags=re.IGNORECASE | re.DOTALL)
+    if title_match:
+        title = html.unescape(re.sub(r"\s+", " ", title_match.group(1)).strip())
+
+    no_script = re.sub(r"<script[^>]*>.*?</script>", " ", raw_html, flags=re.IGNORECASE | re.DOTALL)
+    no_style = re.sub(r"<style[^>]*>.*?</style>", " ", no_script, flags=re.IGNORECASE | re.DOTALL)
+    text_only = re.sub(r"<[^>]+>", " ", no_style)
+    normalized = html.unescape(re.sub(r"\s+", " ", text_only)).strip()
+    return title, normalized
+
+
+def _fetch_url_content(url: str, timeout: int = 15) -> Tuple[str, str]:
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": "GaiaAssistant/0.1"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            charset = response.headers.get_content_charset() or "utf-8"
+            raw = response.read().decode(charset, errors="replace")
+    except urllib.error.HTTPError as exc:
+        raise ProviderError(f"HTTP {exc.code} for {url}") from exc
+    except urllib.error.URLError as exc:
+        raise ProviderError(f"Network error for {url}: {exc.reason}") from exc
+    except TimeoutError as exc:
+        raise ProviderError(f"Timeout fetching {url}") from exc
+    return _extract_title_and_text(raw)
+
+
+def _key_points_from_text(text: str, max_points: int = 4) -> List[str]:
+    if not text.strip():
+        return []
+    pieces = re.split(r"(?<=[.!?])\s+", text.strip())
+    points: List[str] = []
+    for piece in pieces:
+        cleaned = piece.strip()
+        if len(cleaned) < 30:
+            continue
+        points.append(_summarize_text(cleaned, max_chars=200))
+        if len(points) >= max_points:
+            break
+    if points:
+        return points
+    return [_summarize_text(text, max_chars=200)]
 
 def _session_file_path(session_dir: Path, session_id: str) -> Path:
     return session_dir / f"{session_id}.json"
@@ -2464,6 +2523,144 @@ def cmd_tasks(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_summarize(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="network_request",
+        input_summary="summarize urls",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="summarize_url",
+            input_summary=" ".join(args.urls),
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    summaries = _load_records(_summaries_path(storage_dir))
+    failed = 0
+    for raw_url in args.urls:
+        url = str(raw_url).strip()
+        if not url:
+            continue
+
+        item_start = time.perf_counter()
+        try:
+            title, body_text = _fetch_url_content(url)
+            points = _key_points_from_text(body_text)
+        except ProviderError as exc:
+            failed += 1
+            message = f"[warn] {exc}"
+            print(message, file=sys.stderr)
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="summarize_url",
+                input_summary=url,
+                output_summary=message,
+                duration_ms=(time.perf_counter() - item_start) * 1000,
+                permission_level=permission_level,
+                status="error",
+            )
+            continue
+
+        record = {
+            "id": _new_record_id("s"),
+            "url": url,
+            "title": title or "Untitled",
+            "key_points": points,
+            "date_summarized": datetime.now(timezone.utc).isoformat(),
+            "source": "cli",
+        }
+        summaries.append(record)
+        print(f"- {record['title']}")
+        print(f"  URL: {url}")
+        print(f"  Date: {record['date_summarized']}")
+        for point in points:
+            print(f"  * {point}")
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="summarize_url",
+            input_summary=url,
+            output_summary=f"saved summary {record['id']}",
+            duration_ms=(time.perf_counter() - item_start) * 1000,
+            permission_level=permission_level,
+            metadata={"summary_id": record["id"]},
+        )
+
+    _save_records(_summaries_path(storage_dir), summaries)
+    if failed and failed == len(args.urls):
+        return 1
+    return 0
+
+
+def cmd_summaries(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_read",
+        input_summary="list summaries",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="summaries_list",
+            input_summary="summaries list",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    summaries = _load_records(_summaries_path(storage_dir))
+    summaries.sort(key=lambda item: str(item.get("date_summarized", "")), reverse=True)
+    if args.last and args.last > 0:
+        summaries = summaries[: args.last]
+
+    if not summaries:
+        print("No summaries found.")
+    else:
+        for item in summaries:
+            summary_id = str(item.get("id", "?"))
+            title = str(item.get("title", "Untitled"))
+            url = str(item.get("url", ""))
+            date_summarized = str(item.get("date_summarized", ""))
+            print(f"{summary_id} {date_summarized} {title} ({url})")
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="summaries_list",
+        input_summary=f"last={args.last}",
+        output_summary=f"{len(summaries)} summaries",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+    )
+    return 0
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     cfg_path = Path(args.config).expanduser()
     state_dir = Path(args.state_dir).expanduser()
@@ -2685,6 +2882,20 @@ def build_parser() -> argparse.ArgumentParser:
     tasks.add_argument("--since", default=None, help="Filter tasks created since YYYY-MM-DD")
     tasks.add_argument("--status", choices=["open", "done", "all"], default="open", help="Filter by task status")
     tasks.set_defaults(func=cmd_tasks)
+
+    summarize = sub.add_parser("summarize", help="Fetch and summarize one or more URLs")
+    summarize.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    summarize.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    summarize.add_argument("--trace-dir", default=None, help="Trace directory override")
+    summarize.add_argument("urls", nargs="+", help="One or more URLs to summarize")
+    summarize.set_defaults(func=cmd_summarize)
+
+    summaries = sub.add_parser("summaries", help="List saved URL summaries")
+    summaries.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    summaries.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    summaries.add_argument("--trace-dir", default=None, help="Trace directory override")
+    summaries.add_argument("--last", type=int, default=20, help="Number of entries to show")
+    summaries.set_defaults(func=cmd_summaries)
 
     auth = sub.add_parser("auth", help="Manage OAuth profile linkage for Gaia assistant")
     auth_sub = auth.add_subparsers(dest="auth_command", required=True)
