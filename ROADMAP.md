@@ -1,6 +1,6 @@
 # Gaia Minds Roadmap
 
-Updated: February 7, 2026
+Updated: February 8, 2026
 
 This roadmap is now optimized for fast execution.
 
@@ -52,28 +52,28 @@ Delivered:
 ## Phase 1: Daily Assistant Utility
 
 Timeline: February 8 to February 14, 2026
-Status: In Progress
+Status: Completed
 
 Assistant track outcomes:
 
-- [ ] Add interactive session mode (`gaia chat`) for direct user requests.
-- [ ] Add first-party personal workflows:
-  - [ ] capture note/task
-  - [ ] summarize research links
-  - [ ] generate actionable plans from user goals
-- [ ] Add profile-aware preferences in local config.
+- [x] Add interactive session mode (`gaia chat`) for direct user requests.
+- [x] Add first-party personal workflows:
+  - [x] capture note/task
+  - [x] summarize research links
+  - [x] generate actionable plans from user goals
+- [x] Add profile-aware preferences in local config.
 
 Framework track outcomes:
 
-- [ ] Add capability registry with explicit permission levels (`safe`, `confirm`, `forbidden`).
-- [ ] Add structured action traces for every executed step.
-- [ ] Add deterministic smoke test suite for assistant critical paths.
+- [x] Add capability registry with explicit permission levels (`safe`, `confirm`, `forbidden`).
+- [x] Add structured action traces for every executed step.
+- [x] Add deterministic smoke test suite for assistant critical paths.
 
 Exit criteria:
 
-- [ ] 20 canonical user tasks with >=80% success.
-- [ ] 100% of executed actions written to structured logs.
-- [ ] Zero unreviewed high-risk actions.
+- [x] 20 canonical user tasks with >=80% success.
+- [x] 100% of executed actions written to structured logs.
+- [x] Zero unreviewed high-risk actions.
 
 ## Phase 2: Trusted Automation
 
@@ -210,11 +210,9 @@ Framework KPIs:
 
 ## Immediate 14-Day Priorities
 
-1. Ship `gaia chat` MVP with local session memory.
-2. Implement capability registry + permission prompts.
-3. Add benchmark harness and baseline scoring artifacts.
-4. Add autopilot-scoped task runner with rollback.
-5. Publish contributor playbook for assistant vs framework changes.
+1. Complete benchmark harness and baseline scoring artifacts (`#35`).
+2. Complete autopilot-scoped task runner with rollback (`#36`).
+3. Publish contributor playbook for assistant vs framework changes (`#37`).
 
 ## Milestones Log
 
@@ -223,5 +221,8 @@ Framework KPIs:
 | 2026-02-01 | Repository created | Initial structure |
 | 2026-02-07 | npm CLI published (`0.1.0`) | First global install path live |
 | 2026-02-07 | npm CLI patch published (`0.1.1`) | Global runtime fixes + refreshed docs/demo |
+| 2026-02-08 | Phase 1 core utility batch merged | PRs #27, #28, #29, #30, #31, #32, #33, #34 |
+| 2026-02-08 | Phase 1 hardening report published | PR #38, 20/20 canonical tasks passed |
+| 2026-02-08 | npm CLI release published (`0.2.0`) | PR #39 + tag `v0.2.0` |
 
 This roadmap is a living document and should be updated at least weekly.
