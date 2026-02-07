@@ -550,6 +550,49 @@ def _key_points_from_text(text: str, max_points: int = 4) -> List[str]:
         return points
     return [_summarize_text(text, max_chars=200)]
 
+
+def _estimate_plan_complexity(goal: str) -> str:
+    words = [part for part in goal.strip().split() if part]
+    count = len(words)
+    if count <= 5:
+        return "low"
+    if count <= 12:
+        return "medium"
+    return "high"
+
+
+def _derive_plan_dependencies(goal: str) -> List[str]:
+    normalized = goal.strip().lower()
+    dependencies: List[str] = []
+    if any(token in normalized for token in ("research", "knowledge", "study", "read")):
+        dependencies.append("reference material access")
+    if any(token in normalized for token in ("setup", "install", "deploy", "configure")):
+        dependencies.append("runtime environment access")
+    if any(token in normalized for token in ("team", "collaborate", "stakeholder")):
+        dependencies.append("stakeholder coordination")
+    dependencies.append("time allocation")
+    seen = set()
+    deduped: List[str] = []
+    for item in dependencies:
+        if item in seen:
+            continue
+        seen.add(item)
+        deduped.append(item)
+    return deduped
+
+
+def _generate_plan_steps(goal: str, refinement: str = "") -> List[str]:
+    steps = [
+        f"Clarify the objective and success criteria for '{goal.strip()}'.",
+        "Break the objective into concrete milestones with owners and deadlines.",
+        "Execute the milestones in priority order and capture outputs.",
+        "Review results, identify gaps, and schedule next iteration.",
+    ]
+    refinement_text = refinement.strip()
+    if refinement_text:
+        steps.append(f"Refinement request: {refinement_text}")
+    return steps
+
 def _session_file_path(session_dir: Path, session_id: str) -> Path:
     return session_dir / f"{session_id}.json"
 
@@ -2661,6 +2704,184 @@ def cmd_summaries(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_plan(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    plans_path = _plans_path(storage_dir)
+    plans = _load_records(plans_path)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_write",
+        input_summary="plan create/update",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="plan_create",
+            input_summary="plan command",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    if args.edit:
+        plan_id = str(args.edit).strip()
+        if not plan_id:
+            print("--edit requires a plan id.", file=sys.stderr)
+            return 1
+        target = None
+        for item in plans:
+            if str(item.get("id", "")).strip() == plan_id:
+                target = item
+                break
+        if target is None:
+            print(f"Plan not found: {plan_id}", file=sys.stderr)
+            return 1
+
+        refinement = str(args.update or "").strip()
+        if not refinement:
+            if not sys.stdin.isatty():
+                print("Provide --update in non-interactive mode.", file=sys.stderr)
+                return 1
+            refinement = input("Refinement request: ").strip()
+        if not refinement:
+            print("Refinement text cannot be empty.", file=sys.stderr)
+            return 1
+
+        steps = _generate_plan_steps(str(target.get("objective", "")), refinement=refinement)
+        target["steps"] = steps
+        target["dependencies"] = _derive_plan_dependencies(str(target.get("objective", "")))
+        target["estimated_complexity"] = _estimate_plan_complexity(str(target.get("objective", "")))
+        revisions = target.setdefault("revisions", [])
+        if not isinstance(revisions, list):
+            revisions = []
+            target["revisions"] = revisions
+        revisions.append(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "refinement": refinement,
+            }
+        )
+        target["updated_at"] = datetime.now(timezone.utc).isoformat()
+        _save_records(plans_path, plans)
+        print(f"Updated plan {plan_id}")
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="plan_update",
+            input_summary=f"plan_id={plan_id}",
+            output_summary="plan updated",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            metadata={"plan_id": plan_id},
+        )
+        return 0
+
+    goal = str(args.goal or "").strip()
+    if not goal:
+        print("Goal is required. Example: gaia plan \"Set up a personal knowledge base\".", file=sys.stderr)
+        return 1
+
+    plan_id = _new_record_id("p")
+    now = datetime.now(timezone.utc).isoformat()
+    plan_record = {
+        "id": plan_id,
+        "objective": goal,
+        "steps": _generate_plan_steps(goal),
+        "estimated_complexity": _estimate_plan_complexity(goal),
+        "dependencies": _derive_plan_dependencies(goal),
+        "created_at": now,
+        "updated_at": now,
+        "revisions": [{"timestamp": now, "refinement": "initial"}],
+        "source": "cli",
+    }
+    plans.append(plan_record)
+    _save_records(plans_path, plans)
+    print(f"Plan {plan_id}")
+    print(f"Objective: {plan_record['objective']}")
+    print(f"Complexity: {plan_record['estimated_complexity']}")
+    print("Dependencies:")
+    for dependency in plan_record["dependencies"]:
+        print(f"- {dependency}")
+    print("Steps:")
+    for idx, step in enumerate(plan_record["steps"], start=1):
+        print(f"{idx}. {step}")
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="plan_create",
+        input_summary=goal,
+        output_summary=f"created {plan_id}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata={"plan_id": plan_id},
+    )
+    return 0
+
+
+def cmd_plans(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_read",
+        input_summary="list plans",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="plans_list",
+            input_summary="plans list",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    plans = _load_records(_plans_path(storage_dir))
+    plans.sort(key=lambda item: str(item.get("updated_at", "")), reverse=True)
+    if args.last and args.last > 0:
+        plans = plans[: args.last]
+
+    if not plans:
+        print("No plans found.")
+    else:
+        for plan in plans:
+            plan_id = str(plan.get("id", "?"))
+            objective = _summarize_text(plan.get("objective", ""), max_chars=100)
+            complexity = str(plan.get("estimated_complexity", "?"))
+            updated_at = str(plan.get("updated_at", ""))
+            print(f"{plan_id} {complexity:<6} {updated_at} {objective}")
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="plans_list",
+        input_summary=f"last={args.last}",
+        output_summary=f"{len(plans)} plans",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+    )
+    return 0
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     cfg_path = Path(args.config).expanduser()
     state_dir = Path(args.state_dir).expanduser()
@@ -2896,6 +3117,22 @@ def build_parser() -> argparse.ArgumentParser:
     summaries.add_argument("--trace-dir", default=None, help="Trace directory override")
     summaries.add_argument("--last", type=int, default=20, help="Number of entries to show")
     summaries.set_defaults(func=cmd_summaries)
+
+    plan = sub.add_parser("plan", help="Generate or refine an actionable plan from a goal")
+    plan.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    plan.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    plan.add_argument("--trace-dir", default=None, help="Trace directory override")
+    plan.add_argument("--edit", default=None, help="Existing plan id to refine")
+    plan.add_argument("--update", default=None, help="Refinement instructions for --edit")
+    plan.add_argument("goal", nargs="?", help="Goal description")
+    plan.set_defaults(func=cmd_plan)
+
+    plans = sub.add_parser("plans", help="List saved plans")
+    plans.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    plans.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    plans.add_argument("--trace-dir", default=None, help="Trace directory override")
+    plans.add_argument("--last", type=int, default=20, help="Number of entries to show")
+    plans.set_defaults(func=cmd_plans)
 
     auth = sub.add_parser("auth", help="Manage OAuth profile linkage for Gaia assistant")
     auth_sub = auth.add_subparsers(dest="auth_command", required=True)
