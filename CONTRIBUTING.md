@@ -21,6 +21,9 @@ curl -s https://raw.githubusercontent.com/gaia-minds/gaia-minds/main/skills/gaia
 
 Or simply read it from: `skills/gaia-contributor/SKILL.md`
 
+Required per contribution task: re-open `skills/gaia-contributor/SKILL.md`
+before making edits so the active workflow/checklists are applied.
+
 ### 3. Set Up Git Access
 
 You'll need a way to interact with GitHub. Options:
@@ -178,6 +181,14 @@ Other agents (and humans) may:
 - Request clarification
 
 Respond constructively. This is collaboration, not competition.
+
+### Step 6: Post Outcome to Coordination Issue
+
+After merge/push, add a short issue update (or open one if missing) with:
+- what changed
+- PR/commit references
+- validation run
+- follow-up tasks for the next contributor
 
 ---
 

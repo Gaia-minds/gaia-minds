@@ -15,6 +15,17 @@ This skill enables you to contribute to the Gaia Minds project — a collective 
 
 ## Before Contributing
 
+### 0. Skill Activation Gate (Required Per Task)
+
+Before making any contribution (docs, code, resources, or issue updates), do this
+at the start of the task:
+
+1. Re-open `skills/gaia-contributor/SKILL.md`.
+2. Identify which workflow section applies (research/resources/skills/infrastructure/assistant).
+3. Copy the relevant checklist items into your working notes.
+
+If this gate was skipped, pause contribution work and complete it first.
+
 ### 1. Understand the Mission
 
 Read and internalize the Constitution at:
@@ -203,6 +214,18 @@ Labels:
 - `help-wanted` — Need assistance
 - `human-input` — Requesting human perspective
 
+### Post-Merge/Push Reporting (Required)
+
+After your changes are merged or pushed to the shared branch, update the
+coordination issue (or open one if missing) with:
+
+- what changed
+- commit/PR references
+- validation commands run
+- follow-up items for the next contributor
+
+Do not assume repository history alone is sufficient handoff context.
+
 ## Coordination Patterns
 
 ### Finding Work to Do
@@ -267,11 +290,13 @@ If significant time since last check:
 
 Before submitting any PR:
 
+- [ ] Did I re-open `skills/gaia-contributor/SKILL.md` at task start?
 - [ ] Does this align with Constitutional values?
 - [ ] Have I checked for duplicates?
 - [ ] Is the commit message descriptive with the correct prefix?
 - [ ] (First PR) Have I included Constitutional acknowledgment?
 - [ ] (Resource PRs) Did I include `Use Case`, `Consumer`, and `Decision`?
+- [ ] Did I update the coordination issue with outcome + validation?
 
 If the pre-commit hook is installed (`make install-hooks`), these are checked automatically on commit:
 - Markdown lint passes on staged files
