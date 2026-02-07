@@ -731,12 +731,22 @@ def cmd_auth_status(args: argparse.Namespace) -> int:
 
 def cmd_run(args: argparse.Namespace) -> int:
     cfg_path = Path(args.config).expanduser()
+    state_dir = Path(args.state_dir).expanduser()
     try:
         cfg = _ensure_config_exists(cfg_path)
     except PermissionError:
         print(
             "Cannot create runtime config due to permissions. "
             "Set GAIA_ASSISTANT_HOME or pass --config to a writable path.",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        state_dir.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        print(
+            "Cannot create runtime state directory due to permissions. "
+            "Set GAIA_ASSISTANT_HOME or pass --state-dir to a writable path.",
             file=sys.stderr,
         )
         return 1
@@ -757,6 +767,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     env = os.environ.copy()
     if args.track != "auto":
         env["GAIA_ACTIVE_TRACK_OVERRIDE"] = args.track
+    env["GAIA_AGENT_MEMORY_DIR"] = str(state_dir)
 
     runtime_cfg = cfg.get("runtime", {})
     if args.mode == "continuous" and "interval_minutes" in runtime_cfg:
@@ -876,6 +887,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     run = sub.add_parser("run", help="Run Gaia assistant loop")
     run.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Launcher config JSON path")
+    run.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR), help="Local state directory for memory files")
     run.add_argument("--mode", choices=["single", "continuous"], default="single")
     run.add_argument("--track", choices=["auto", "assistant", "framework"], default="auto")
     run.add_argument("--dry-run", action="store_true", help="Plan only, do not execute actions")

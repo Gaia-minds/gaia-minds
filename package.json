@@ -22,8 +22,13 @@
   "files": [
     "bin/gaia.js",
     "tools/gaia-assistant.py",
+    "tools/agent-actions.py",
+    "tools/agent-alignment.py",
+    "tools/agent_actions.py",
+    "tools/agent_alignment.py",
     "tools/agent-config.yml",
     "tools/agent-loop.py",
+    "CONSTITUTION.md",
     "assistant/README.md",
     "README.md",
     "LICENSE"
