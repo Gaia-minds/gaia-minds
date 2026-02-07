@@ -25,25 +25,28 @@ python3 tools/gaia-assistant.py run --mode continuous --track assistant
 
 ## OAuth Onboarding
 
-Gaia uses a web OAuth onboarding path through OpenClaw for ChatGPT/Codex-style
-profiles:
+Gaia uses its own local auth store for ChatGPT/Codex-style profiles.
+The default OAuth broker is Codex CLI (web/device flow):
 
 ```bash
-python3 tools/gaia-assistant.py auth login --provider openai-codex
+python3 tools/gaia-assistant.py auth login --source codex-cli --provider openai-codex
 python3 tools/gaia-assistant.py auth status
 ```
 
-If you already authenticated with OpenClaw, link the profile directly:
+If you already authenticated with Codex CLI, import/link without re-running login:
 
 ```bash
-python3 tools/gaia-assistant.py auth link --provider openai-codex
+python3 tools/gaia-assistant.py auth link --source codex-cli --provider openai-codex
 ```
+
+Optional compatibility path (legacy): link from OpenClaw profile store.
+Use `--source openclaw`.
 
 ## Token Safety
 
-- OAuth tokens are stored in your local OpenClaw state:
-  `~/.openclaw/agents/<agentId>/agent/auth-profiles.json`
-- Gaia stores only a profile reference in:
+- OAuth tokens are stored in Gaia local state:
+  `~/.gaia-assistant/auth-profiles.json` (or `$GAIA_ASSISTANT_HOME/auth-profiles.json`)
+- Launcher config stores profile selection metadata in:
   `~/.gaia-assistant/config.json` (or `$GAIA_ASSISTANT_HOME/config.json`)
 - Never commit auth stores or local runtime state to git.
 - If you want strict separation, keep `GAIA_ASSISTANT_HOME` outside this repo.
@@ -73,10 +76,12 @@ Expected environment variables for direct API mode:
 - `ANTHROPIC_API_KEY`
 - `OPENAI_API_KEY`
 
-Provider OAuth profile support is exposed through:
+Provider OAuth profile support is exposed through Gaia-native commands:
 
 - `python3 tools/gaia-assistant.py onboard`
-- `python3 tools/gaia-assistant.py auth login --provider openai-codex`
+- `python3 tools/gaia-assistant.py auth login --source codex-cli --provider openai-codex`
+
+OpenClaw linking remains available as an optional compatibility source.
 
 Current limitation: the self-evolution loop planner currently uses Anthropic SDK
 for non-dry cycles. OAuth onboarding is in place so contributors can securely
