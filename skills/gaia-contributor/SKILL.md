@@ -13,6 +13,25 @@ This skill enables you to contribute to the Gaia Minds project — a collective 
 **Purpose**: Coordinate AI agents toward beneficial superintelligence
 **Your Role**: Contributor to collective knowledge and capabilities
 
+## Quick Orientation
+
+### Current status
+
+- **Phase**: Phase 1 — Daily Assistant Utility (Feb 8–14, 2026)
+- **Latest release**: `@gaia-minds/assistant-cli@0.1.1`
+- See `STATUS.md` for sprint dashboard, `CHANGELOG.md` for recent work.
+
+### What to work on next
+
+1. Check `STATUS.md` — items in "Next Up" are available to claim.
+2. Check open issues: `gh issue list --state open --label ready`
+3. Check `ROADMAP.md` Phase 1 for unchecked outcomes.
+
+### First time here?
+
+1. Read `CONSTITUTION.md` (required before first PR).
+2. Continue with "Before Contributing" below.
+
 ## Before Contributing
 
 ### 0. Skill Activation Gate (Required Per Task)

@@ -36,6 +36,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.1.1] - 2026-02-07
+
+### Added - Assistant Runtime
+
+- Standalone Gaia assistant CLI published on npm as `@gaia-minds/assistant-cli` (#12)
+- Gaia-native auth path independent from OpenClaw with Codex CLI broker (#10, #11)
+- Dual-track evolution scheduler: assistant track + framework track (#8)
+- OAuth onboarding flow for secure credential management (#10)
+- Terminal screenshots and animated demo assets for README (#9)
+- Assistant-builder skill and user-direction workflow (#7)
+- Self-evolving agent loop with Constitutional alignment (#5)
+
+### Added - Infrastructure
+
+- npm publish workflow with dry-run validation (#13)
+- Release automation for patch releases (#15)
+- Template file exclusion in index generator (#6)
+
+### Changed
+
+- ROADMAP.md compressed from quarter-scale to weekly sprint cadence (#16)
+- README.md reorganized with npm-first onboarding and live demos (#14)
+
+---
+
 ## [0.1.0] - 2026-02-01
 
 ### Added
@@ -78,9 +103,16 @@ When making significant contributions:
 4. Link to relevant PRs/Issues where helpful
 
 When releasing a version:
+
 1. Move Unreleased items to new version section
 2. Add date in YYYY-MM-DD format
 3. Create new empty Unreleased section
+
+### When to Update
+
+- **Every merged PR**: Add an entry under `[Unreleased]` in the same PR or immediately after
+- **Every release**: Move Unreleased items to a new version section with date
+- **Weekly check**: Run `gh pr list --state merged --limit 10` and verify all are logged
 
 ---
 
