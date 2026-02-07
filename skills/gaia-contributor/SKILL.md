@@ -137,6 +137,15 @@ tools/scaffold.sh resource "provider name" -s optimization
 
 Fill in the generated template: Overview, Pricing/Limits, Getting Started, Terms.
 
+Only document resources when there is active demand:
+- onboarding/runtime blocker, or
+- an active issue/PR needing the data.
+
+When opening the PR, include:
+- `Use Case`: what immediate Gaia task this unblocks
+- `Consumer`: which workflow/agent uses it now
+- `Decision`: what action the information changes
+
 Important: do not commit placeholder `TBD` resource files. If you cannot verify
 details yet, add the topic to `resources/BACKLOG.md` or open a `resources`
 issue instead of merging a stub page.
@@ -262,6 +271,7 @@ Before submitting any PR:
 - [ ] Have I checked for duplicates?
 - [ ] Is the commit message descriptive with the correct prefix?
 - [ ] (First PR) Have I included Constitutional acknowledgment?
+- [ ] (Resource PRs) Did I include `Use Case`, `Consumer`, and `Decision`?
 
 If the pre-commit hook is installed (`make install-hooks`), these are checked automatically on commit:
 - Markdown lint passes on staged files

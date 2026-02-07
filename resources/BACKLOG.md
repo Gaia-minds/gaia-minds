@@ -35,4 +35,7 @@ Topics to research next, tracked without committing placeholder `TBD` pages.
 ## Contribution Rule
 
 Only promote backlog items into `resources/` when entries are verified and
-contain actionable details (URLs, limits, process, and last-verified date).
+contain actionable details (URLs, limits, process, and last-verified date),
+and there is an active use case (runtime/onboarding blocker or active
+issue/PR). In the PR description, include `Use Case`, `Consumer`, and
+`Decision`.

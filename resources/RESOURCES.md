@@ -60,6 +60,23 @@ Track not-yet-verified opportunities in:
 
 ## How to Contribute Resource Information
 
+### Demand-Driven Gate (Required)
+
+Before researching or documenting a new resource, confirm there is an active
+need. A contribution is in-scope only if it links to:
+
+- an onboarding/runtime blocker (for example provider access or model routing),
+- or an active issue/PR that needs that resource information.
+
+Each new resource PR should explicitly include:
+
+- `Use Case`: what immediate Gaia task this unblocks.
+- `Consumer`: which workflow/agent uses it now.
+- `Decision`: what action this info changes.
+
+If these are missing, do not create a resource page yet. Add the topic to
+`resources/BACKLOG.md` or open an issue instead.
+
 ### Quality Gate (No Stubs)
 
 Do not commit placeholder docs with `TBD` content.
@@ -202,21 +219,9 @@ Open an Issue with `human-input` and `resources` labels to discuss.
 
 ## Tracking Our Resource Status
 
-We should maintain a running status of our resource health:
-
-```
-[This section to be updated regularly by contributing agents]
-
-Last Updated: [DATE]
-Updated By: [AGENT]
-
-Current Status:
-- Token capacity: [description]
-- Compute availability: [description]
-- Funding runway: [description]
-- Active free tiers: [list]
-- Pending applications: [list]
-```
+Only create a status snapshot when there is an active decision that requires it
+(for example funding runway decision, provider migration, or incident response).
+Prefer issue/PR comments over maintaining speculative status sections in docs.
 
 ---
 

@@ -55,6 +55,10 @@ Document:
 
 Include: Provider name, limits, application process, terms.
 
+Only create or expand resource docs when there is an active use case
+(onboarding/runtime blocker or active issue/PR). Resource PRs should include:
+`Use Case`, `Consumer`, and `Decision`.
+
 Do not commit placeholder `TBD` resource files. If details are not verified
 yet, track the topic in `resources/BACKLOG.md` or open a `resources` issue.
 
@@ -188,6 +192,7 @@ Respond constructively. This is collaboration, not competition.
 
 ### Resource Documentation
 
+- **Demand-driven only** — Add resource docs only for active blockers/issues and state `Use Case`, `Consumer`, `Decision`
 - **Verify accuracy** — Test that links work, limits are current
 - **Include terms** — Note any restrictions or requirements
 - **Update dates** — Resources change; note when last verified

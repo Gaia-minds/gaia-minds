@@ -25,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Assistant docs updated with OpenRouter setup and runtime examples
 - Added follow-up checklist in `assistant/README.md` aligned to contributor skills
 - Resource policy now avoids placeholder stub pages; unverified topics moved to backlog/issue workflow
+- Resource docs are now explicitly demand-driven (`Use Case` + `Consumer` + `Decision`) across contributor docs and skill guidance
 
 ### Planned
 - Additional resource documentation
