@@ -12,15 +12,20 @@ provider auth patterns:
 
 ```bash
 # From this repository
-python3 tools/gaia-assistant.py onboard
-python3 tools/gaia-assistant.py auth status
-python3 tools/gaia-assistant.py doctor
+npm install
+npm run gaia -- onboard
+npm run gaia -- auth status
+npm run gaia -- doctor
 
 # Single dry-run cycle
-python3 tools/gaia-assistant.py run --mode single --dry-run
+npm run gaia -- run --mode single --dry-run
 
 # Continuous assistant track
-python3 tools/gaia-assistant.py run --mode continuous --track assistant
+npm run gaia -- run --mode continuous --track assistant
+
+# Optional global command from this clone
+npm install -g .
+gaia doctor
 ```
 
 ## OAuth Onboarding
@@ -29,14 +34,14 @@ Gaia uses its own local auth store for ChatGPT/Codex-style profiles.
 The default OAuth broker is Codex CLI (web/device flow):
 
 ```bash
-python3 tools/gaia-assistant.py auth login --source codex-cli --provider openai-codex
-python3 tools/gaia-assistant.py auth status
+npm run gaia -- auth login --source codex-cli --provider openai-codex
+npm run gaia -- auth status
 ```
 
 If you already authenticated with Codex CLI, import/link without re-running login:
 
 ```bash
-python3 tools/gaia-assistant.py auth link --source codex-cli --provider openai-codex
+npm run gaia -- auth link --source codex-cli --provider openai-codex
 ```
 
 Optional compatibility path (legacy): link from OpenClaw profile store.
@@ -78,6 +83,10 @@ Expected environment variables for direct API mode:
 
 Provider OAuth profile support is exposed through Gaia-native commands:
 
+- `npm run gaia -- onboard`
+- `npm run gaia -- auth login --source codex-cli --provider openai-codex`
+
+Direct Python fallback (if preferred):
 - `python3 tools/gaia-assistant.py onboard`
 - `python3 tools/gaia-assistant.py auth login --source codex-cli --provider openai-codex`
 
