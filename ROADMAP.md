@@ -56,24 +56,24 @@ Status: In Progress
 
 Assistant track outcomes:
 
-- Add interactive session mode (`gaia chat`) for direct user requests.
-- Add first-party personal workflows:
-  - capture note/task
-  - summarize research links
-  - generate actionable plans from user goals
-- Add profile-aware preferences in local config.
+- [ ] Add interactive session mode (`gaia chat`) for direct user requests.
+- [ ] Add first-party personal workflows:
+  - [ ] capture note/task
+  - [ ] summarize research links
+  - [ ] generate actionable plans from user goals
+- [ ] Add profile-aware preferences in local config.
 
 Framework track outcomes:
 
-- Add capability registry with explicit permission levels (`safe`, `confirm`, `forbidden`).
-- Add structured action traces for every executed step.
-- Add deterministic smoke test suite for assistant critical paths.
+- [ ] Add capability registry with explicit permission levels (`safe`, `confirm`, `forbidden`).
+- [ ] Add structured action traces for every executed step.
+- [ ] Add deterministic smoke test suite for assistant critical paths.
 
 Exit criteria:
 
-- 20 canonical user tasks with >=80% success.
-- 100% of executed actions written to structured logs.
-- Zero unreviewed high-risk actions.
+- [ ] 20 canonical user tasks with >=80% success.
+- [ ] 100% of executed actions written to structured logs.
+- [ ] Zero unreviewed high-risk actions.
 
 ## Phase 2: Trusted Automation
 
