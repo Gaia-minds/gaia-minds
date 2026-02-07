@@ -212,6 +212,7 @@ Recommended handoff protocol:
 4. Prefer small, reviewable PRs for runtime changes.
 5. Before pushing, run:
    - `make check-all`
+   - `make test-smoke`
    - `python3 -m py_compile tools/gaia-assistant.py tools/agent-loop.py tools/agent-alignment.py`
 6. Update `CHANGELOG.md` with meaningful behavior changes.
 7. If this is your first PR to Gaia, include Constitutional acknowledgment from

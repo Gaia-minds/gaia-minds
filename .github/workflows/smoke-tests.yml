@@ -1,0 +1,32 @@
+name: smoke-tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  smoke-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run smoke suite
+        run: make test-smoke
+
+      - name: Upload smoke results
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-results
+          path: smoke-results.json

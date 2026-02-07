@@ -1,4 +1,4 @@
-.PHONY: docs-check verify-resources generate-indexes check-indexes check-all install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
+.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
 
 docs-check:
 	./tools/validate-docs.sh
@@ -15,6 +15,9 @@ check-indexes:
 check-all: docs-check check-indexes
 	@echo ""
 	@echo "All checks passed."
+
+test-smoke:
+	./tools/smoke-test.sh --json-out smoke-results.json
 
 install-hooks:
 	@ln -sf ../../tools/pre-commit .git/hooks/pre-commit

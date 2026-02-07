@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+GAIA_CMD=(node "${ROOT_DIR}/bin/gaia.js")
+RESULTS_FILE="$(mktemp)"
+JSON_OUT="smoke-results.json"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --json-out)
+      shift
+      JSON_OUT="${1:-smoke-results.json}"
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      exit 1
+      ;;
+  esac
+  shift || true
+done
+
+PASS_COUNT=0
+FAIL_COUNT=0
+
+record_result() {
+  local status="$1"
+  local name="$2"
+  local detail="$3"
+  printf "%s\t%s\t%s\n" "${status}" "${name}" "${detail}" >> "${RESULTS_FILE}"
+}
+
+run_test() {
+  local name="$1"
+  shift
+  if "$@"; then
+    PASS_COUNT=$((PASS_COUNT + 1))
+    record_result "pass" "${name}" "ok"
+    return 0
+  fi
+  FAIL_COUNT=$((FAIL_COUNT + 1))
+  record_result "fail" "${name}" "failed"
+  return 1
+}
+
+assert_contains() {
+  local haystack="$1"
+  local needle="$2"
+  [[ "${haystack}" == *"${needle}"* ]]
+}
+
+run_smoke_suite() {
+  local tmp_root
+  tmp_root="$(mktemp -d)"
+  export GAIA_ASSISTANT_HOME="${tmp_root}/assistant-home"
+  mkdir -p "${GAIA_ASSISTANT_HOME}"
+
+  unset ANTHROPIC_API_KEY || true
+  unset OPENAI_API_KEY || true
+  unset OPENROUTER_API_KEY || true
+
+  run_test "cli_startup" bash -lc "\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" --help >/dev/null"
+
+  run_test "config_read_write" bash -lc "
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" config set name SmokeUser >/dev/null &&
+    value=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" config get name) &&
+    [[ \"\$value\" == \"SmokeUser\" ]]
+  "
+
+  run_test "session_create_resume" bash -lc "
+    out=\$(printf 'hello\\n/exit\\n' | \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" chat 2>&1) &&
+    session_id=\$(printf '%s' \"\$out\" | sed -n 's/^Started session: //p' | head -n1) &&
+    [[ -n \"\$session_id\" ]] &&
+    resume=\$(printf '/exit\\n' | \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" chat --resume last 2>&1) &&
+    [[ \"\$resume\" == *\"Resumed session: \$session_id\"* ]]
+  "
+
+  run_test "note_capture_and_tasks" bash -lc "
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" note \"Smoke task capture\" --task >/dev/null &&
+    listed=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" tasks --status all) &&
+    [[ \"\$listed\" == *\"Smoke task capture\"* ]]
+  "
+
+  run_test "provider_fallback" bash -lc "
+    out=\$(printf 'provider fallback check\\n/exit\\n' | \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" chat 2>&1) &&
+    [[ \"\$out\" == *\"[local-\"* ]]
+  "
+}
+
+run_smoke_suite || true
+
+python3 - "${RESULTS_FILE}" "${PASS_COUNT}" "${FAIL_COUNT}" "${JSON_OUT}" <<'PY'
+import json
+import pathlib
+import sys
+
+results_path = pathlib.Path(sys.argv[1])
+passed = int(sys.argv[2])
+failed = int(sys.argv[3])
+json_out = pathlib.Path(sys.argv[4])
+
+results = []
+for raw in results_path.read_text(encoding="utf-8").splitlines():
+    if not raw.strip():
+        continue
+    status, name, detail = (raw.split("\t", 2) + ["", ""])[:3]
+    results.append({
+        "name": name,
+        "status": status,
+        "detail": detail,
+    })
+
+payload = {
+    "suite": "gaia-smoke",
+    "total": len(results),
+    "passed": passed,
+    "failed": failed,
+    "results": results,
+}
+
+text = json.dumps(payload, indent=2)
+print(text)
+json_out.write_text(text + "\n", encoding="utf-8")
+PY
+
+if [[ "${FAIL_COUNT}" -gt 0 ]]; then
+  exit 1
+fi
