@@ -47,6 +47,7 @@ ONBOARD_PROVIDER_CHOICES = ("openrouter", "openai", "anthropic", "openai-codex")
 PROFILE_VERBOSITY_CHOICES = ("concise", "balanced", "detailed")
 PROFILE_PROVIDER_CHOICES = ("openrouter", "openai", "anthropic", "openai-codex")
 PERMISSION_LEVEL_CHOICES = ("safe", "confirm", "forbidden")
+DEFAULT_SESSION_CONTEXT_TURNS = 20
 DEFAULT_CAPABILITY_LEVELS = {
     "file_read": "safe",
     "file_write": "safe",
@@ -111,6 +112,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "traces": {
         "dir": str(DEFAULT_HOME / "traces"),
+    },
+    "sessions": {
+        "dir": str(DEFAULT_HOME / "sessions"),
+        "max_context_turns": DEFAULT_SESSION_CONTEXT_TURNS,
     },
 }
 
@@ -194,6 +199,14 @@ def _normalize_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     traces_dir = str(traces.get("dir", "")).strip()
     if not traces_dir:
         traces["dir"] = str(DEFAULT_HOME / "traces")
+
+    sessions = cfg.setdefault("sessions", {})
+    sessions_dir = str(sessions.get("dir", "")).strip()
+    if not sessions_dir:
+        sessions["dir"] = str(DEFAULT_HOME / "sessions")
+    max_context = sessions.get("max_context_turns", DEFAULT_SESSION_CONTEXT_TURNS)
+    if not isinstance(max_context, int) or max_context < 2:
+        sessions["max_context_turns"] = DEFAULT_SESSION_CONTEXT_TURNS
 
     return cfg
 
@@ -358,6 +371,332 @@ def _check_capability_permission(
         return True, level, "allowed after confirmation"
     return False, level, "user denied confirmation"
 
+
+class ProviderError(RuntimeError):
+    """Raised when the configured reasoning provider call fails."""
+
+
+class ProviderTokenLimitError(ProviderError):
+    """Raised when provider rejects a request due to context/token limits."""
+
+
+def _resolve_session_dir(cfg: Dict[str, Any], override_path: Optional[str] = None) -> Path:
+    if override_path:
+        return Path(override_path).expanduser()
+    sessions = cfg.get("sessions", {})
+    if isinstance(sessions, dict):
+        configured = str(sessions.get("dir", "")).strip()
+        if configured:
+            return Path(configured).expanduser()
+    return DEFAULT_HOME / "sessions"
+
+
+def _session_file_path(session_dir: Path, session_id: str) -> Path:
+    return session_dir / f"{session_id}.json"
+
+
+def _load_session(session_dir: Path, session_id: str) -> Optional[Dict[str, Any]]:
+    path = _session_file_path(session_dir, session_id)
+    payload = _load_json(path)
+    if not payload:
+        return None
+    if not isinstance(payload.get("turns"), list):
+        payload["turns"] = []
+    return payload
+
+
+def _save_session(session_dir: Path, session: Dict[str, Any]) -> None:
+    session_dir.mkdir(parents=True, exist_ok=True)
+    _write_json(_session_file_path(session_dir, str(session["id"])), session)
+
+
+def _list_sessions(session_dir: Path) -> List[Dict[str, Any]]:
+    if not session_dir.exists():
+        return []
+    sessions: List[Dict[str, Any]] = []
+    for path in session_dir.glob("*.json"):
+        payload = _load_json(path)
+        if not payload:
+            continue
+        session_id = str(payload.get("id", "")).strip()
+        updated_at = str(payload.get("updated_at", "")).strip()
+        if not session_id:
+            continue
+        sessions.append({"id": session_id, "updated_at": updated_at})
+    sessions.sort(key=lambda item: item.get("updated_at", ""), reverse=True)
+    return sessions
+
+
+def _create_session(provider: str, model: str) -> Dict[str, Any]:
+    session_id = datetime.now(timezone.utc).strftime("s%Y%m%d%H%M%S") + "-" + uuid.uuid4().hex[:6]
+    now = datetime.now(timezone.utc).isoformat()
+    return {
+        "id": session_id,
+        "created_at": now,
+        "updated_at": now,
+        "provider": provider,
+        "model": model,
+        "turns": [],
+    }
+
+
+def _resolve_resume_session_id(session_dir: Path, resume: str) -> Optional[str]:
+    target = str(resume).strip()
+    if not target:
+        return None
+    if target != "last":
+        return target
+    sessions = _list_sessions(session_dir)
+    if not sessions:
+        return None
+    return str(sessions[0]["id"])
+
+
+def _extract_last_user_text(messages: List[Dict[str, str]]) -> str:
+    for msg in reversed(messages):
+        if str(msg.get("role", "")).strip() == "user":
+            return str(msg.get("content", "")).strip()
+    return ""
+
+
+def _mock_provider_response(provider: str, model: str, messages: List[Dict[str, str]]) -> str:
+    prompt = _extract_last_user_text(messages)
+    prompt_summary = _summarize_text(prompt, max_chars=140)
+    return (
+        f"[local-{provider}] {prompt_summary}\n"
+        f"Context messages: {len(messages)} | model: {model}."
+    )
+
+
+def _extract_http_error_details(exc: urllib.error.HTTPError) -> str:
+    try:
+        raw = exc.read().decode("utf-8")
+    except Exception:
+        return str(exc)
+    if not raw:
+        return str(exc)
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return raw
+    if isinstance(payload, dict):
+        if isinstance(payload.get("error"), dict):
+            message = payload["error"].get("message")
+            if isinstance(message, str) and message.strip():
+                return message.strip()
+        message = payload.get("message")
+        if isinstance(message, str) and message.strip():
+            return message.strip()
+    return raw
+
+
+def _looks_like_token_limit(text: str) -> bool:
+    normalized = text.strip().lower()
+    markers = (
+        "context length",
+        "too many tokens",
+        "token limit",
+        "maximum context",
+        "context_window_exceeded",
+        "context_length_exceeded",
+    )
+    return any(marker in normalized for marker in markers)
+
+
+def _http_json_request(
+    url: str,
+    headers: Dict[str, str],
+    payload: Dict[str, Any],
+    timeout: int = 30,
+) -> Dict[str, Any]:
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            raw = response.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        details = _extract_http_error_details(exc)
+        if exc.code in (413, 429) or _looks_like_token_limit(details):
+            raise ProviderTokenLimitError(details) from exc
+        raise ProviderError(f"HTTP {exc.code}: {details}") from exc
+    except urllib.error.URLError as exc:
+        raise ProviderError(f"Network error: {exc.reason}") from exc
+
+    try:
+        decoded = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ProviderError("Provider returned non-JSON response") from exc
+    if not isinstance(decoded, dict):
+        raise ProviderError("Provider returned invalid payload")
+    return decoded
+
+
+def _call_openai_chat(
+    base_url: str,
+    api_key: str,
+    model: str,
+    messages: List[Dict[str, str]],
+) -> str:
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": 0.2,
+    }
+    response = _http_json_request(
+        url=f"{base_url.rstrip('/')}/chat/completions",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        payload=payload,
+    )
+    choices = response.get("choices", [])
+    if not isinstance(choices, list) or not choices:
+        raise ProviderError("Provider returned no choices")
+    first = choices[0]
+    if not isinstance(first, dict):
+        raise ProviderError("Provider returned invalid choice")
+    message = first.get("message", {})
+    if not isinstance(message, dict):
+        raise ProviderError("Provider returned invalid message payload")
+    content = message.get("content")
+    if isinstance(content, str) and content.strip():
+        return content.strip()
+    if isinstance(content, list):
+        parts = [part.get("text", "") for part in content if isinstance(part, dict)]
+        merged = "\n".join([p for p in parts if p.strip()]).strip()
+        if merged:
+            return merged
+    raise ProviderError("Provider returned empty response")
+
+
+def _call_anthropic_chat(api_key: str, model: str, messages: List[Dict[str, str]]) -> str:
+    payload = {
+        "model": model,
+        "max_tokens": 700,
+        "messages": messages,
+    }
+    response = _http_json_request(
+        url="https://api.anthropic.com/v1/messages",
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        },
+        payload=payload,
+    )
+    content = response.get("content", [])
+    if not isinstance(content, list):
+        raise ProviderError("Provider returned invalid content")
+    parts: List[str] = []
+    for item in content:
+        if not isinstance(item, dict):
+            continue
+        if item.get("type") != "text":
+            continue
+        text = item.get("text")
+        if isinstance(text, str) and text.strip():
+            parts.append(text.strip())
+    if not parts:
+        raise ProviderError("Provider returned empty response")
+    return "\n".join(parts)
+
+
+def _resolve_runtime_provider(cfg: Dict[str, Any]) -> Tuple[str, str]:
+    reasoning = cfg.get("reasoning", {})
+    reasoning = reasoning if isinstance(reasoning, dict) else {}
+    profile = cfg.get("profile", {})
+    profile = profile if isinstance(profile, dict) else {}
+
+    provider = str(reasoning.get("provider", "")).strip().lower()
+    if not provider:
+        provider = str(profile.get("default_provider", "anthropic")).strip().lower()
+    if provider not in PROFILE_PROVIDER_CHOICES:
+        provider = "anthropic"
+
+    model = str(reasoning.get("model", "")).strip()
+    if not model:
+        model = _default_model_for_provider(provider)
+    return provider, model
+
+
+def _resolve_provider_api_key(
+    provider: str,
+    cfg_path: Path,
+    secret_store_override: Optional[str],
+) -> str:
+    env_key = {
+        "anthropic": "ANTHROPIC_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "openrouter": "OPENROUTER_API_KEY",
+    }.get(provider, "")
+    if not env_key:
+        return ""
+    from_env = os.environ.get(env_key, "").strip()
+    if from_env:
+        return from_env
+    secret_store = _resolve_secret_store(cfg_path, secret_store_override)
+    return _read_secret_api_key(secret_store, env_key)
+
+
+def _reasoning_response(
+    provider: str,
+    model: str,
+    messages: List[Dict[str, str]],
+    cfg_path: Path,
+    secret_store_override: Optional[str],
+) -> str:
+    if provider == "openai-codex":
+        return _mock_provider_response(provider, model, messages)
+
+    api_key = _resolve_provider_api_key(provider, cfg_path, secret_store_override)
+    if not api_key:
+        return _mock_provider_response(provider, model, messages)
+
+    if provider == "openai":
+        base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        return _call_openai_chat(base_url=base_url, api_key=api_key, model=model, messages=messages)
+    if provider == "openrouter":
+        return _call_openai_chat(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=api_key,
+            model=model,
+            messages=messages,
+        )
+    if provider == "anthropic":
+        return _call_anthropic_chat(api_key=api_key, model=model, messages=messages)
+    raise ProviderError(f"Unsupported provider: {provider}")
+
+
+def _infer_capability_from_prompt(text: str) -> Tuple[str, Optional[str]]:
+    prompt = text.strip().lower()
+    if not prompt:
+        return "file_read", None
+    if "send email" in prompt or "email " in prompt:
+        return "send_email", "This action sends outbound email. Continue?"
+    if "delete" in prompt and ("file" in prompt or "folder" in prompt):
+        return "delete_files", "This action may delete files. Continue?"
+    if prompt.startswith("run ") or "execute " in prompt:
+        return "shell_exec", "This action executes shell commands. Continue?"
+    if "http://" in prompt or "https://" in prompt:
+        return "network_request", "This action performs a network request. Continue?"
+    return "file_read", None
+
+
+def _build_context_messages(
+    turns: List[Dict[str, Any]],
+    user_prompt: str,
+    max_turns: int,
+) -> List[Dict[str, str]]:
+    bounded = turns[-max_turns:] if max_turns > 0 else turns
+    messages: List[Dict[str, str]] = []
+    for turn in bounded:
+        role = str(turn.get("role", "")).strip()
+        content = str(turn.get("content", "")).strip()
+        if role in ("user", "assistant") and content:
+            messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": user_prompt})
+    return messages
 def _ensure_config_exists(cfg_path: Path) -> Dict[str, Any]:
     cfg = _load_json(cfg_path)
     if not cfg:
@@ -1322,6 +1661,160 @@ def cmd_auth_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _print_chat_help() -> None:
+    print("Chat commands:")
+    print("  /help      Show this help")
+    print("  /session   Show current session id")
+    print("  /exit      Exit chat")
+
+
+def cmd_chat(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    session_dir = _resolve_session_dir(cfg, args.session_dir)
+    session_dir.mkdir(parents=True, exist_ok=True)
+
+    provider, model = _resolve_runtime_provider(cfg)
+    sessions_cfg = cfg.get("sessions", {})
+    sessions_cfg = sessions_cfg if isinstance(sessions_cfg, dict) else {}
+    configured_max_turns = sessions_cfg.get("max_context_turns", DEFAULT_SESSION_CONTEXT_TURNS)
+    max_turns = args.max_context_turns if args.max_context_turns else configured_max_turns
+    if not isinstance(max_turns, int) or max_turns < 2:
+        max_turns = DEFAULT_SESSION_CONTEXT_TURNS
+
+    session: Optional[Dict[str, Any]] = None
+    if args.resume:
+        target_session_id = _resolve_resume_session_id(session_dir, str(args.resume))
+        if not target_session_id:
+            print("No session available to resume.", file=sys.stderr)
+            return 1
+        session = _load_session(session_dir, target_session_id)
+        if session is None:
+            print(f"Session not found: {target_session_id}", file=sys.stderr)
+            return 1
+        print(f"Resumed session: {target_session_id}")
+    else:
+        session = _create_session(provider=provider, model=model)
+        _save_session(session_dir, session)
+        print(f"Started session: {session['id']}")
+
+    assert session is not None
+    print(f"Provider: {provider} | Model: {model}")
+    print("Type /help for commands.")
+
+    while True:
+        try:
+            raw = input("you> ")
+        except EOFError:
+            print("")
+            break
+        except KeyboardInterrupt:
+            print("")
+            break
+
+        user_input = raw.strip()
+        if not user_input:
+            continue
+        if user_input in ("/exit", "exit", "quit"):
+            break
+        if user_input in ("/help", "help"):
+            _print_chat_help()
+            continue
+        if user_input == "/session":
+            print(session["id"])
+            continue
+
+        capability, confirm_prompt = _infer_capability_from_prompt(user_input)
+        turn_start = time.perf_counter()
+        allowed, permission_level = _enforce_capability(
+            cfg=cfg,
+            capability=capability,
+            input_summary=user_input,
+            trace_dir=trace_dir,
+            non_interactive=False,
+            prompt=confirm_prompt,
+        )
+        if not allowed:
+            blocked_reply = "Action blocked by capability policy."
+            print(f"gaia> {blocked_reply}")
+            timestamp = datetime.now(timezone.utc).isoformat()
+            session["turns"].append({"role": "user", "content": user_input, "timestamp": timestamp})
+            session["turns"].append({"role": "assistant", "content": blocked_reply, "timestamp": timestamp})
+            session["updated_at"] = timestamp
+            _save_session(session_dir, session)
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="chat_turn",
+                input_summary=user_input,
+                output_summary=blocked_reply,
+                duration_ms=(time.perf_counter() - turn_start) * 1000,
+                permission_level=permission_level,
+                status="blocked",
+                metadata={"session_id": session["id"], "provider": provider, "model": model},
+            )
+            continue
+
+        messages = _build_context_messages(session["turns"], user_input, max_turns=max_turns)
+        status = "ok"
+        try:
+            assistant_reply = _reasoning_response(
+                provider=provider,
+                model=model,
+                messages=messages,
+                cfg_path=cfg_path,
+                secret_store_override=args.secret_store,
+            )
+        except ProviderTokenLimitError:
+            compact_turns = session["turns"][-max(4, max_turns // 2) :]
+            compact_messages = _build_context_messages(
+                compact_turns,
+                user_input,
+                max_turns=max(4, max_turns // 2),
+            )
+            try:
+                assistant_reply = _reasoning_response(
+                    provider=provider,
+                    model=model,
+                    messages=compact_messages,
+                    cfg_path=cfg_path,
+                    secret_store_override=args.secret_store,
+                )
+                status = "ok"
+            except ProviderError as exc:
+                assistant_reply = f"[provider-error] {exc}"
+                status = "error"
+        except ProviderError as exc:
+            assistant_reply = f"[provider-error] {exc}"
+            status = "error"
+
+        print(f"gaia> {assistant_reply}")
+        timestamp = datetime.now(timezone.utc).isoformat()
+        session["turns"].append({"role": "user", "content": user_input, "timestamp": timestamp})
+        session["turns"].append({"role": "assistant", "content": assistant_reply, "timestamp": timestamp})
+        session["updated_at"] = timestamp
+        _save_session(session_dir, session)
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="chat_turn",
+            input_summary=user_input,
+            output_summary=assistant_reply,
+            duration_ms=(time.perf_counter() - turn_start) * 1000,
+            permission_level=permission_level,
+            status=status,
+            metadata={
+                "session_id": session["id"],
+                "provider": provider,
+                "model": model,
+                "context_messages": len(messages),
+            },
+        )
+
+    _save_session(session_dir, session)
+    print(f"Session saved: {session['id']}")
+    return 0
+
+
 def cmd_config_get(args: argparse.Namespace) -> int:
     cfg_path = Path(args.config).expanduser()
     cfg = _ensure_config_exists(cfg_path)
@@ -1842,6 +2335,15 @@ def build_parser() -> argparse.ArgumentParser:
     traces.add_argument("--last", type=int, default=20, help="Number of recent trace entries to show")
     traces.add_argument("--type", default=None, help="Filter by action type")
     traces.set_defaults(func=cmd_traces)
+
+    chat = sub.add_parser("chat", help="Start an interactive Gaia chat session")
+    chat.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    chat.add_argument("--secret-store", default=None, help="Path to local secrets.json store (optional override)")
+    chat.add_argument("--session-dir", default=None, help="Session directory override")
+    chat.add_argument("--trace-dir", default=None, help="Trace directory override")
+    chat.add_argument("--resume", default=None, help="Session id or 'last'")
+    chat.add_argument("--max-context-turns", type=int, default=None, help="Override max context turns")
+    chat.set_defaults(func=cmd_chat)
 
     auth = sub.add_parser("auth", help="Manage OAuth profile linkage for Gaia assistant")
     auth_sub = auth.add_subparsers(dest="auth_command", required=True)
