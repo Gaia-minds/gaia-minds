@@ -66,6 +66,7 @@ Create new agent capabilities:
 
 Contribute to the personal assistant program:
 - Read `/infrastructure/personal-assistant-program.md`
+- Read `/assistant/README.md` for standalone runtime bootstrap
 - Use `/skills/gaia-assistant-builder/SKILL.md` for assistant-specific workflow
 - Start with the `Assistant Direction` issue template in `.github/ISSUE_TEMPLATE/assistant-direction.yml`
 - Keep OpenClaw-generic changes upstream-friendly and Gaia governance changes in this repo

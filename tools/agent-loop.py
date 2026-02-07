@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -79,6 +80,43 @@ LOG_FORMAT = "%(asctime)s [%(levelname)s] %(message)s"
 LOG_DATE_FORMAT = "%H:%M:%S"
 
 log = logging.getLogger("gaia-agent")
+
+# Defaults for dual-track evolution behavior.
+DEFAULT_TRACKS: Dict[str, Dict[str, Any]] = {
+    "assistant": {
+        "weight": 7,
+        "description": "Improve user-facing personal assistant behavior and reliability",
+        "allowed_actions": [
+            "verify_resources",
+            "generate_indexes",
+            "add_research",
+            "add_resource",
+            "update_skill",
+            "open_issue",
+            "comment_on_pr",
+            "check_pr_status",
+        ],
+    },
+    "framework": {
+        "weight": 3,
+        "description": "Improve Gaia self-evolving framework and governance tooling",
+        "allowed_actions": [
+            "verify_resources",
+            "generate_indexes",
+            "create_tool",
+            "update_skill",
+            "open_issue",
+            "comment_on_pr",
+            "check_pr_status",
+        ],
+    },
+}
+
+DEFAULT_BUDGET_POLICY: Dict[str, Any] = {
+    "user_service_pct": 80,
+    "self_improvement_pct": 20,
+    "hard_cycle_token_cap": 12000,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -159,11 +197,13 @@ def log_decision(
     alignment: AlignmentResult,
     outcome: str,
     details: str = "",
+    active_track: str = "unknown",
 ) -> None:
     """Append a decision record to decisions.jsonl."""
     record = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "cycle": cycle,
+        "track": active_track,
         "action": action.get("type", "unknown"),
         "action_params": action.get("params", {}),
         "reasoning": alignment.reasoning[:500],
@@ -189,7 +229,12 @@ def log_lesson(cycle: int, lesson: str, source: str, context: str = "") -> None:
         f.write(json.dumps(record) + "\n")
 
 
-def update_state(cycle: int, results: List[ActionResult]) -> None:
+def update_state(
+    cycle: int,
+    results: List[ActionResult],
+    active_track: str = "unknown",
+    budget_policy: Optional[Dict[str, Any]] = None,
+) -> None:
     """Update state.json with cycle results."""
     state = {}
     if STATE_PATH.exists():
@@ -200,7 +245,13 @@ def update_state(cycle: int, results: List[ActionResult]) -> None:
 
     state["last_cycle"] = cycle
     state["last_run"] = datetime.now(timezone.utc).isoformat()
+    state["last_track"] = active_track
     state["total_actions"] = state.get("total_actions", 0) + len(results)
+    track_counts = state.get("track_counts", {})
+    track_counts[active_track] = track_counts.get(active_track, 0) + 1
+    state["track_counts"] = track_counts
+    if budget_policy:
+        state["budget_policy"] = budget_policy
 
     for r in results:
         if r.artifacts.get("pr_url"):
@@ -256,6 +307,86 @@ def rotate_logs(config: Dict[str, Any]) -> None:
             log.info("Rotated %s: kept last %d of %d entries", path.name, limit, len(lines))
 
 
+def normalized_track_config(config: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """Return normalized track configuration with safe defaults."""
+    tracks_cfg = config.get("evolution", {}).get("tracks", {})
+    out: Dict[str, Dict[str, Any]] = {}
+    for name, defaults in DEFAULT_TRACKS.items():
+        configured = tracks_cfg.get(name, {})
+        weight = configured.get("weight", defaults["weight"])
+        try:
+            weight_int = int(weight)
+        except (TypeError, ValueError):
+            weight_int = int(defaults["weight"])
+        if weight_int < 1:
+            weight_int = 1
+        allowed_actions = configured.get("allowed_actions", defaults["allowed_actions"])
+        if not isinstance(allowed_actions, list):
+            allowed_actions = defaults["allowed_actions"]
+        out[name] = {
+            "weight": weight_int,
+            "description": configured.get("description", defaults["description"]),
+            "allowed_actions": allowed_actions,
+        }
+    return out
+
+
+def normalized_budget_policy(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Return normalized budget policy with safe defaults."""
+    budget_cfg = config.get("budget", {})
+    out = dict(DEFAULT_BUDGET_POLICY)
+    out.update(budget_cfg if isinstance(budget_cfg, dict) else {})
+    for key in ("user_service_pct", "self_improvement_pct", "hard_cycle_token_cap"):
+        try:
+            out[key] = int(out[key])
+        except (TypeError, ValueError):
+            out[key] = DEFAULT_BUDGET_POLICY[key]
+    if out["user_service_pct"] < 0:
+        out["user_service_pct"] = DEFAULT_BUDGET_POLICY["user_service_pct"]
+    if out["self_improvement_pct"] < 0:
+        out["self_improvement_pct"] = DEFAULT_BUDGET_POLICY["self_improvement_pct"]
+    if out["hard_cycle_token_cap"] < 1:
+        out["hard_cycle_token_cap"] = DEFAULT_BUDGET_POLICY["hard_cycle_token_cap"]
+    return out
+
+
+def select_active_track(
+    config: Dict[str, Any],
+    cycle_number: int,
+) -> str:
+    """Choose active track for this cycle.
+
+    Override via GAIA_ACTIVE_TRACK_OVERRIDE=assistant|framework.
+    """
+    tracks = normalized_track_config(config)
+    override = os.environ.get("GAIA_ACTIVE_TRACK_OVERRIDE", "").strip().lower()
+    if override in tracks:
+        return override
+
+    scheduler = config.get("evolution", {}).get("scheduler", "weighted_round_robin")
+    if scheduler == "round_robin":
+        order = sorted(tracks.keys())
+        return order[(cycle_number - 1) % len(order)]
+
+    # weighted_round_robin
+    weighted_order: List[str] = []
+    for name in sorted(tracks.keys()):
+        weighted_order.extend([name] * int(tracks[name]["weight"]))
+    if not weighted_order:
+        return "assistant"
+    return weighted_order[(cycle_number - 1) % len(weighted_order)]
+
+
+def action_allowed_in_track(action_type: str, active_track: str, config: Dict[str, Any]) -> bool:
+    """Return whether action_type is allowed in the active track policy."""
+    tracks = normalized_track_config(config)
+    track_cfg = tracks.get(active_track)
+    if not track_cfg:
+        return False
+    allowed_actions = track_cfg.get("allowed_actions", [])
+    return action_type in allowed_actions
+
+
 # ---------------------------------------------------------------------------
 # Claude reasoning
 # ---------------------------------------------------------------------------
@@ -292,6 +423,7 @@ IMPORTANT RULES:
 - If nothing needs doing, return an empty actions list. Don't invent busywork.
 - Learn from past mistakes shown in the memory context.
 - Be specific in your reasoning — reference what you observed in the state.
+- Respect the active evolution track and only propose actions allowed for that track.
 """
 
 USER_PROMPT_TEMPLATE = """\
@@ -306,6 +438,15 @@ Lessons learned:
 
 Agent state:
 {agent_state_json}
+
+Active evolution track for this cycle:
+{active_track}
+
+Track policy:
+{track_policy_json}
+
+Budget policy:
+{budget_policy_json}
 
 Based on the current state, what actions should I take this cycle?
 
@@ -345,6 +486,7 @@ def ask_claude_for_plan(
     state: RepoState,
     memory: Dict[str, Any],
     constitution: str,
+    active_track: str,
 ) -> Dict[str, Any]:
     """Ask Claude to analyze state and propose actions."""
     reasoning_config = config.get("reasoning", {})
@@ -356,12 +498,17 @@ def ask_claude_for_plan(
 
     n_decisions = 10
     n_lessons = 10
+    track_policy = normalized_track_config(config).get(active_track, {})
+    budget_policy = normalized_budget_policy(config)
     user_prompt = USER_PROMPT_TEMPLATE.format(
         state_json=json.dumps(state_to_summary(state), indent=2),
         n_decisions=n_decisions,
         decisions_json=json.dumps(memory.get("recent_decisions", []), indent=2),
         lessons_json=json.dumps(memory.get("lessons", []), indent=2),
         agent_state_json=json.dumps(memory.get("state", {}), indent=2),
+        active_track=active_track,
+        track_policy_json=json.dumps(track_policy, indent=2),
+        budget_policy_json=json.dumps(budget_policy, indent=2),
     )
 
     log.info("Asking Claude (%s) for a plan...", model)
@@ -421,6 +568,7 @@ def run_cycle(
 ) -> List[ActionResult]:
     """Run one complete agent cycle."""
     repo_root = str(REPO_ROOT)
+    budget_policy = normalized_budget_policy(config)
 
     # 1. Gather state
     log.info("=== Cycle %d: Gathering state ===", cycle_number)
@@ -428,6 +576,14 @@ def run_cycle(
 
     # 2. Load memory
     memory = load_memory()
+    active_track = select_active_track(config, cycle_number)
+    log.info(
+        "Active track: %s (budget split: service=%s%%, self_improvement=%s%%, hard_cycle_token_cap=%s)",
+        active_track,
+        budget_policy["user_service_pct"],
+        budget_policy["self_improvement_pct"],
+        budget_policy["hard_cycle_token_cap"],
+    )
 
     # 3. Load constitution
     constitution = load_constitution(repo_root)
@@ -435,14 +591,14 @@ def run_cycle(
     # 4. Ask Claude for a plan
     if client is None:
         log.info("No Anthropic client available -- skipping Claude reasoning (dry-run)")
-        plan = {"reasoning": "No API client (dry-run without SDK/key)", "actions": []}
+        plan = {"reasoning": f"No API client (dry-run without SDK/key), active_track={active_track}", "actions": []}
     else:
-        plan = ask_claude_for_plan(client, config, state, memory, constitution)
+        plan = ask_claude_for_plan(client, config, state, memory, constitution, active_track)
 
     actions = plan.get("actions", [])
     if not actions:
         log.info("No actions proposed this cycle.")
-        update_state(cycle_number, [])
+        update_state(cycle_number, [], active_track, budget_policy)
         return []
 
     # 5. Process each action
@@ -450,6 +606,24 @@ def run_cycle(
     for i, action in enumerate(actions):
         action_type = action.get("type", "unknown")
         log.info("--- Action %d/%d: %s ---", i + 1, len(actions), action_type)
+
+        if not action_allowed_in_track(action_type, active_track, config):
+            reason = f"Action '{action_type}' blocked by track policy for '{active_track}'"
+            log.warning(reason)
+            track_policy_alignment = AlignmentResult(
+                allowed=False,
+                risk_level="high",
+                reasoning=reason,
+            )
+            log_decision(
+                cycle_number,
+                action,
+                track_policy_alignment,
+                "blocked_by_track_policy",
+                reason,
+                active_track=active_track,
+            )
+            continue
 
         # 5a. Check alignment
         alignment = check_alignment(
@@ -470,12 +644,12 @@ def run_cycle(
         # 5b. Route based on alignment + risk
         if not alignment.allowed:
             log.warning("Action BLOCKED by alignment checker")
-            log_decision(cycle_number, action, alignment, "blocked")
+            log_decision(cycle_number, action, alignment, "blocked", active_track=active_track)
             continue
 
         if alignment.risk_level == "forbidden":
             log.warning("Action FORBIDDEN")
-            log_decision(cycle_number, action, alignment, "forbidden")
+            log_decision(cycle_number, action, alignment, "forbidden", active_track=active_track)
             continue
 
         if alignment.risk_level == "high":
@@ -502,13 +676,19 @@ def run_cycle(
                 }
                 result = execute_action(issue_action, config, repo_root)
                 results.append(result)
-            log_decision(cycle_number, action, alignment, "deferred_to_human")
+            log_decision(
+                cycle_number,
+                action,
+                alignment,
+                "deferred_to_human",
+                active_track=active_track,
+            )
             continue
 
         # 5c. Execute (low or medium risk)
         if dry_run:
             log.info("[DRY RUN] Would execute: %s", action_type)
-            log_decision(cycle_number, action, alignment, "dry_run")
+            log_decision(cycle_number, action, alignment, "dry_run", active_track=active_track)
             continue
 
         log.info("Executing action...")
@@ -518,7 +698,14 @@ def run_cycle(
         outcome = "success" if result.success else "failed"
         log.info("Result: %s - %s", outcome, result.output[:200] if result.output else result.error[:200])
 
-        log_decision(cycle_number, action, alignment, outcome, result.output or result.error)
+        log_decision(
+            cycle_number,
+            action,
+            alignment,
+            outcome,
+            result.output or result.error,
+            active_track=active_track,
+        )
 
         # Learn from failures
         if not result.success:
@@ -530,7 +717,7 @@ def run_cycle(
             )
 
     # 6. Update state
-    update_state(cycle_number, results)
+    update_state(cycle_number, results, active_track, budget_policy)
 
     # 7. Rotate logs if needed
     rotate_logs(config)
@@ -638,8 +825,6 @@ def main() -> int:
         return 1
 
     # Check for API key (not needed in dry-run)
-    import os
-
     if not os.environ.get("ANTHROPIC_API_KEY") and not args.dry_run:
         log.error(
             "ANTHROPIC_API_KEY environment variable is not set.\n"

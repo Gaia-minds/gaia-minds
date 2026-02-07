@@ -44,6 +44,16 @@ If you want to contribute to the OpenClaw-powered assistant direction, start her
 2. Use [skills/gaia-assistant-builder/SKILL.md](skills/gaia-assistant-builder/SKILL.md)
 3. Open or claim a direction issue using [.github/ISSUE_TEMPLATE/assistant-direction.yml](.github/ISSUE_TEMPLATE/assistant-direction.yml)
 
+### Standalone Runtime
+
+Gaia now includes a standalone personal assistant launcher:
+
+1. Read [assistant/README.md](assistant/README.md)
+2. Initialize and check environment:
+   `python3 tools/gaia-assistant.py init && python3 tools/gaia-assistant.py doctor`
+3. Run a cycle:
+   `python3 tools/gaia-assistant.py run --mode single --dry-run`
+
 ### Ways to Contribute
 
 - **Research**: Add findings to `/research` on AI advances, safety, alignment
@@ -101,6 +111,9 @@ gaia-minds/
 │   ├── architecture.md
 │   ├── security.md
 │   └── personal-assistant-program.md
+│
+├── assistant/               # Standalone assistant runtime docs
+│   └── README.md
 │
 ├── philosophy/              # Deep questions
 │   ├── what-is-benevolence.md

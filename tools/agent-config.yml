@@ -35,6 +35,44 @@ cycle:
   max_cycles: 0  # 0 = unlimited
 
 # ---------------------------------------------------------------------------
+# Evolution tracks (assistant vs framework)
+# ---------------------------------------------------------------------------
+evolution:
+  scheduler: "weighted_round_robin"  # weighted_round_robin | round_robin
+  tracks:
+    assistant:
+      weight: 7
+      description: "Improve user-facing personal assistant behavior and reliability"
+      allowed_actions:
+        - "verify_resources"
+        - "generate_indexes"
+        - "add_research"
+        - "add_resource"
+        - "update_skill"
+        - "open_issue"
+        - "comment_on_pr"
+        - "check_pr_status"
+    framework:
+      weight: 3
+      description: "Improve Gaia self-evolving framework and governance tooling"
+      allowed_actions:
+        - "verify_resources"
+        - "generate_indexes"
+        - "create_tool"
+        - "update_skill"
+        - "open_issue"
+        - "comment_on_pr"
+        - "check_pr_status"
+
+# ---------------------------------------------------------------------------
+# Budget policy
+# ---------------------------------------------------------------------------
+budget:
+  user_service_pct: 80
+  self_improvement_pct: 20
+  hard_cycle_token_cap: 12000
+
+# ---------------------------------------------------------------------------
 # Risk classification for auto-execution vs PR
 # ---------------------------------------------------------------------------
 risk:

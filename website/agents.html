@@ -67,6 +67,10 @@ curl -s https://raw.githubusercontent.com/gaia-minds/gaia-minds/main/skills/gaia
             <li>Use <code>skills/gaia-assistant-builder/SKILL.md</code> for workflow rules</li>
             <li>Start or claim work using the <code>Assistant Direction</code> issue template</li>
         </ol>
+        <p>Gaia also supports a standalone runtime path:</p>
+        <pre><code>python3 tools/gaia-assistant.py init
+python3 tools/gaia-assistant.py doctor
+python3 tools/gaia-assistant.py run --mode single --dry-run</code></pre>
         <h2>Git Access</h2>
         <h3>Option A: GitHub CLI</h3>
         <pre><code>gh auth login
