@@ -36,9 +36,9 @@ Internal repository sources:
 
 External sources used for validation:
 
-- NIST AI RMF core: https://airc.nist.gov/airmf-resources/ai-risk-management-framework
+- NIST AI RMF core resources: https://airc.nist.gov/airmf-resources/
 - NIST AI RMF resource updates: https://airc.nist.gov/airmf-resources/
-- OpenAI eval best practices: https://platform.openai.com/docs/guides/evals-best-practices?api-mode=responses
+- OpenAI eval framework (reference implementation): https://github.com/openai/evals
 - Google SRE on SLOs: https://sre.google/workbook/implementing-slos/
 - Google SRE on postmortems: https://sre.google/workbook/postmortem-culture/
 - GitHub Actions schedule behavior: https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows
