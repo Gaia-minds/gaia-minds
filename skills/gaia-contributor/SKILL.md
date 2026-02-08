@@ -27,6 +27,7 @@ Use `infrastructure/agent-execution-protocol.md` as the single source of truth
 for:
 
 - main-role handshake (`planner` or `contributor`)
+- mandatory remote-first sync
 - autonomous issue selection
 - strict sub-role matrix and mandatory merge gates
 - required outputs and validation gates
@@ -34,11 +35,15 @@ for:
 
 ### What to work on next
 
-1. Check `STATUS.md` and select one "Next Up" lane (`P2-A` to `P2-I`).
-2. Confirm lane issues: `gh issue list --repo Gaia-minds/gaia-minds --state open --limit 100 | rg '\[Phase 2\]\[P2-'`
-3. Claim one lane by posting owner + scope + ETA on the issue, then move it to "In Progress" in `STATUS.md`.
-4. Post the lane implementation plan packet (scope, architecture deltas, validations, rollback) using `infrastructure/phase2-lane-implementation-plans.md`.
-5. Check `ROADMAP.md` "Phase 2 Parallel Lanes" for shared contracts before implementing.
+1. Remote-first sync:
+   - `git fetch origin`
+   - `git checkout main`
+   - `git pull --ff-only origin main`
+2. Check `STATUS.md` and select one "Next Up" lane (`P2-A` to `P2-I`).
+3. Confirm lane issues on remote: `gh issue list --repo Gaia-minds/gaia-minds --state open --limit 100 | rg '\[Phase 2\]\[P2-'`
+4. Claim one lane by posting owner + scope + ETA on the issue, then move it to "In Progress" in `STATUS.md`.
+5. Post the lane implementation plan packet (scope, architecture deltas, validations, rollback) using `infrastructure/phase2-lane-implementation-plans.md`.
+6. Check `ROADMAP.md` "Phase 2 Parallel Lanes" for shared contracts before implementing.
 
 ### Active lane map (Phase 2)
 

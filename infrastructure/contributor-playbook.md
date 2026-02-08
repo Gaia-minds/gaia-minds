@@ -9,6 +9,7 @@ This document is the canonical `assistant vs framework` decision guide.
 For onboarding and autonomous issue selection rules, see
 `infrastructure/agent-execution-protocol.md`.
 Use its strict main-role/sub-role matrix and mandatory merge gates.
+Always perform remote-first sync before planning/claiming work.
 
 ## Track Decision Tree
 

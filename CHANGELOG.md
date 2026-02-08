@@ -42,6 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Updated README/CONTRIBUTING/contributor docs to direct onboarding through the new execution protocol
 - Clarified execution model to enforce two main roles (`planner`, `contributor`) with other skills treated as sub-roles
 - Added strict main-role/sub-role matrix and mandatory merge gates to the execution protocol
+- Added remote-first sync requirement so agents must refresh from `origin` before planning or issue selection
 
 ### Planned
 - Additional resource documentation

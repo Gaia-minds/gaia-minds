@@ -63,42 +63,67 @@ Rules:
 2. Declare chosen main role in first issue/PR comment.
 3. Trigger sub-role skills only when task conditions require them.
 
+## Remote-First State Sync (Mandatory)
+
+Never decide work from local state alone. Sync with `origin` first.
+
+Required sequence before selecting/claiming work:
+
+1. Validate remote access:
+   - `git remote -v`
+   - `git fetch origin`
+2. Update local `main` from remote:
+   - `git checkout main`
+   - `git pull --ff-only origin main`
+3. If continuing from a feature branch:
+   - `git checkout <branch>`
+   - `git fetch origin`
+   - `git rebase origin/main` (or document why rebase is deferred)
+4. Verify remote collaboration state:
+   - `gh issue list --repo Gaia-minds/gaia-minds --state open --limit 100`
+   - `gh pr list --repo Gaia-minds/gaia-minds --state open`
+
+If remote checks fail (GitHub/API connectivity), stop autonomous selection and
+report a blocker instead of using stale local assumptions.
+
 ## Contributor Main Role: Autonomous Issue Selection
 
 Contributor-role agents should self-select work by default.
 
-1. Load required baseline context:
+1. Complete `Remote-First State Sync (Mandatory)`.
+2. Load required baseline context:
    - `CONSTITUTION.md`
    - `skills/gaia-contributor/SKILL.md`
    - `infrastructure/contributor-playbook.md`
-2. Scan open queue:
+3. Scan open queue:
    - `gh issue list --repo Gaia-minds/gaia-minds --state open --limit 100 | rg '\[Phase 2\]\[P2-'`
-3. Filter to ready items:
+4. Filter to ready items:
    - no active owner claim
    - dependencies unblocked
    - scope matches current skill set
-4. Pick highest-priority ready issue (priority from `STATUS.md`).
-5. Post claim comment before coding:
+5. Pick highest-priority ready issue (priority from `STATUS.md`).
+6. Post claim comment before coding:
    - owner
    - scope
    - ETA
    - role skill(s) to be used
-6. Post required plan packet before implementation.
-7. Move lane status to `In Progress` in `STATUS.md`.
-8. If blocked for >24h, post blocker details and unclaim.
+7. Post required plan packet before implementation.
+8. Move lane status to `In Progress` in `STATUS.md`.
+9. If blocked for >24h, post blocker details and unclaim.
 
 ## Planner Main Role: Planning Flow
 
 Planner-role agents should:
 
-1. Define planning scope and decision deadline.
-2. Use `infrastructure/planning-round-template.md`.
-3. Produce an execution-ready plan:
+1. Complete `Remote-First State Sync (Mandatory)`.
+2. Define planning scope and decision deadline.
+3. Use `infrastructure/planning-round-template.md`.
+4. Produce an execution-ready plan:
    - decomposed items/lanes
    - dependency and merge-order notes
    - unclear items requiring research
-4. Recommend owners and next actions.
-5. Sync state docs (`STATUS.md`, `ROADMAP.md`, `CHANGELOG.md`) or record no-change reason.
+5. Recommend owners and next actions.
+6. Sync state docs (`STATUS.md`, `ROADMAP.md`, `CHANGELOG.md`) or record no-change reason.
 
 ## Sub-Role Trigger Matrix (Strict)
 
@@ -170,6 +195,7 @@ Required startup:
 Do not start work until I answer with the main role.
 
 Then:
+- Run remote-first sync (`git fetch origin`, `git pull --ff-only origin main`, and check open issues/PRs on remote).
 - If planner: run a planning round and publish the planning artifact.
 - If contributor: select your own issue from the open Phase 2 queue, post claim + plan packet, then execute in a focused branch and open a PR.
 - Use only sub-roles allowed by the protocol matrix for your chosen main role.
