@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Skill onboarding security validation synthesis with anti-malicious checks (`research/synthesis/2026-02-skill-onboarding-security-validation.md`)
 - Phase 2 lane implementation plan packets with architecture-delta requirements (`infrastructure/phase2-lane-implementation-plans.md`)
 - Memory-management research lane issue (`#60`) for options/tradeoffs before implementation
+- Phase 2 planner-round execution artifact with merge order, integration sync report, and docs freshness evidence (`infrastructure/planning-round-2026-02-08-phase2.md`)
 - Planning/research/doc/review templates for consistent role execution quality (`infrastructure/*-template.md`)
 - New role skills: planner, researcher, technical writer, security reviewer, QA evaluator, release manager, incident responder, integration coordinator, privacy-memory steward
 - Agent execution protocol with autonomous issue selection, skill-trigger matrix, output contract, and operator prompt templates (`infrastructure/agent-execution-protocol.md`)
