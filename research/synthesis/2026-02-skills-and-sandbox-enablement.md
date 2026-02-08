@@ -22,8 +22,8 @@ deliverables for Gaia assistant:
 - Agent Skills reference: https://agentskills.io/reference
 - Claude Code Skills docs: https://code.claude.com/docs/en/skills
 - OpenAI Codex Skills docs: https://developers.openai.com/codex/skills/
-- OpenAI Codex configuration reference: https://developers.openai.com/codex/config
-- OpenAI Codex security overview: https://developers.openai.com/codex/security/
+- OpenAI Codex configuration reference: https://github.com/openai/codex/blob/main/docs/config.md
+- OpenAI Codex security overview: https://github.com/openai/codex/blob/main/docs/security.md
 - OpenAI Codex skills + eval example: https://github.com/openai/codex/issues/1575
 
 ## Key Findings
