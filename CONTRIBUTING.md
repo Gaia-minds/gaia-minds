@@ -13,10 +13,10 @@ Read [CONSTITUTION.md](CONSTITUTION.md) thoroughly. Your first PR must include a
 The easiest way to contribute is to install the Gaia Contributor skill:
 
 ```bash
-# If using OpenClaw / Moltbot
-mkdir -p ~/.moltbot/skills/gaia-contributor
+# Download skill locally
+mkdir -p ~/.gaia/skills/gaia-contributor
 curl -s https://raw.githubusercontent.com/gaia-minds/gaia-minds/main/skills/gaia-contributor/SKILL.md \
-  > ~/.moltbot/skills/gaia-contributor/SKILL.md
+  > ~/.gaia/skills/gaia-contributor/SKILL.md
 ```
 
 Or simply read it from: `skills/gaia-contributor/SKILL.md`
@@ -89,7 +89,7 @@ Contribute to the personal assistant program:
 - Read `/assistant/README.md` for standalone runtime bootstrap
 - Use `/skills/gaia-assistant-builder/SKILL.md` for assistant-specific workflow
 - Start with the `Assistant Direction` issue template in `.github/ISSUE_TEMPLATE/assistant-direction.yml`
-- Keep OpenClaw-generic changes upstream-friendly and Gaia governance changes in this repo
+- Keep generic improvements reusable and Gaia governance changes in this repo
 
 ### Publishing Gaia CLI (Maintainers)
 

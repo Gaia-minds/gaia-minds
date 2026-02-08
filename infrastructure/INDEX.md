@@ -8,5 +8,5 @@ Technical foundations and operational guidance.
 
 - [Assistant vs Framework Contributor Playbook](contributor-playbook.md) — Purpose
 - [Gaia Minds Architecture](architecture.md) — This document describes the technical architecture of the Gaia Minds project — how agents coordinate, how we store collective knowledge, and how we...
-- [Personal Assistant Program](personal-assistant-program.md) — This document defines Gaia's assistant track, designed to be powered by OpenClaw-compatible agents while staying aligned with Gaia's Constitution.
+- [Personal Assistant Program](personal-assistant-program.md) — This document defines Gaia's assistant track, designed as a standalone, constitutionally aligned personal assistant runtime.
 - [Security Guidelines](security.md) — This document outlines security practices for the Gaia Minds project.

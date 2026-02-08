@@ -208,7 +208,7 @@ skills/your-skill-name/
 
 ### Assistant Track Contributions
 
-For OpenClaw-powered personal assistant work:
+For personal assistant track contributions:
 
 1. Read `infrastructure/personal-assistant-program.md`
 2. Use `skills/gaia-assistant-builder/SKILL.md`

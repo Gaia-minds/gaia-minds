@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Removed
+- OpenClaw runtime integration, auth source, and all cross-repo references; Gaia is now fully standalone with Codex CLI as the sole OAuth path
+- `skills/gaia-assistant-builder/references/openclaw-boundary.md` boundary document
+
 ### Added
 - _No entries yet_
 
@@ -51,7 +55,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Added - Assistant Runtime
 
 - Standalone Gaia assistant CLI published on npm as `@gaia-minds/assistant-cli` (#12)
-- Gaia-native auth path independent from OpenClaw with Codex CLI broker (#10, #11)
+- Gaia-native auth path with Codex CLI broker (#10, #11)
 - Dual-track evolution scheduler: assistant track + framework track (#8)
 - OAuth onboarding flow for secure credential management (#10)
 - Terminal screenshots and animated demo assets for README (#9)

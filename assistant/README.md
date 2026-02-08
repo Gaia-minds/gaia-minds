@@ -2,8 +2,7 @@
 
 This is the standalone Gaia personal assistant runtime path.
 
-It runs independently from OpenClaw, while staying compatible with the same
-provider auth patterns:
+It supports the following provider auth patterns:
 
 1. Subscription OAuth flows (for providers that support it in your environment)
 2. Direct API key access
@@ -80,9 +79,6 @@ For Codex OAuth:
 npm run gaia -- auth login --source codex-cli --provider openai-codex
 npm run gaia -- auth status
 ```
-
-Optional compatibility path (legacy): link from OpenClaw profile store.
-Use `--source openclaw`.
 
 ## Token Safety
 
@@ -237,8 +233,6 @@ Provider OAuth profile support is exposed through Gaia-native commands:
 Direct Python fallback (if preferred):
 - `python3 tools/gaia-assistant.py onboard`
 - `python3 tools/gaia-assistant.py auth login --source codex-cli --provider openai-codex`
-
-OpenClaw linking remains available as an optional compatibility source.
 
 The self-evolution loop planner supports Anthropic, OpenAI, and OpenRouter in
 non-dry runs. Tier-2 LLM alignment checks currently run only with Anthropic;
