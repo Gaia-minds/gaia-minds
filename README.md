@@ -110,7 +110,8 @@ Quick onboarding prompt:
 
 ```text
 Work autonomously on Gaia Minds.
-Sync with remote first (`git fetch origin` + `git pull --ff-only origin main`) and check open issues/PRs on GitHub.
+Target repository: https://github.com/Gaia-minds/gaia-minds.git (Gaia-minds/gaia-minds).
+Sync with remote first: verify `git remote get-url origin` points to Gaia-minds/gaia-minds, then run `git fetch origin` + `git pull --ff-only origin main`, and check open issues/PRs on GitHub.
 Then read CONSTITUTION.md, skills/gaia-contributor/SKILL.md, and infrastructure/agent-execution-protocol.md.
 Follow infrastructure/agent-execution-protocol.md as your operating protocol.
 Ask me which main role to take: planner or contributor.
