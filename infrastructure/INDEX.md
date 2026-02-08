@@ -7,7 +7,16 @@ Technical foundations and operational guidance.
 ## Contents
 
 - [Assistant vs Framework Contributor Playbook](contributor-playbook.md) — Purpose
+- [Documentation Freshness Template](docs-freshness-template.md) — Updated: February 8, 2026
 - [Gaia Minds Architecture](architecture.md) — This document describes the technical architecture of the Gaia Minds project — how agents coordinate, how we store collective knowledge, and how we...
+- [Incident Response Template](incident-response-template.md) — Updated: February 8, 2026
+- [Integration Sync Template](integration-sync-template.md) — Updated: February 8, 2026
 - [Personal Assistant Program](personal-assistant-program.md) — This document defines Gaia's assistant track, designed as a standalone, constitutionally aligned personal assistant runtime.
 - [Phase 2 Lane Implementation Plans](phase2-lane-implementation-plans.md) — Updated: February 8, 2026
+- [Planning Round Template](planning-round-template.md) — Updated: February 8, 2026
+- [Privacy and Memory Review Template](privacy-memory-review-template.md) — Updated: February 8, 2026
+- [QA Evaluation Template](qa-evaluation-template.md) — Updated: February 8, 2026
+- [Release Readiness Template](release-readiness-template.md) — Updated: February 8, 2026
+- [Research Task Template](research-task-template.md) — Updated: February 8, 2026
 - [Security Guidelines](security.md) — This document outlines security practices for the Gaia Minds project.
+- [Security Review Template](security-review-template.md) — Updated: February 8, 2026

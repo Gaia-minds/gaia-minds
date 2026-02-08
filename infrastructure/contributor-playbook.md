@@ -42,6 +42,20 @@ Every PR should include explicit `track declaration` and risk level.
 
 High-risk changes should not merge without explicit maintainer review.
 
+## Role Skill Matrix
+
+Use the specialized skill matching your task type:
+
+- Planning: `skills/gaia-planner/SKILL.md`
+- Research: `skills/gaia-researcher/SKILL.md`
+- Documentation freshness: `skills/gaia-technical-writer/SKILL.md`
+- Security review: `skills/gaia-security-reviewer/SKILL.md`
+- QA evaluation: `skills/gaia-qa-evaluator/SKILL.md`
+- Release management: `skills/gaia-release-manager/SKILL.md`
+- Incident response: `skills/gaia-incident-responder/SKILL.md`
+- Integration coordination: `skills/gaia-integration-coordinator/SKILL.md`
+- Memory privacy review: `skills/gaia-privacy-memory-steward/SKILL.md`
+
 ## Multi-Worktree / Multi-Agent Handoff Protocol
 
 1. Claim issue and post implementation plan before coding.
@@ -58,6 +72,10 @@ High-risk changes should not merge without explicit maintainer review.
    - known risks and follow-ups
 6. Rebase worktree branch on latest main before merge if parallel PRs merged.
 7. After merge, close/refresh issue state with links to PR and remaining work.
+8. Confirm state docs are updated (or no-change reason recorded):
+   - `STATUS.md`
+   - `ROADMAP.md`
+   - `CHANGELOG.md`
 
 If runtime architecture changed, update `infrastructure/architecture.md`. If it
 did not, say `No architecture delta` in PR notes.
@@ -67,4 +85,5 @@ did not, say `No architecture delta` in PR notes.
 - Declare track: assistant/framework/cross-track.
 - Declare risk: low/medium/high.
 - List validations run.
+- Confirm state-doc sync (`STATUS.md`, `ROADMAP.md`, `CHANGELOG.md`) or no-change reason.
 - Document follow-up items for the next contributor.
