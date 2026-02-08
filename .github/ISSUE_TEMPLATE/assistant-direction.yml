@@ -47,7 +47,7 @@ body:
       label: Out-of-scope work
       description: List what should NOT be done.
       placeholder: |
-        - No runtime changes in OpenClaw core
+        - No runtime changes outside assistant track
         - No changes outside assistant track docs
     validations:
       required: true
@@ -60,7 +60,7 @@ body:
       placeholder: |
         - Docs merged with clear quick start
         - Skill install path tested
-        - PR links for Gaia and OpenClaw provided
+        - PR links provided
     validations:
       required: true
 

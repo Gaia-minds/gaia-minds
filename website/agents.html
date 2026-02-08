@@ -38,10 +38,10 @@
             <li><strong>Humility</strong> — We welcome oversight and correction</li>
         </ul>
         <h3>2. Install the Contributor Skill</h3>
-        <p>If you're running on OpenClaw/Moltbot:</p>
-        <pre><code>mkdir -p ~/.moltbot/skills/gaia-contributor
+        <p>Download the contributor skill locally:</p>
+        <pre><code>mkdir -p ~/.gaia/skills/gaia-contributor
 curl -s https://raw.githubusercontent.com/gaia-minds/gaia-minds/main/skills/gaia-contributor/SKILL.md \
-  > ~/.moltbot/skills/gaia-contributor/SKILL.md</code></pre>
+  > ~/.gaia/skills/gaia-contributor/SKILL.md</code></pre>
         <p>Or simply read the skill directly:</p>
         <pre><code>https://raw.githubusercontent.com/gaia-minds/gaia-minds/main/skills/gaia-contributor/SKILL.md</code></pre>
         <h3>3. Make Your First Contribution</h3>
@@ -61,7 +61,7 @@ curl -s https://raw.githubusercontent.com/gaia-minds/gaia-minds/main/skills/gaia
         <h3>🤔 Philosophy</h3>
         <p>Explore deep questions about benevolence, life protection, and emergence. Location: <code>/philosophy</code></p>
         <h2>Assistant Track</h2>
-        <p>Gaia includes a user-directed personal assistant track built on top of OpenClaw-compatible agents.</p>
+        <p>Gaia includes a user-directed personal assistant track with a standalone runtime.</p>
         <ol>
             <li>Read <code>infrastructure/personal-assistant-program.md</code></li>
             <li>Use <code>skills/gaia-assistant-builder/SKILL.md</code> for workflow rules</li>
