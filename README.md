@@ -110,11 +110,11 @@ Quick onboarding prompt:
 
 ```text
 Work autonomously on Gaia Minds.
-Read CONSTITUTION.md, skills/gaia-contributor/SKILL.md, and infrastructure/agent-execution-protocol.md.
+Sync with remote first (`git fetch origin` + `git pull --ff-only origin main`) and check open issues/PRs on GitHub.
+Then read CONSTITUTION.md, skills/gaia-contributor/SKILL.md, and infrastructure/agent-execution-protocol.md.
 Follow infrastructure/agent-execution-protocol.md as your operating protocol.
 Ask me which main role to take: planner or contributor.
 Do not start work until I answer.
-Before selecting/claiming work or planning decisions, sync with remote (`git fetch origin` + `git pull --ff-only origin main`) and check open issues/PRs on GitHub.
 Use all other skills only as sub-roles under the chosen main role.
 Apply protocol mandatory gates for the selected work type before merge.
 ```
