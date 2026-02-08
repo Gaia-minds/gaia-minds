@@ -1,0 +1,156 @@
+{
+  "failed": 0,
+  "methodology": {
+    "description": "Phase 1 canonical task pass/fail benchmark",
+    "runner": "tools/phase1-hardening.py",
+    "task_source": "assistant/canonical-tasks.md"
+  },
+  "passed": 20,
+  "schema_version": 1,
+  "score_pct": 100.0,
+  "suite": "phase1-canonical-benchmark",
+  "target_score_pct": 80.0,
+  "tasks": [
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'profile.name=HardeningUser'",
+      "id": "T01",
+      "passed": true,
+      "title": "Config set name"
+    },
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'HardeningUser'",
+      "id": "T02",
+      "passed": true,
+      "title": "Config get name"
+    },
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'profile.verbosity=concise'",
+      "id": "T03",
+      "passed": true,
+      "title": "Config set verbosity"
+    },
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'profile.default_provider=openai'",
+      "id": "T04",
+      "passed": true,
+      "title": "Config set provider"
+    },
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'send_email forbidden'",
+      "id": "T05",
+      "passed": true,
+      "title": "Capability list baseline"
+    },
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'capabilities.overrides.send_email=confirm'",
+      "id": "T06",
+      "passed": true,
+      "title": "Capability override confirm"
+    },
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'Started session:'",
+      "id": "T07",
+      "passed": true,
+      "title": "Chat starts new session"
+    },
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'Resumed session:'",
+      "id": "T08",
+      "passed": true,
+      "title": "Chat resumes last session"
+    },
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'Action blocked by capability policy.'",
+      "id": "T09",
+      "passed": true,
+      "title": "Confirm action denied"
+    },
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'capabilities.overrides.send_email=forbidden'",
+      "id": "T10",
+      "passed": true,
+      "title": "Capability override forbidden"
+    },
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'Action blocked by capability policy.'",
+      "id": "T11",
+      "passed": true,
+      "title": "Forbidden action blocked"
+    },
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'Review the Phase 1 roadmap'",
+      "id": "T12",
+      "passed": true,
+      "title": "Task capture"
+    },
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'Plain note for hardening'",
+      "id": "T13",
+      "passed": true,
+      "title": "Note capture"
+    },
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'Review the Phase 1 roadmap'",
+      "id": "T14",
+      "passed": true,
+      "title": "Tasks list all"
+    },
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'Review the Phase 1 roadmap'",
+      "id": "T15",
+      "passed": true,
+      "title": "Task filter query"
+    },
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'Hardening Summary Fixture'",
+      "id": "T16",
+      "passed": true,
+      "title": "Summarize URL"
+    },
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'Hardening Summary Fixture'",
+      "id": "T17",
+      "passed": true,
+      "title": "Summaries list"
+    },
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'Plan p'",
+      "id": "T18",
+      "passed": true,
+      "title": "Plan generation"
+    },
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'Updated plan'",
+      "id": "T19",
+      "passed": true,
+      "title": "Plan refinement"
+    },
+    {
+      "canonical_source": "assistant/canonical-tasks.md",
+      "details": "expected output to contain: 'Set up a personal knowledge base'",
+      "id": "T20",
+      "passed": true,
+      "title": "Plans list"
+    }
+  ],
+  "total": 20
+}
