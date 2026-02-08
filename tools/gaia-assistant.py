@@ -21,7 +21,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -48,6 +48,9 @@ PROFILE_VERBOSITY_CHOICES = ("concise", "balanced", "detailed")
 PROFILE_PROVIDER_CHOICES = ("openrouter", "openai", "anthropic", "openai-codex")
 PERMISSION_LEVEL_CHOICES = ("safe", "confirm", "forbidden")
 DEFAULT_SESSION_CONTEXT_TURNS = 20
+SCHEDULE_STATUS_CHOICES = ("active", "paused", "canceled", "completed", "failed")
+SCHEDULE_MUTABLE_STATUS_CHOICES = ("active", "paused", "canceled")
+SCHEDULE_DEFAULT_WINDOW_MINUTES = 10
 DEFAULT_CAPABILITY_LEVELS = {
     "file_read": "safe",
     "file_write": "safe",
@@ -466,6 +469,14 @@ def _plans_path(storage_dir: Path) -> Path:
     return storage_dir / "plans.json"
 
 
+def _schedules_path(storage_dir: Path) -> Path:
+    return storage_dir / "schedules.json"
+
+
+def _schedule_runs_path(storage_dir: Path) -> Path:
+    return storage_dir / "schedule-runs.jsonl"
+
+
 def _autopilot_runs_path(trace_dir: Path) -> Path:
     return trace_dir / "autopilot-runs.jsonl"
 
@@ -594,6 +605,151 @@ def _parse_since_date(raw: str) -> Optional[datetime]:
         return datetime.fromisoformat(value)
     except ValueError:
         return None
+
+
+def _isoformat_utc(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat()
+
+
+def _parse_datetime_utc(raw: str, field_name: str) -> datetime:
+    value = raw.strip()
+    if not value:
+        raise ValueError(f"{field_name} cannot be empty")
+    normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise ValueError(f"Invalid {field_name}. Use ISO-8601 (example: 2026-02-10T09:30:00Z).") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _read_jsonl_records(path: Path) -> List[Dict[str, Any]]:
+    if not path.exists():
+        return []
+    records: List[Dict[str, Any]] = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            records.append(payload)
+    return records
+
+
+def _load_schedule_run_keys(storage_dir: Path) -> Dict[str, Dict[str, Any]]:
+    runs = _read_jsonl_records(_schedule_runs_path(storage_dir))
+    keyed: Dict[str, Dict[str, Any]] = {}
+    for item in runs:
+        key = str(item.get("run_key", "")).strip()
+        if key:
+            keyed[key] = item
+    return keyed
+
+
+def _schedule_run_key(schedule_id: str, due_at: datetime) -> str:
+    return f"{schedule_id}:{_isoformat_utc(due_at)}"
+
+
+def _schedule_interval_minutes(schedule: Dict[str, Any]) -> Optional[int]:
+    cadence = schedule.get("cadence", {})
+    if not isinstance(cadence, dict):
+        return None
+    raw = cadence.get("every_minutes")
+    if not isinstance(raw, int):
+        return None
+    return raw if raw > 0 else None
+
+
+def _schedule_cadence_type(schedule: Dict[str, Any]) -> str:
+    cadence = schedule.get("cadence", {})
+    if not isinstance(cadence, dict):
+        return "oneshot"
+    cadence_type = str(cadence.get("type", "oneshot")).strip().lower()
+    return cadence_type if cadence_type in ("oneshot", "interval") else "oneshot"
+
+
+def _schedule_profile_name(schedule: Dict[str, Any]) -> str:
+    payload = schedule.get("payload", {})
+    if not isinstance(payload, dict):
+        return ""
+    return str(payload.get("profile", "")).strip().lower()
+
+
+def _schedule_window_minutes(schedule: Dict[str, Any]) -> int:
+    raw = schedule.get("window_minutes", SCHEDULE_DEFAULT_WINDOW_MINUTES)
+    if isinstance(raw, int) and raw > 0:
+        return raw
+    return SCHEDULE_DEFAULT_WINDOW_MINUTES
+
+
+def _next_interval_due_after(anchor_due: datetime, every_minutes: int, reference: datetime) -> datetime:
+    step = timedelta(minutes=max(every_minutes, 1))
+    due = anchor_due
+    while due <= reference:
+        due += step
+    return due
+
+
+def _advance_schedule_after_due(
+    schedule: Dict[str, Any],
+    *,
+    due_at: datetime,
+    reference: datetime,
+    result: str,
+) -> None:
+    cadence_type = _schedule_cadence_type(schedule)
+    if cadence_type == "interval":
+        every = _schedule_interval_minutes(schedule)
+        if every is None:
+            schedule["status"] = "failed"
+            schedule["next_run_at"] = None
+            return
+        schedule["status"] = "active"
+        schedule["next_run_at"] = _isoformat_utc(
+            _next_interval_due_after(anchor_due=due_at, every_minutes=every, reference=reference)
+        )
+        return
+
+    schedule["next_run_at"] = None
+    if result == "failed":
+        schedule["status"] = "failed"
+    elif str(schedule.get("status", "")).strip().lower() != "canceled":
+        schedule["status"] = "completed"
+
+
+def _execute_schedule_action(
+    schedule: Dict[str, Any],
+    *,
+    cfg_path: Path,
+    storage_dir: Path,
+    trace_dir: Path,
+) -> Tuple[bool, str]:
+    action = str(schedule.get("action", "")).strip().lower()
+    if action != "autopilot_profile_run":
+        return False, f"unsupported schedule action '{action}'"
+
+    profile_name = _schedule_profile_name(schedule)
+    if profile_name not in AUTOPILOT_PROFILES:
+        return False, f"unknown autopilot profile '{profile_name}'"
+
+    run_args = argparse.Namespace(
+        config=str(cfg_path),
+        trace_dir=str(trace_dir),
+        storage_dir=str(storage_dir),
+        profile=profile_name,
+        dry_run=False,
+        force_failure_step=None,
+    )
+    rc = cmd_autopilot_run(run_args)
+    if rc != 0:
+        return False, f"autopilot run failed for profile '{profile_name}'"
+    return True, f"autopilot run succeeded for profile '{profile_name}'"
 
 
 def _captures_note_intent(user_input: str) -> Optional[Tuple[str, bool]]:
@@ -2893,6 +3049,734 @@ def cmd_plans(args: argparse.Namespace) -> int:
     return 0
 
 
+def _find_schedule(schedules: List[Dict[str, Any]], schedule_id: str) -> Optional[Dict[str, Any]]:
+    for item in schedules:
+        if str(item.get("id", "")).strip() == schedule_id:
+            return item
+    return None
+
+
+def _format_schedule_cadence(schedule: Dict[str, Any]) -> str:
+    cadence_type = _schedule_cadence_type(schedule)
+    if cadence_type == "interval":
+        every = _schedule_interval_minutes(schedule)
+        if every is None:
+            return "interval(?)"
+        return f"interval/{every}m"
+    return "oneshot"
+
+
+def cmd_schedule_create(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_write",
+        input_summary="schedule create",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="schedule_create",
+            input_summary="schedule create",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    profile_name = str(args.profile).strip().lower()
+    if profile_name not in AUTOPILOT_PROFILES:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="schedule_create",
+            input_summary=f"profile={profile_name}",
+            output_summary="unknown profile",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(f"Unknown profile: {profile_name}", file=sys.stderr)
+        return 1
+
+    every_minutes: Optional[int] = args.every_minutes if args.every_minutes is not None else None
+    if every_minutes is not None and every_minutes <= 0:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="schedule_create",
+            input_summary=f"profile={profile_name}",
+            output_summary="invalid --every-minutes",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print("--every-minutes must be a positive integer.", file=sys.stderr)
+        return 1
+
+    if every_minutes is None and not args.at:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="schedule_create",
+            input_summary=f"profile={profile_name}",
+            output_summary="missing cadence",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print("Provide --at for one-shot schedules, --every-minutes for recurring schedules, or both.", file=sys.stderr)
+        return 1
+
+    window_minutes = int(args.window_minutes)
+    if window_minutes <= 0:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="schedule_create",
+            input_summary=f"profile={profile_name}",
+            output_summary="invalid --window-minutes",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print("--window-minutes must be a positive integer.", file=sys.stderr)
+        return 1
+
+    now = datetime.now(timezone.utc)
+    try:
+        first_due = _parse_datetime_utc(str(args.at), "--at") if args.at else None
+    except ValueError as exc:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="schedule_create",
+            input_summary=f"profile={profile_name}",
+            output_summary=str(exc),
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    cadence_type = "interval" if every_minutes is not None else "oneshot"
+    if cadence_type == "interval" and first_due is None:
+        first_due = now + timedelta(minutes=every_minutes or 1)
+    if first_due is None:
+        print("Internal error: schedule due time could not be resolved.", file=sys.stderr)
+        return 1
+
+    schedule_id = _new_record_id("sch")
+    timestamp = _isoformat_utc(now)
+    schedule_record: Dict[str, Any] = {
+        "id": schedule_id,
+        "action": "autopilot_profile_run",
+        "payload": {"profile": profile_name},
+        "status": "active",
+        "cadence": {
+            "type": cadence_type,
+            "timezone": "UTC",
+        },
+        "window_minutes": window_minutes,
+        "next_run_at": _isoformat_utc(first_due),
+        "last_run_at": None,
+        "last_run_key": None,
+        "created_at": timestamp,
+        "updated_at": timestamp,
+    }
+    if every_minutes is not None:
+        schedule_record["cadence"]["every_minutes"] = every_minutes
+
+    schedules_path = _schedules_path(storage_dir)
+    schedules = _load_records(schedules_path)
+    schedules.append(schedule_record)
+    _save_records(schedules_path, schedules)
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="schedule_create",
+        input_summary=f"profile={profile_name}",
+        output_summary=f"created {schedule_id}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata={
+            "schedule_id": schedule_id,
+            "profile": profile_name,
+            "cadence": cadence_type,
+            "next_run_at": schedule_record["next_run_at"],
+        },
+    )
+    print(f"{schedule_id} active next={schedule_record['next_run_at']} profile={profile_name} cadence={_format_schedule_cadence(schedule_record)}")
+    return 0
+
+
+def cmd_schedule_list(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_read",
+        input_summary="schedule list",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="schedule_list",
+            input_summary="schedule list",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    wanted_status = str(args.status).strip().lower()
+    schedules = _load_records(_schedules_path(storage_dir))
+    if wanted_status != "all":
+        schedules = [
+            item
+            for item in schedules
+            if str(item.get("status", "active")).strip().lower() == wanted_status
+        ]
+
+    schedules.sort(
+        key=lambda item: (
+            str(item.get("next_run_at", "")) == "",
+            str(item.get("next_run_at", "")),
+            str(item.get("id", "")),
+        )
+    )
+
+    if not schedules:
+        print("No schedules found.")
+    else:
+        for item in schedules:
+            schedule_id = str(item.get("id", "?"))
+            status = str(item.get("status", "?")).strip().lower()
+            next_run_at = str(item.get("next_run_at", "")).strip() or "-"
+            profile_name = _schedule_profile_name(item) or "unknown"
+            cadence = _format_schedule_cadence(item)
+            window_minutes = _schedule_window_minutes(item)
+            print(
+                f"{schedule_id} {status:<9} next={next_run_at} "
+                f"profile={profile_name} cadence={cadence} window={window_minutes}m"
+            )
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="schedule_list",
+        input_summary=f"status={wanted_status}",
+        output_summary=f"{len(schedules)} schedules",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+    )
+    return 0
+
+
+def cmd_schedule_update(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_write",
+        input_summary="schedule update",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="schedule_update",
+            input_summary=f"schedule_id={args.schedule_id}",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    schedules_path = _schedules_path(storage_dir)
+    schedules = _load_records(schedules_path)
+    schedule_id = str(args.schedule_id).strip()
+    target = _find_schedule(schedules, schedule_id)
+    if target is None:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="schedule_update",
+            input_summary=f"schedule_id={schedule_id}",
+            output_summary="schedule not found",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(f"Schedule not found: {schedule_id}", file=sys.stderr)
+        return 1
+
+    if (
+        args.profile is None
+        and args.every_minutes is None
+        and args.at is None
+        and args.window_minutes is None
+        and args.status is None
+    ):
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="schedule_update",
+            input_summary=f"schedule_id={schedule_id}",
+            output_summary="no updates provided",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print("No updates requested. Provide one or more update flags.", file=sys.stderr)
+        return 1
+
+    if args.profile is not None:
+        profile_name = str(args.profile).strip().lower()
+        if profile_name not in AUTOPILOT_PROFILES:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="schedule_update",
+                input_summary=f"schedule_id={schedule_id}",
+                output_summary="unknown profile",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=permission_level,
+                status="error",
+            )
+            print(f"Unknown profile: {profile_name}", file=sys.stderr)
+            return 1
+        payload = target.setdefault("payload", {})
+        if not isinstance(payload, dict):
+            payload = {}
+            target["payload"] = payload
+        payload["profile"] = profile_name
+
+    if args.window_minutes is not None:
+        window_minutes = int(args.window_minutes)
+        if window_minutes <= 0:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="schedule_update",
+                input_summary=f"schedule_id={schedule_id}",
+                output_summary="invalid --window-minutes",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=permission_level,
+                status="error",
+            )
+            print("--window-minutes must be a positive integer.", file=sys.stderr)
+            return 1
+        target["window_minutes"] = window_minutes
+
+    parsed_at: Optional[datetime] = None
+    if args.at is not None:
+        try:
+            parsed_at = _parse_datetime_utc(str(args.at), "--at")
+        except ValueError as exc:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="schedule_update",
+                input_summary=f"schedule_id={schedule_id}",
+                output_summary=str(exc),
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=permission_level,
+                status="error",
+            )
+            print(str(exc), file=sys.stderr)
+            return 1
+
+    if args.every_minutes is not None:
+        every_minutes = int(args.every_minutes)
+        if every_minutes <= 0:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="schedule_update",
+                input_summary=f"schedule_id={schedule_id}",
+                output_summary="invalid --every-minutes",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=permission_level,
+                status="error",
+            )
+            print("--every-minutes must be a positive integer.", file=sys.stderr)
+            return 1
+        cadence = target.setdefault("cadence", {})
+        if not isinstance(cadence, dict):
+            cadence = {}
+            target["cadence"] = cadence
+        cadence["type"] = "interval"
+        cadence["every_minutes"] = every_minutes
+        cadence["timezone"] = "UTC"
+        if parsed_at is None:
+            reference = datetime.now(timezone.utc)
+            parsed_at = _next_interval_due_after(
+                anchor_due=reference,
+                every_minutes=every_minutes,
+                reference=reference,
+            )
+
+    if parsed_at is not None:
+        target["next_run_at"] = _isoformat_utc(parsed_at)
+
+    if args.status is not None:
+        status = str(args.status).strip().lower()
+        if status not in SCHEDULE_MUTABLE_STATUS_CHOICES:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="schedule_update",
+                input_summary=f"schedule_id={schedule_id}",
+                output_summary="invalid --status",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=permission_level,
+                status="error",
+            )
+            print(
+                f"Invalid --status '{status}'. "
+                f"Expected one of: {', '.join(SCHEDULE_MUTABLE_STATUS_CHOICES)}.",
+                file=sys.stderr,
+            )
+            return 1
+        target["status"] = status
+        if status == "canceled":
+            target["next_run_at"] = None
+            target["canceled_at"] = _isoformat_utc(datetime.now(timezone.utc))
+        elif status == "active" and not str(target.get("next_run_at", "")).strip():
+            cadence_type = _schedule_cadence_type(target)
+            if cadence_type == "interval":
+                every = _schedule_interval_minutes(target)
+                if every is None:
+                    print("Cannot activate interval schedule with invalid cadence.", file=sys.stderr)
+                    return 1
+                target["next_run_at"] = _isoformat_utc(
+                    datetime.now(timezone.utc) + timedelta(minutes=every)
+                )
+            else:
+                print("Cannot activate one-shot schedule without --at.", file=sys.stderr)
+                return 1
+
+    target["updated_at"] = _isoformat_utc(datetime.now(timezone.utc))
+    _save_records(schedules_path, schedules)
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="schedule_update",
+        input_summary=f"schedule_id={schedule_id}",
+        output_summary=f"updated {schedule_id}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata={
+            "schedule_id": schedule_id,
+            "status": target.get("status"),
+            "next_run_at": target.get("next_run_at"),
+        },
+    )
+    print(
+        f"{schedule_id} {target.get('status', '?')} next={target.get('next_run_at') or '-'} "
+        f"profile={_schedule_profile_name(target) or 'unknown'} cadence={_format_schedule_cadence(target)}"
+    )
+    return 0
+
+
+def cmd_schedule_cancel(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_write",
+        input_summary="schedule cancel",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="schedule_cancel",
+            input_summary=f"schedule_id={args.schedule_id}",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    schedules_path = _schedules_path(storage_dir)
+    schedules = _load_records(schedules_path)
+    schedule_id = str(args.schedule_id).strip()
+    target = _find_schedule(schedules, schedule_id)
+    if target is None:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="schedule_cancel",
+            input_summary=f"schedule_id={schedule_id}",
+            output_summary="schedule not found",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(f"Schedule not found: {schedule_id}", file=sys.stderr)
+        return 1
+
+    target["status"] = "canceled"
+    target["next_run_at"] = None
+    target["canceled_at"] = _isoformat_utc(datetime.now(timezone.utc))
+    target["updated_at"] = target["canceled_at"]
+    _save_records(schedules_path, schedules)
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="schedule_cancel",
+        input_summary=f"schedule_id={schedule_id}",
+        output_summary=f"canceled {schedule_id}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata={"schedule_id": schedule_id},
+    )
+    print(f"{schedule_id} canceled")
+    return 0
+
+
+def cmd_schedule_run_due(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    trace_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_write",
+        input_summary="schedule run-due",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="schedule_run_due",
+            input_summary="schedule run-due",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    reference = datetime.now(timezone.utc)
+    if args.at is not None:
+        try:
+            reference = _parse_datetime_utc(str(args.at), "--at")
+        except ValueError as exc:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="schedule_run_due",
+                input_summary=f"at={args.at}",
+                output_summary=str(exc),
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=permission_level,
+                status="error",
+            )
+            print(str(exc), file=sys.stderr)
+            return 1
+
+    override_window: Optional[int] = args.window_minutes
+    if override_window is not None and override_window <= 0:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="schedule_run_due",
+            input_summary=f"at={_isoformat_utc(reference)}",
+            output_summary="invalid --window-minutes",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print("--window-minutes must be a positive integer.", file=sys.stderr)
+        return 1
+
+    schedules_path = _schedules_path(storage_dir)
+    schedules = _load_records(schedules_path)
+    run_index = _load_schedule_run_keys(storage_dir)
+
+    executed = 0
+    skipped = 0
+    failed = 0
+
+    for schedule in schedules:
+        status = str(schedule.get("status", "active")).strip().lower()
+        if status != "active":
+            continue
+
+        raw_due = str(schedule.get("next_run_at", "")).strip()
+        if not raw_due:
+            continue
+
+        try:
+            due_at = _parse_datetime_utc(raw_due, "schedule.next_run_at")
+        except ValueError:
+            schedule["status"] = "failed"
+            schedule["updated_at"] = _isoformat_utc(datetime.now(timezone.utc))
+            failed += 1
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="schedule_fail",
+                input_summary=f"schedule_id={schedule.get('id', '?')}",
+                output_summary="invalid next_run_at",
+                duration_ms=0.0,
+                permission_level=permission_level,
+                status="error",
+                metadata={"schedule_id": schedule.get("id")},
+            )
+            continue
+
+        lag_minutes = (reference - due_at).total_seconds() / 60.0
+        if lag_minutes < 0:
+            continue
+
+        effective_window = override_window if override_window is not None else _schedule_window_minutes(schedule)
+        schedule_id = str(schedule.get("id", "")).strip()
+        run_key = _schedule_run_key(schedule_id, due_at)
+
+        if lag_minutes > float(effective_window):
+            skipped += 1
+            _append_jsonl(
+                _schedule_runs_path(storage_dir),
+                {
+                    "run_key": run_key,
+                    "schedule_id": schedule_id,
+                    "due_at": _isoformat_utc(due_at),
+                    "executed_at": _isoformat_utc(datetime.now(timezone.utc)),
+                    "status": "skipped",
+                    "reason": "missed_window",
+                },
+            )
+            run_index[run_key] = {"status": "skipped", "reason": "missed_window"}
+            _advance_schedule_after_due(schedule, due_at=due_at, reference=reference, result="skipped")
+            schedule["updated_at"] = _isoformat_utc(datetime.now(timezone.utc))
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="schedule_skip",
+                input_summary=f"schedule_id={schedule_id}",
+                output_summary=f"missed window ({lag_minutes:.2f}m > {effective_window}m)",
+                duration_ms=0.0,
+                permission_level=permission_level,
+                metadata={"schedule_id": schedule_id, "run_key": run_key, "reason": "missed_window"},
+            )
+            print(f"- skipped {schedule_id}: missed window")
+            continue
+
+        if run_key in run_index:
+            skipped += 1
+            _advance_schedule_after_due(schedule, due_at=due_at, reference=reference, result="duplicate")
+            schedule["updated_at"] = _isoformat_utc(datetime.now(timezone.utc))
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="schedule_skip",
+                input_summary=f"schedule_id={schedule_id}",
+                output_summary="duplicate run key",
+                duration_ms=0.0,
+                permission_level=permission_level,
+                metadata={"schedule_id": schedule_id, "run_key": run_key, "reason": "duplicate_run_key"},
+            )
+            print(f"- skipped {schedule_id}: duplicate run key")
+            continue
+
+        run_start = time.perf_counter()
+        ok, result_message = _execute_schedule_action(
+            schedule,
+            cfg_path=cfg_path,
+            storage_dir=storage_dir,
+            trace_dir=trace_dir,
+        )
+        duration_ms = (time.perf_counter() - run_start) * 1000
+        now_ts = _isoformat_utc(datetime.now(timezone.utc))
+        _append_jsonl(
+            _schedule_runs_path(storage_dir),
+            {
+                "run_key": run_key,
+                "schedule_id": schedule_id,
+                "due_at": _isoformat_utc(due_at),
+                "executed_at": now_ts,
+                "status": "success" if ok else "failed",
+                "result": result_message,
+            },
+        )
+        run_index[run_key] = {"status": "success" if ok else "failed", "result": result_message}
+        schedule["last_run_at"] = now_ts
+        schedule["last_run_key"] = run_key
+        _advance_schedule_after_due(
+            schedule,
+            due_at=due_at,
+            reference=reference,
+            result="success" if ok else "failed",
+        )
+        schedule["updated_at"] = now_ts
+
+        if ok:
+            executed += 1
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="schedule_run",
+                input_summary=f"schedule_id={schedule_id}",
+                output_summary=result_message,
+                duration_ms=duration_ms,
+                permission_level=permission_level,
+                metadata={"schedule_id": schedule_id, "run_key": run_key, "due_at": _isoformat_utc(due_at)},
+            )
+            print(f"- executed {schedule_id}: {result_message}")
+        else:
+            failed += 1
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="schedule_fail",
+                input_summary=f"schedule_id={schedule_id}",
+                output_summary=result_message,
+                duration_ms=duration_ms,
+                permission_level=permission_level,
+                status="error",
+                metadata={"schedule_id": schedule_id, "run_key": run_key, "due_at": _isoformat_utc(due_at)},
+            )
+            print(f"- failed {schedule_id}: {result_message}", file=sys.stderr)
+
+    _save_records(schedules_path, schedules)
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="schedule_run_due",
+        input_summary=f"at={_isoformat_utc(reference)}",
+        output_summary=f"executed={executed} skipped={skipped} failed={failed}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata={"executed": executed, "skipped": skipped, "failed": failed},
+    )
+    print(f"run-due summary: executed={executed} skipped={skipped} failed={failed}")
+    return 1 if failed > 0 else 0
+
+
 def cmd_autopilot_run(args: argparse.Namespace) -> int:
     cfg_path = Path(args.config).expanduser()
     cfg = _ensure_config_exists(cfg_path)
@@ -3503,6 +4387,88 @@ def build_parser() -> argparse.ArgumentParser:
     plans.add_argument("--trace-dir", default=None, help="Trace directory override")
     plans.add_argument("--last", type=int, default=20, help="Number of entries to show")
     plans.set_defaults(func=cmd_plans)
+
+    schedule = sub.add_parser("schedule", help="Manage recurring and one-shot schedules")
+    schedule_sub = schedule.add_subparsers(dest="schedule_command", required=True)
+
+    schedule_create = schedule_sub.add_parser("create", help="Create a schedule")
+    schedule_create.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    schedule_create.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    schedule_create.add_argument("--trace-dir", default=None, help="Trace directory override")
+    schedule_create.add_argument(
+        "--profile",
+        choices=sorted(AUTOPILOT_PROFILES.keys()),
+        required=True,
+        help="Autopilot profile to execute when due",
+    )
+    schedule_create.add_argument("--at", default=None, help="Initial run time in ISO-8601 (UTC recommended)")
+    schedule_create.add_argument(
+        "--every-minutes",
+        type=int,
+        default=None,
+        help="Recurring cadence in minutes (omit for one-shot schedules)",
+    )
+    schedule_create.add_argument(
+        "--window-minutes",
+        type=int,
+        default=SCHEDULE_DEFAULT_WINDOW_MINUTES,
+        help="Allowed execution lag window in minutes",
+    )
+    schedule_create.set_defaults(func=cmd_schedule_create)
+
+    schedule_list = schedule_sub.add_parser("list", help="List schedules")
+    schedule_list.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    schedule_list.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    schedule_list.add_argument("--trace-dir", default=None, help="Trace directory override")
+    schedule_list.add_argument(
+        "--status",
+        choices=[*list(SCHEDULE_STATUS_CHOICES), "all"],
+        default="active",
+        help="Filter schedules by status",
+    )
+    schedule_list.set_defaults(func=cmd_schedule_list)
+
+    schedule_update = schedule_sub.add_parser("update", help="Update schedule configuration")
+    schedule_update.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    schedule_update.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    schedule_update.add_argument("--trace-dir", default=None, help="Trace directory override")
+    schedule_update.add_argument("schedule_id", help="Schedule id")
+    schedule_update.add_argument(
+        "--profile",
+        choices=sorted(AUTOPILOT_PROFILES.keys()),
+        default=None,
+        help="Autopilot profile to execute",
+    )
+    schedule_update.add_argument("--at", default=None, help="Next run time in ISO-8601")
+    schedule_update.add_argument("--every-minutes", type=int, default=None, help="Recurring cadence in minutes")
+    schedule_update.add_argument("--window-minutes", type=int, default=None, help="Execution lag window in minutes")
+    schedule_update.add_argument(
+        "--status",
+        choices=list(SCHEDULE_MUTABLE_STATUS_CHOICES),
+        default=None,
+        help="Mutable schedule status",
+    )
+    schedule_update.set_defaults(func=cmd_schedule_update)
+
+    schedule_cancel = schedule_sub.add_parser("cancel", help="Cancel a schedule")
+    schedule_cancel.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    schedule_cancel.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    schedule_cancel.add_argument("--trace-dir", default=None, help="Trace directory override")
+    schedule_cancel.add_argument("schedule_id", help="Schedule id")
+    schedule_cancel.set_defaults(func=cmd_schedule_cancel)
+
+    schedule_run_due = schedule_sub.add_parser("run-due", help="Run schedules due at/behind a reference time")
+    schedule_run_due.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    schedule_run_due.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    schedule_run_due.add_argument("--trace-dir", default=None, help="Trace directory override")
+    schedule_run_due.add_argument("--at", default=None, help="Reference time in ISO-8601 (defaults to now UTC)")
+    schedule_run_due.add_argument(
+        "--window-minutes",
+        type=int,
+        default=None,
+        help="Override schedule window for this run",
+    )
+    schedule_run_due.set_defaults(func=cmd_schedule_run_due)
 
     autopilot = sub.add_parser("autopilot", help="Run scoped autopilot profiles")
     autopilot_sub = autopilot.add_subparsers(dest="autopilot_command", required=True)
