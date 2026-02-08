@@ -18,12 +18,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Incident/postmortem docs and reusable template (`docs/incidents/README.md`, `docs/incidents/postmortem-template.md`)
 - Nightly benchmark trend workflow (`.github/workflows/benchmark-nightly.yml`) with history/summary updates
 - Benchmark trend tool and local command (`tools/benchmark-trend.py`, `make benchmark-trend`)
+- Skills + sandbox enablement synthesis from Agent Skills, Claude Code, and Codex docs (`research/synthesis/2026-02-skills-and-sandbox-enablement.md`)
 
 ### Changed
 - Refreshed roadmap and sprint status priorities to remove closed-item drift and reference reassessment issue `#46`
 - Synced latest release references to `@gaia-minds/assistant-cli@0.2.0` across top-level and assistant contributor docs
 - Added contributor guidance to use the roadmap/backlog review issue template for reassessment work
 - Expanded benchmark docs with nightly trend and incident linkage guidance
+- Expanded Phase 2 roadmap/sprint scope with first-class skill workflows and sandbox execution policy deliverables
 
 ### Planned
 - Additional resource documentation

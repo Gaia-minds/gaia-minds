@@ -27,9 +27,12 @@ See `ROADMAP.md` for full phase details and exit criteria.
 
 ## Next Up (Ordered)
 
-1. Open scoped Phase 2 issues for recurring execution, reminders, and policy engine v1
+1. Open scoped Phase 2 issues for recurring execution, reminders, skills runtime, and sandbox profiles
 2. Implement recurring/scheduled execution once scoped issue is claimed
 3. Implement reminders + policy engine follow-up issues after scoping
+4. Implement MVP skill workflows (`list`, `inspect`, `validate`) with trace metadata
+5. Implement sandbox policy profiles (`read-only`, `workspace-write`) + approval flow
+6. Add external-skill compatibility matrix and validator (baseline: `vercel-labs/agent-skills`)
 
 ## Blocked
 
