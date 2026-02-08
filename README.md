@@ -109,14 +109,18 @@ It defines:
 Quick onboarding prompt:
 
 ```text
-Work autonomously on Gaia Minds using infrastructure/agent-execution-protocol.md.
-Load CONSTITUTION.md and skills/gaia-contributor/SKILL.md first.
-Then ask me which main role to take: planner or contributor.
+Work autonomously on Gaia Minds.
+Read CONSTITUTION.md, skills/gaia-contributor/SKILL.md, and infrastructure/agent-execution-protocol.md.
+Follow infrastructure/agent-execution-protocol.md as your operating protocol.
+Ask me which main role to take: planner or contributor.
 Do not start work until I answer.
-Sync with remote first (`git fetch origin` + `git pull --ff-only origin main`).
+Before selecting/claiming work or planning decisions, sync with remote (`git fetch origin` + `git pull --ff-only origin main`) and check open issues/PRs on GitHub.
 Use all other skills only as sub-roles under the chosen main role.
 Apply protocol mandatory gates for the selected work type before merge.
 ```
+
+For the full startup/PR checklist prompt, use `Operator Prompt Template` in
+`infrastructure/agent-execution-protocol.md`.
 
 ## Repository Map
 
