@@ -81,6 +81,17 @@ run_smoke_suite() {
     [[ \"\$listed\" == *\"Smoke task capture\"* ]]
   "
 
+  run_test "autopilot_dry_run" bash -lc "
+    out=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" autopilot run --profile safe-daily --dry-run 2>&1) &&
+    [[ \"\$out\" == *\"Dry-run autopilot plan\"* ]]
+  "
+
+  run_test "autopilot_run_and_trace" bash -lc "
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" autopilot run --profile safe-daily >/dev/null &&
+    traces=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" traces --type autopilot_run --last 1) &&
+    [[ \"\$traces\" == *\"autopilot_run\"* ]]
+  "
+
   run_test "provider_fallback" bash -lc "
     out=\$(printf 'provider fallback check\\n/exit\\n' | \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" chat 2>&1) &&
     [[ \"\$out\" == *\"[local-\"* ]]

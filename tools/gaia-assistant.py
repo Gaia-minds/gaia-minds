@@ -60,6 +60,28 @@ DEFAULT_CAPABILITY_LEVELS = {
     "send_email": "forbidden",
     "external_messaging": "forbidden",
 }
+AUTOPILOT_STEP_CAPABILITY = {
+    "capture_note": "file_write",
+    "list_tasks": "file_read",
+}
+AUTOPILOT_PROFILES: Dict[str, Dict[str, Any]] = {
+    "safe-daily": {
+        "description": "Low-risk recurring assistant maintenance run",
+        "allowed_capabilities": ["file_read", "file_write"],
+        "steps": [
+            {
+                "id": "capture_daily_note",
+                "action": "capture_note",
+                "text": "Autopilot safe-daily checkpoint",
+            },
+            {
+                "id": "list_open_tasks",
+                "action": "list_tasks",
+                "status": "open",
+            },
+        ],
+    }
+}
 PROFILE_KEY_MAP = {
     "name": ("profile", "name"),
     "timezone": ("profile", "timezone"),
@@ -445,6 +467,98 @@ def _summaries_path(storage_dir: Path) -> Path:
 
 def _plans_path(storage_dir: Path) -> Path:
     return storage_dir / "plans.json"
+
+
+def _autopilot_runs_path(trace_dir: Path) -> Path:
+    return trace_dir / "autopilot-runs.jsonl"
+
+
+def _autopilot_incidents_path(trace_dir: Path) -> Path:
+    return trace_dir / "autopilot-incidents.jsonl"
+
+
+def _snapshot_storage_state(storage_dir: Path) -> Dict[str, Dict[str, Any]]:
+    snapshot: Dict[str, Dict[str, Any]] = {}
+    for path in (
+        _notes_path(storage_dir),
+        _tasks_path(storage_dir),
+        _summaries_path(storage_dir),
+        _plans_path(storage_dir),
+    ):
+        key = str(path)
+        if path.exists():
+            snapshot[key] = {
+                "exists": True,
+                "content": path.read_text(encoding="utf-8"),
+            }
+        else:
+            snapshot[key] = {
+                "exists": False,
+                "content": "",
+            }
+    return snapshot
+
+
+def _restore_storage_state(snapshot: Dict[str, Dict[str, Any]]) -> Tuple[bool, str]:
+    restored = 0
+    for raw_path, payload in snapshot.items():
+        path = Path(raw_path)
+        expected_exists = bool(payload.get("exists", False))
+        content = str(payload.get("content", ""))
+        try:
+            if expected_exists:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
+            else:
+                path.unlink(missing_ok=True)
+            restored += 1
+        except OSError as exc:
+            return False, f"rollback failed for {path}: {exc}"
+    return True, f"restored {restored} file targets"
+
+
+def _execute_autopilot_step(
+    step: Dict[str, Any],
+    storage_dir: Path,
+) -> Dict[str, Any]:
+    step_id = str(step.get("id", "")).strip() or _new_record_id("aps")
+    action = str(step.get("action", "")).strip()
+
+    if action == "capture_note":
+        text = str(step.get("text", "")).strip()
+        if not text:
+            raise RuntimeError(f"autopilot step {step_id} missing text")
+        path = _notes_path(storage_dir)
+        items = _load_records(path)
+        record = _create_note_record(text, source="autopilot")
+        items.append(record)
+        _save_records(path, items)
+        return {
+            "step_id": step_id,
+            "action": action,
+            "status": "ok",
+            "result": f"captured note {record['id']}",
+        }
+
+    if action == "list_tasks":
+        status = str(step.get("status", "open")).strip().lower()
+        if status not in ("open", "done", "all"):
+            status = "open"
+        tasks = _load_records(_tasks_path(storage_dir))
+        if status != "all":
+            tasks = [
+                item
+                for item in tasks
+                if str(item.get("status", "open")).strip().lower() == status
+            ]
+        return {
+            "step_id": step_id,
+            "action": action,
+            "status": "ok",
+            "result": f"{len(tasks)} tasks ({status})",
+        }
+
+    raise RuntimeError(f"unsupported autopilot action: {action}")
 
 
 def _new_record_id(prefix: str) -> str:
@@ -2882,6 +2996,365 @@ def cmd_plans(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_autopilot_run(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    trace_dir.mkdir(parents=True, exist_ok=True)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    profile_name = str(args.profile).strip().lower()
+    profile = AUTOPILOT_PROFILES.get(profile_name)
+    if not isinstance(profile, dict):
+        available = ", ".join(sorted(AUTOPILOT_PROFILES.keys()))
+        print(f"Unknown profile '{profile_name}'. Available profiles: {available}", file=sys.stderr)
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="autopilot_run",
+            input_summary=f"profile={profile_name}",
+            output_summary="unknown profile",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+            status="error",
+        )
+        return 1
+
+    profile_steps = profile.get("steps", [])
+    if not isinstance(profile_steps, list) or not profile_steps:
+        print(f"Profile '{profile_name}' has no runnable steps.", file=sys.stderr)
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="autopilot_run",
+            input_summary=f"profile={profile_name}",
+            output_summary="profile has no steps",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+            status="error",
+        )
+        return 1
+
+    declared_caps_raw = profile.get("allowed_capabilities", [])
+    declared_caps = (
+        [str(item).strip() for item in declared_caps_raw if str(item).strip()]
+        if isinstance(declared_caps_raw, list)
+        else []
+    )
+    if not declared_caps:
+        print(f"Profile '{profile_name}' has no declared capabilities.", file=sys.stderr)
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="autopilot_run",
+            input_summary=f"profile={profile_name}",
+            output_summary="profile has no declared capabilities",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+            status="error",
+        )
+        return 1
+
+    capability_levels: Dict[str, str] = {}
+    for capability in declared_caps:
+        allowed, permission_level = _enforce_capability(
+            cfg=cfg,
+            capability=capability,
+            input_summary=f"autopilot profile={profile_name}",
+            trace_dir=trace_dir,
+            non_interactive=True,
+            prompt=f"Autopilot requires capability '{capability}'. Allow run?",
+        )
+        capability_levels[capability] = permission_level
+        if not allowed:
+            print(
+                f"Autopilot blocked by policy for capability '{capability}' "
+                f"(level={permission_level}).",
+                file=sys.stderr,
+            )
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="autopilot_run",
+                input_summary=f"profile={profile_name}",
+                output_summary=f"blocked capability {capability}",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=permission_level,
+                status="blocked",
+                metadata={
+                    "profile": profile_name,
+                    "capability": capability,
+                    "dry_run": bool(args.dry_run),
+                },
+            )
+            return 1
+
+    for step in profile_steps:
+        if not isinstance(step, dict):
+            continue
+        action = str(step.get("action", "")).strip()
+        step_id = str(step.get("id", "")).strip() or "unknown-step"
+        required_capability = AUTOPILOT_STEP_CAPABILITY.get(action, "")
+        if not required_capability:
+            print(
+                f"Profile '{profile_name}' contains unsupported step action '{action}' "
+                f"({step_id}).",
+                file=sys.stderr,
+            )
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="autopilot_run",
+                input_summary=f"profile={profile_name}",
+                output_summary=f"unsupported action {action}",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level="safe",
+                status="error",
+                metadata={"profile": profile_name, "step_id": step_id},
+            )
+            return 1
+        if required_capability not in declared_caps:
+            print(
+                f"Profile '{profile_name}' step '{step_id}' requires undeclared "
+                f"capability '{required_capability}'.",
+                file=sys.stderr,
+            )
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="autopilot_run",
+                input_summary=f"profile={profile_name}",
+                output_summary=f"undeclared capability {required_capability}",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level="safe",
+                status="error",
+                metadata={
+                    "profile": profile_name,
+                    "step_id": step_id,
+                    "required_capability": required_capability,
+                },
+            )
+            return 1
+
+    run_id = _new_record_id("apr")
+    run_record: Dict[str, Any] = {
+        "run_id": run_id,
+        "profile": profile_name,
+        "description": str(profile.get("description", "")).strip(),
+        "dry_run": bool(args.dry_run),
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "capabilities": capability_levels,
+        "steps": [],
+        "status": "running",
+    }
+
+    if args.dry_run:
+        run_record["status"] = "dry-run"
+        run_record["finished_at"] = datetime.now(timezone.utc).isoformat()
+        run_record["planned_steps"] = [
+            {
+                "id": str(step.get("id", "")).strip(),
+                "action": str(step.get("action", "")).strip(),
+            }
+            for step in profile_steps
+            if isinstance(step, dict)
+        ]
+        _append_jsonl(_autopilot_runs_path(trace_dir), run_record)
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="autopilot_run",
+            input_summary=f"profile={profile_name}",
+            output_summary="dry-run preview complete",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+            metadata={
+                "run_id": run_id,
+                "profile": profile_name,
+                "dry_run": True,
+                "step_count": len(run_record["planned_steps"]),
+            },
+        )
+        print(f"Dry-run autopilot plan for profile '{profile_name}' ({len(run_record['planned_steps'])} steps)")
+        for idx, step in enumerate(run_record["planned_steps"], start=1):
+            print(f"{idx}. {step.get('id', '?')} ({step.get('action', '?')})")
+        return 0
+
+    snapshot = _snapshot_storage_state(storage_dir)
+    for raw_step in profile_steps:
+        if not isinstance(raw_step, dict):
+            continue
+        step_id = str(raw_step.get("id", "")).strip() or _new_record_id("aps")
+        action = str(raw_step.get("action", "")).strip()
+        required_capability = AUTOPILOT_STEP_CAPABILITY.get(action, "confirm")
+        allowed, step_level = _enforce_capability(
+            cfg=cfg,
+            capability=required_capability,
+            input_summary=f"autopilot step {step_id}",
+            trace_dir=trace_dir,
+            non_interactive=True,
+            prompt=f"Autopilot step '{step_id}' requires '{required_capability}'. Allow?",
+        )
+        if not allowed:
+            incident = {
+                "incident_id": _new_record_id("api"),
+                "run_id": run_id,
+                "profile": profile_name,
+                "step_id": step_id,
+                "error": f"blocked by capability policy: {required_capability}",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            rollback_ok, rollback_message = _restore_storage_state(snapshot)
+            incident["rollback"] = {
+                "status": "ok" if rollback_ok else "failed",
+                "details": rollback_message,
+            }
+            _append_jsonl(_autopilot_incidents_path(trace_dir), incident)
+            run_record["status"] = "failed"
+            run_record["finished_at"] = datetime.now(timezone.utc).isoformat()
+            run_record["steps"].append(
+                {
+                    "step_id": step_id,
+                    "action": action,
+                    "status": "blocked",
+                    "error": incident["error"],
+                }
+            )
+            run_record["rollback"] = incident["rollback"]
+            _append_jsonl(_autopilot_runs_path(trace_dir), run_record)
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="autopilot_run",
+                input_summary=f"profile={profile_name}",
+                output_summary=f"failed at step {step_id}",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=step_level,
+                status="blocked",
+                metadata={
+                    "run_id": run_id,
+                    "profile": profile_name,
+                    "step_id": step_id,
+                    "rollback": run_record.get("rollback", {}),
+                },
+            )
+            print(f"Autopilot run failed at step '{step_id}': {incident['error']}", file=sys.stderr)
+            return 1
+
+        forced_failure = str(args.force_failure_step or "").strip()
+        if forced_failure and forced_failure == step_id:
+            error_text = f"forced failure at step {step_id}"
+            incident = {
+                "incident_id": _new_record_id("api"),
+                "run_id": run_id,
+                "profile": profile_name,
+                "step_id": step_id,
+                "error": error_text,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            rollback_ok, rollback_message = _restore_storage_state(snapshot)
+            incident["rollback"] = {
+                "status": "ok" if rollback_ok else "failed",
+                "details": rollback_message,
+            }
+            _append_jsonl(_autopilot_incidents_path(trace_dir), incident)
+            run_record["status"] = "failed"
+            run_record["finished_at"] = datetime.now(timezone.utc).isoformat()
+            run_record["steps"].append(
+                {
+                    "step_id": step_id,
+                    "action": action,
+                    "status": "error",
+                    "error": error_text,
+                }
+            )
+            run_record["rollback"] = incident["rollback"]
+            _append_jsonl(_autopilot_runs_path(trace_dir), run_record)
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="autopilot_run",
+                input_summary=f"profile={profile_name}",
+                output_summary=error_text,
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=step_level,
+                status="error",
+                metadata={
+                    "run_id": run_id,
+                    "profile": profile_name,
+                    "step_id": step_id,
+                    "rollback": run_record.get("rollback", {}),
+                },
+            )
+            print(f"Autopilot run failed: {error_text}", file=sys.stderr)
+            return 1
+
+        try:
+            step_result = _execute_autopilot_step(raw_step, storage_dir)
+            run_record["steps"].append(step_result)
+        except Exception as exc:
+            incident = {
+                "incident_id": _new_record_id("api"),
+                "run_id": run_id,
+                "profile": profile_name,
+                "step_id": step_id,
+                "error": str(exc),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            rollback_ok, rollback_message = _restore_storage_state(snapshot)
+            incident["rollback"] = {
+                "status": "ok" if rollback_ok else "failed",
+                "details": rollback_message,
+            }
+            _append_jsonl(_autopilot_incidents_path(trace_dir), incident)
+            run_record["status"] = "failed"
+            run_record["finished_at"] = datetime.now(timezone.utc).isoformat()
+            run_record["steps"].append(
+                {
+                    "step_id": step_id,
+                    "action": action,
+                    "status": "error",
+                    "error": str(exc),
+                }
+            )
+            run_record["rollback"] = incident["rollback"]
+            _append_jsonl(_autopilot_runs_path(trace_dir), run_record)
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="autopilot_run",
+                input_summary=f"profile={profile_name}",
+                output_summary=f"failed at step {step_id}",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=step_level,
+                status="error",
+                metadata={
+                    "run_id": run_id,
+                    "profile": profile_name,
+                    "step_id": step_id,
+                    "rollback": run_record.get("rollback", {}),
+                },
+            )
+            print(f"Autopilot run failed at step '{step_id}': {exc}", file=sys.stderr)
+            return 1
+
+    run_record["status"] = "success"
+    run_record["finished_at"] = datetime.now(timezone.utc).isoformat()
+    run_record["rollback"] = {"status": "not-needed", "details": ""}
+    _append_jsonl(_autopilot_runs_path(trace_dir), run_record)
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="autopilot_run",
+        input_summary=f"profile={profile_name}",
+        output_summary=f"completed {len(run_record['steps'])} steps",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level="safe",
+        metadata={
+            "run_id": run_id,
+            "profile": profile_name,
+            "dry_run": False,
+            "step_count": len(run_record["steps"]),
+        },
+    )
+
+    print(f"Autopilot run complete: {run_id}")
+    for step in run_record["steps"]:
+        print(f"- {step.get('step_id', '?')}: {step.get('result', step.get('status', 'ok'))}")
+    return 0
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     cfg_path = Path(args.config).expanduser()
     state_dir = Path(args.state_dir).expanduser()
@@ -3133,6 +3606,27 @@ def build_parser() -> argparse.ArgumentParser:
     plans.add_argument("--trace-dir", default=None, help="Trace directory override")
     plans.add_argument("--last", type=int, default=20, help="Number of entries to show")
     plans.set_defaults(func=cmd_plans)
+
+    autopilot = sub.add_parser("autopilot", help="Run scoped autopilot profiles")
+    autopilot_sub = autopilot.add_subparsers(dest="autopilot_command", required=True)
+
+    autopilot_run = autopilot_sub.add_parser("run", help="Run an approved autopilot profile")
+    autopilot_run.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    autopilot_run.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    autopilot_run.add_argument("--trace-dir", default=None, help="Trace directory override")
+    autopilot_run.add_argument(
+        "--profile",
+        choices=sorted(AUTOPILOT_PROFILES.keys()),
+        required=True,
+        help="Approved autopilot profile name",
+    )
+    autopilot_run.add_argument("--dry-run", action="store_true", help="Preview steps without executing")
+    autopilot_run.add_argument(
+        "--force-failure-step",
+        default=None,
+        help="Force failure at a step id for rollback validation",
+    )
+    autopilot_run.set_defaults(func=cmd_autopilot_run)
 
     auth = sub.add_parser("auth", help="Manage OAuth profile linkage for Gaia assistant")
     auth_sub = auth.add_subparsers(dest="auth_command", required=True)
