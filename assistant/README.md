@@ -31,6 +31,9 @@ npm run gaia -- run --mode single --dry-run
 # Deterministic benchmark run
 make benchmark
 
+# Autopilot dry-run preview
+gaia autopilot run --profile safe-daily --dry-run
+
 # Continuous assistant track
 npm run gaia -- run --mode continuous --track assistant
 
@@ -144,6 +147,39 @@ make benchmark
 
 - Methodology and update process: `assistant/benchmarking.md`
 - Baseline artifact: `assistant/benchmark-baseline.json`
+
+## Autopilot
+
+Autopilot is limited to explicit approved profiles and capability sets.
+
+Run preview first:
+
+```bash
+gaia autopilot run --profile safe-daily --dry-run
+```
+
+Execute profile:
+
+```bash
+gaia autopilot run --profile safe-daily
+```
+
+Validate traces:
+
+```bash
+gaia traces --type autopilot_run --last 10
+```
+
+Failure/rollback validation:
+
+```bash
+gaia autopilot run --profile safe-daily --force-failure-step list_open_tasks
+```
+
+Structured logs:
+
+- Run log: `~/.gaia-assistant/traces/autopilot-runs.jsonl`
+- Incident log: `~/.gaia-assistant/traces/autopilot-incidents.jsonl`
 
 ## Budget Policy
 
