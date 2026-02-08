@@ -23,7 +23,7 @@ See `ROADMAP.md` for full phase details and exit criteria.
 
 ## In Progress
 
-_No items claimed yet._
+- `P2-A Scheduler` - recurring/scheduled execution runtime and persistence (`#51`) — owner: `codex-gpt5` (main role: `contributor`, track: `assistant-track`)
 
 ## Next Up (Parallel Lanes)
 
@@ -33,15 +33,14 @@ architecture deltas) per `infrastructure/phase2-lane-implementation-plans.md`.
 Cross-cutting requirement: run a docs freshness sweep with
 `skills/gaia-technical-writer/SKILL.md` after merge batches.
 
-1. `P2-A Scheduler` - recurring/scheduled execution runtime and persistence (`#51`)
-2. `P2-B Reminders` - proactive reminder workflows and cadence controls (`#52`)
-3. `P2-C Skills Runtime` - `gaia skills list/inspect` and loading/indexing (`#53`)
-4. `P2-D Skill Validation` - `gaia skills validate` and onboarding security checks (`#54`)
-5. `P2-E Sandbox` - execution profiles and escalation approvals (`#55`)
-6. `P2-F Policy Engine` - per-skill tool allowlists and risk/source/scope gating (`#56`)
-7. `P2-G Audit & Traces` - skill/sandbox trace schema and incident linkage (`#57`)
-8. `P2-H Quality` - malicious fixtures, UAT/benchmark expansion, compatibility matrix (`#58`)
-9. `P2-I Memory Research` - memory architecture options/tradeoffs and recommendation (`#60`)
+1. `P2-B Reminders` - proactive reminder workflows and cadence controls (`#52`)
+2. `P2-C Skills Runtime` - `gaia skills list/inspect` and loading/indexing (`#53`)
+3. `P2-D Skill Validation` - `gaia skills validate` and onboarding security checks (`#54`)
+4. `P2-E Sandbox` - execution profiles and escalation approvals (`#55`)
+5. `P2-F Policy Engine` - per-skill tool allowlists and risk/source/scope gating (`#56`)
+6. `P2-G Audit & Traces` - skill/sandbox trace schema and incident linkage (`#57`)
+7. `P2-H Quality` - malicious fixtures, UAT/benchmark expansion, compatibility matrix (`#58`)
+8. `P2-I Memory Research` - memory architecture options/tradeoffs and recommendation (`#60`)
 
 ## Blocked
 

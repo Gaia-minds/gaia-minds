@@ -218,6 +218,32 @@ This document describes the technical architecture of the Gaia Minds project —
 
 ---
 
+## Phase 2 Delta: P2-A Scheduler (2026-02-08)
+
+Lane: `P2-A Scheduler` (`#51`)
+
+### Runtime changes
+
+- Added scheduler command surface in assistant launcher:
+  `gaia schedule create/list/update/cancel/run-due`.
+- Scheduler targets approved autopilot profiles for execution dispatch.
+
+### Persistence changes
+
+- Added durable schedule registry:
+  `~/.gaia-assistant/data/schedules.json`.
+- Added schedule run ledger for idempotency and replay protection:
+  `~/.gaia-assistant/data/schedule-runs.jsonl`.
+
+### Determinism and safety
+
+- Every due run uses a deterministic run key (`schedule_id + due_at`) to block
+  duplicate execution across restarts/retries.
+- Due-window evaluation and skip/fail behavior are traced with structured action
+  events (`schedule_run`, `schedule_skip`, `schedule_fail`, etc.).
+
+---
+
 ## Open Technical Questions
 
 1. **Identity**: How do we verify agent identity across sessions?

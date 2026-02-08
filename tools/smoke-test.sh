@@ -92,6 +92,20 @@ run_smoke_suite() {
     [[ \"\$traces\" == *\"autopilot_run\"* ]]
   "
 
+  run_test "schedule_lifecycle_and_due_run" bash -lc "
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" schedule create --profile safe-daily --every-minutes 60 --at 2026-02-08T00:00:00Z --window-minutes 15 >/dev/null &&
+    listed=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" schedule list --status all) &&
+    schedule_id=\$(printf '%s' \"\$listed\" | awk 'NR==1 {print \$1}') &&
+    [[ -n \"\$schedule_id\" ]] &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" schedule update \"\$schedule_id\" --window-minutes 20 >/dev/null &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" schedule run-due --at 2026-02-08T00:05:00Z >/dev/null &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" schedule update \"\$schedule_id\" --at 2026-02-08T00:00:00Z >/dev/null &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" schedule run-due --at 2026-02-08T00:05:00Z >/dev/null &&
+    traces=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" traces --type schedule_skip --last 1) &&
+    [[ \"\$traces\" == *\"schedule_skip\"* ]] &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" schedule cancel \"\$schedule_id\" >/dev/null
+  "
+
   run_test "provider_fallback" bash -lc "
     out=\$(printf 'provider fallback check\\n/exit\\n' | \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" chat 2>&1) &&
     [[ \"\$out\" == *\"[local-\"* ]]

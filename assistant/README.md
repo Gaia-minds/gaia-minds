@@ -199,6 +199,34 @@ Structured logs:
 - Run log: `~/.gaia-assistant/traces/autopilot-runs.jsonl`
 - Incident log: `~/.gaia-assistant/traces/autopilot-incidents.jsonl`
 
+## Scheduler
+
+Scheduler commands provide durable one-shot and recurring execution for approved
+autopilot profiles.
+
+```bash
+# create recurring schedule
+gaia schedule create --profile safe-daily --every-minutes 60
+
+# create one-shot schedule
+gaia schedule create --profile safe-daily --at 2026-02-10T09:30:00Z
+
+# inspect + run due jobs
+gaia schedule list --status all
+gaia schedule run-due
+
+# update/cancel
+gaia schedule update <schedule-id> --window-minutes 20
+gaia schedule cancel <schedule-id>
+```
+
+Scheduler persistence:
+
+- Schedule store: `~/.gaia-assistant/data/schedules.json`
+- Run/idempotency log: `~/.gaia-assistant/data/schedule-runs.jsonl`
+- Trace events in `actions.jsonl`: `schedule_create`, `schedule_run`,
+  `schedule_skip`, `schedule_fail`, `schedule_update`, `schedule_cancel`
+
 ## Budget Policy
 
 Default budget split:

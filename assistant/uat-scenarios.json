@@ -64,6 +64,12 @@
       "command": "node ./bin/gaia.js plan 'UAT roadmap objective' >/dev/null && listed=$(node ./bin/gaia.js plans --last 5) && [[ \"$listed\" == *\"UAT roadmap objective\"* ]]"
     },
     {
+      "id": "schedule_lifecycle_and_run_due",
+      "description": "Schedule create/list/update/run-due/cancel paths are deterministic",
+      "expect_exit": 0,
+      "command": "node ./bin/gaia.js schedule create --profile safe-daily --every-minutes 60 --at 2026-02-08T00:00:00Z --window-minutes 15 >/dev/null && listed=$(node ./bin/gaia.js schedule list --status all) && schedule_id=$(printf '%s' \"$listed\" | awk 'NR==1 {print $1}') && [[ -n \"$schedule_id\" ]] && node ./bin/gaia.js schedule update \"$schedule_id\" --window-minutes 20 >/dev/null && node ./bin/gaia.js schedule run-due --at 2026-02-08T00:05:00Z >/dev/null && node ./bin/gaia.js schedule update \"$schedule_id\" --at 2026-02-08T00:00:00Z >/dev/null && node ./bin/gaia.js schedule run-due --at 2026-02-08T00:05:00Z >/dev/null && skip=$(node ./bin/gaia.js traces --type schedule_skip --last 1) && [[ \"$skip\" == *\"schedule_skip\"* ]] && node ./bin/gaia.js schedule cancel \"$schedule_id\" >/dev/null"
+    },
+    {
       "id": "traces_command",
       "description": "Structured traces are queryable",
       "expect_exit": 0,
