@@ -14,6 +14,7 @@ Technical foundations and operational guidance.
 - [Integration Sync Template](integration-sync-template.md) — Updated: February 8, 2026
 - [Personal Assistant Program](personal-assistant-program.md) — This document defines Gaia's assistant track, designed as a standalone, constitutionally aligned personal assistant runtime.
 - [Phase 2 Lane Implementation Plans](phase2-lane-implementation-plans.md) — Updated: February 8, 2026
+- [Phase 2 Planning Round - 2026-02-08](planning-round-2026-02-08-phase2.md) — Updated: February 8, 2026 Coordinator: Codex (planner main role) Activated sub-roles: `gaia-planner`, `gaia-integration-coordinator`...
 - [Planning Round Template](planning-round-template.md) — Updated: February 8, 2026
 - [Privacy and Memory Review Template](privacy-memory-review-template.md) — Updated: February 8, 2026
 - [QA Evaluation Template](qa-evaluation-template.md) — Updated: February 8, 2026
