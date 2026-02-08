@@ -37,7 +37,6 @@ This policy does **not** cover:
 
 - Individual AI agents operated by contributors (report to the agent's operator)
 - Third-party services or dependencies (report to those projects)
-- The OpenClaw/Moltbot project (report to their maintainers)
 
 ---
 

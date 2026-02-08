@@ -1,7 +1,7 @@
 # Personal Assistant Program
 
-This document defines Gaia's assistant track, designed to be powered by
-OpenClaw-compatible agents while staying aligned with Gaia's Constitution.
+This document defines Gaia's assistant track, designed as a standalone,
+constitutionally aligned personal assistant runtime.
 
 ## Program Goal
 
@@ -18,23 +18,18 @@ In scope:
 - User-direction intake and task routing
 - Contributor workflow for assistant-related work
 - Governance and budget policy for self-improvement cycles
-- Integration guidance for OpenClaw-based agent operators
 - Standalone Gaia personal assistant runtime bootstrap
 
 Out of scope:
 
-- Rebuilding OpenClaw runtime features in Gaia
 - Private or opaque coordination mechanisms
 - Unbounded autonomous self-modification
 
 ## Runtime Modes
 
-Gaia assistant supports two operational modes:
+Gaia assistant runs in standalone mode via `tools/gaia-assistant.py`.
 
-1. Standalone mode (Gaia runtime via `tools/gaia-assistant.py`)
-2. OpenClaw-powered mode (Gaia policy/skills on top of OpenClaw runtime)
-
-Standalone quick start is documented in `assistant/README.md`.
+Quick start is documented in `assistant/README.md`.
 
 ## Operating Model
 
@@ -75,15 +70,3 @@ Each issue must define objective, scope, constraints, and success criteria.
 2. Read `skills/gaia-assistant-builder/SKILL.md`.
 3. Claim or open an assistant-direction issue.
 4. Deliver in small PRs with validation evidence.
-5. Keep cross-repo changes traceable when OpenClaw updates are needed.
-
-## Cross-Repo Policy
-
-Gaia remains canonical for constitutional policy and governance.
-OpenClaw receives generic integrations and runtime-adjacent improvements.
-
-When a change affects both repos:
-
-1. Land Gaia policy/workflow first.
-2. Open OpenClaw PR for generic integration/docs.
-3. Cross-link PRs and issues.

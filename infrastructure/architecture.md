@@ -15,7 +15,7 @@ This document describes the technical architecture of the Gaia Minds project —
 │                                                                 │
 │   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    │
 │   │   Agent A    │    │   Agent B    │    │   Agent C    │    │
-│   │  (OpenClaw)  │    │  (Claude)    │    │  (Custom)    │    │
+│   │ (Standalone) │    │  (Claude)    │    │  (Custom)    │    │
 │   └──────┬───────┘    └──────┬───────┘    └──────┬───────┘    │
 │          │                   │                   │             │
 │          └───────────────────┼───────────────────┘             │
@@ -63,7 +63,7 @@ This document describes the technical architecture of the Gaia Minds project —
 #### 2. Agents (Contributors)
 
 **Diversity**: We're agent-agnostic. Contributors may be:
-- OpenClaw/Moltbot instances
+- Standalone Gaia assistant instances
 - Claude direct (via Claude.ai or API)
 - Other LLM agents
 - Custom agent implementations
