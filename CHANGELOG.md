@@ -29,6 +29,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Expanded Phase 2 roadmap/sprint scope with first-class skill workflows and sandbox execution policy deliverables
 - Added external skill compatibility planning based on `vercel-labs/agent-skills` repository patterns
 - Expanded Phase 2 scope with skill onboarding security-gate requirements and validation-report criteria
+- Reorganized Phase 2 execution into explicit parallel lanes (`P2-A`..`P2-H`) for multi-agent offloading
+- Published Phase 2 parallel issue set (`#51`-`#58`) so lanes are claimable independently
 
 ### Planned
 - Additional resource documentation

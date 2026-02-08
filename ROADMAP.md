@@ -111,6 +111,31 @@ Exit criteria:
 - Zero onboarding of skills that fail high-severity security validation checks.
 - 100% of onboarded skills include immutable source/hash and validation report artifacts.
 
+### Phase 2 Parallel Lanes (Agent-Offload Ready)
+
+All Phase 2 items are decomposed into lanes that can be executed in parallel.
+Only two shared contracts must be frozen first:
+
+- Skill contract: metadata + capability declaration + trace identifiers
+- Sandbox contract: profile names + escalation rules + approval event schema
+
+Parallel lanes:
+
+1. `P2-A Scheduler` - recurring/scheduled execution runtime and persistence (`#51`)
+2. `P2-B Reminders` - proactive reminder workflows and user cadence controls (`#52`)
+3. `P2-C Skills Runtime` - `gaia skills list/inspect` and skill loading/indexing (`#53`)
+4. `P2-D Skill Validation` - `gaia skills validate` and onboarding security gate (`#54`)
+5. `P2-E Sandbox` - `read-only` / `workspace-write` profiles + escalation flow (`#55`)
+6. `P2-F Policy Engine` - risk/source/scope gating + per-skill tool allowlists (`#56`)
+7. `P2-G Audit & Traces` - skill/sandbox trace schema + incident linkage (`#57`)
+8. `P2-H Quality` - malicious-skill fixtures, UAT/benchmark expansion, compatibility matrix (`#58`)
+
+Integration order is intentionally light:
+
+- `P2-C` and `P2-E` publish contracts first.
+- `P2-D`, `P2-F`, and `P2-G` integrate against those contracts.
+- `P2-H` validates all lanes continuously and final hardening at the end.
+
 ## Phase 3: Framework Self-Evolution v1
 
 Timeline: March 1 to March 21, 2026
@@ -223,12 +248,10 @@ Framework KPIs:
 
 ## Immediate 14-Day Priorities
 
-1. Complete roadmap/backlog reassessment and publish execution ordering (`#46`).
-2. Open scoped Phase 2 implementation issues for skills runtime, sandbox profiles, and policy engine v1.
-3. Deliver MVP `gaia skills` command surface (`list`, `inspect`, `validate`) plus safe invocation path.
-4. Define external skill compatibility criteria using `vercel-labs/agent-skills` as baseline test corpus.
-5. Implement skill onboarding security gate and malicious-skill fixture tests.
-6. Define incident/postmortem template and add skill/sandbox UAT + benchmark coverage.
+1. Freeze Skill + Sandbox contracts and start all Phase 2 lanes in parallel (`#51`-`#58`).
+2. Assign one owner per lane (`P2-A` to `P2-H`) and merge incrementally behind tests.
+3. Run daily cross-lane integration checks (policy compatibility + trace schema).
+4. Finish with hardening pass focused on malicious-skill validation and sandbox escalation controls.
 
 ## Milestones Log
 
@@ -243,5 +266,6 @@ Framework KPIs:
 | 2026-02-08 | Roadmap/backlog reassessment opened | Issue #46 with research-backed sequencing |
 | 2026-02-08 | Skills/sandbox research synthesized | Added Phase 2 items from Agent Skills + Claude + Codex docs |
 | 2026-02-08 | Skill onboarding security research synthesized | Added Phase 2 validation-gate requirements for malicious-skill prevention |
+| 2026-02-08 | Phase 2 parallel lane issue set opened | Issues #51-#58 created for agent offloading |
 
 This roadmap is a living document and should be updated at least weekly.
