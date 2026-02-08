@@ -4,7 +4,7 @@ Updated: February 8, 2026
 
 ## Current Sprint
 
-**Phase 2 Readiness: Backlog Reassessment + Scope Definition** (Feb 9–14, 2026)
+**Phase 2 Parallel Buildout** (Feb 9–28, 2026)
 
 See `ROADMAP.md` for full phase details and exit criteria.
 
@@ -23,18 +23,23 @@ See `ROADMAP.md` for full phase details and exit criteria.
 
 ## In Progress
 
-- Incident/postmortem template and nightly benchmark trend workflow (`#48`)
+_No items claimed yet._
 
-## Next Up (Ordered)
+## Next Up (Parallel Lanes)
 
-1. Open scoped Phase 2 issues for recurring execution, reminders, skills runtime, and sandbox profiles
-2. Implement recurring/scheduled execution once scoped issue is claimed
-3. Implement reminders + policy engine follow-up issues after scoping
-4. Implement MVP skill workflows (`list`, `inspect`, `validate`) with trace metadata
-5. Implement sandbox policy profiles (`read-only`, `workspace-write`) + approval flow
-6. Add external-skill compatibility matrix and validator (baseline: `vercel-labs/agent-skills`)
-7. Implement onboarding security gate and malicious-skill fixture tests
-8. Extend skill/sandbox UAT + benchmark coverage and incident linkage after `#48` lands
+All lanes below are intended to be claimable in parallel after contract freeze.
+Before coding, each claimed lane must post its implementation plan (including
+architecture deltas) per `infrastructure/phase2-lane-implementation-plans.md`.
+
+1. `P2-A Scheduler` - recurring/scheduled execution runtime and persistence (`#51`)
+2. `P2-B Reminders` - proactive reminder workflows and cadence controls (`#52`)
+3. `P2-C Skills Runtime` - `gaia skills list/inspect` and loading/indexing (`#53`)
+4. `P2-D Skill Validation` - `gaia skills validate` and onboarding security checks (`#54`)
+5. `P2-E Sandbox` - execution profiles and escalation approvals (`#55`)
+6. `P2-F Policy Engine` - per-skill tool allowlists and risk/source/scope gating (`#56`)
+7. `P2-G Audit & Traces` - skill/sandbox trace schema and incident linkage (`#57`)
+8. `P2-H Quality` - malicious fixtures, UAT/benchmark expansion, compatibility matrix (`#58`)
+9. `P2-I Memory Research` - memory architecture options/tradeoffs and recommendation (`#60`)
 
 ## Blocked
 

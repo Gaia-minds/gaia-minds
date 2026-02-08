@@ -45,6 +45,9 @@ High-risk changes should not merge without explicit maintainer review.
 ## Multi-Worktree / Multi-Agent Handoff Protocol
 
 1. Claim issue and post implementation plan before coding.
+   - Include scope/non-goals, architecture deltas, CLI/API changes, validation,
+     rollback, and dependencies.
+   - Use `infrastructure/phase2-lane-implementation-plans.md` as the template.
 2. Create isolated worktree per issue (`/tmp/...`) and branch from latest
    `origin/main`.
 3. Keep PR scope single-purpose; avoid mixing unrelated tracks.
@@ -55,6 +58,9 @@ High-risk changes should not merge without explicit maintainer review.
    - known risks and follow-ups
 6. Rebase worktree branch on latest main before merge if parallel PRs merged.
 7. After merge, close/refresh issue state with links to PR and remaining work.
+
+If runtime architecture changed, update `infrastructure/architecture.md`. If it
+did not, say `No architecture delta` in PR notes.
 
 ## PR Author Checklist
 
