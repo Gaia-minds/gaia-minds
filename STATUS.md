@@ -20,10 +20,11 @@ See `ROADMAP.md` for full phase details and exit criteria.
 - Deterministic smoke test suite for assistant critical paths (`#25`, PR #34)
 - Phase 1 hardening checklist + report artifacts (`PR #38`)
 - npm release `@gaia-minds/assistant-cli@0.2.0` (`PR #39`, tag `v0.2.0`)
+- `P2-A Scheduler` - recurring/scheduled execution runtime and persistence (`#51`, PR #67)
 
 ## In Progress
 
-- `P2-A Scheduler` - recurring/scheduled execution runtime and persistence (`#51`) — owner: `codex-gpt5` (main role: `contributor`, track: `assistant-track`)
+_No items claimed yet._
 
 ## Next Up (Parallel Lanes)
 
