@@ -1,4 +1,4 @@
-.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
+.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke benchmark hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
 
 docs-check:
 	./tools/validate-docs.sh
@@ -18,6 +18,9 @@ check-all: docs-check check-indexes
 
 test-smoke:
 	./tools/smoke-test.sh --json-out smoke-results.json
+
+benchmark:
+	python3 ./tools/benchmark.py
 
 hardening-phase1:
 	python3 ./tools/phase1-hardening.py

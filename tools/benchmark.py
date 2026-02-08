@@ -1,0 +1,225 @@
+#!/usr/bin/env python3
+"""Deterministic benchmark runner for Gaia Phase 1 canonical tasks."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
+
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+HARDENING_SCRIPT = REPO_ROOT / "tools" / "phase1-hardening.py"
+DEFAULT_JSON_OUT = REPO_ROOT / "assistant" / "benchmark-results.json"
+DEFAULT_BASELINE = REPO_ROOT / "assistant" / "benchmark-baseline.json"
+
+
+def _load_json(path: Path) -> Dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _write_json(path: Path, payload: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _run_phase1_hardening() -> Tuple[int, Dict[str, Any], str, str]:
+    json_out = REPO_ROOT / "assistant" / ".benchmark-phase1-hardening.json"
+    md_out = REPO_ROOT / "assistant" / ".benchmark-phase1-hardening.md"
+
+    env = os.environ.copy()
+    env["TZ"] = "UTC"
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(HARDENING_SCRIPT),
+            "--json-out",
+            str(json_out),
+            "--md-out",
+            str(md_out),
+        ],
+        cwd=str(REPO_ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    payload = _load_json(json_out)
+    try:
+        json_out.unlink(missing_ok=True)
+        md_out.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+    return proc.returncode, payload, proc.stdout.strip(), proc.stderr.strip()
+
+
+def _task_key(task_id: str) -> Tuple[int, str]:
+    raw = str(task_id).strip()
+    if raw.startswith("T") and raw[1:].isdigit():
+        return int(raw[1:]), raw
+    return 9999, raw
+
+
+def _build_benchmark_payload(hardening_payload: Dict[str, Any]) -> Dict[str, Any]:
+    raw_results = hardening_payload.get("results", [])
+    tasks: List[Dict[str, Any]] = []
+    if isinstance(raw_results, list):
+        for item in raw_results:
+            if not isinstance(item, dict):
+                continue
+            task_id = str(item.get("check_id", "")).strip()
+            title = str(item.get("title", "")).strip()
+            details = str(item.get("details", "")).strip()
+            if not task_id:
+                continue
+            tasks.append(
+                {
+                    "id": task_id,
+                    "title": title,
+                    "passed": bool(item.get("passed", False)),
+                    "details": details,
+                    "canonical_source": "assistant/canonical-tasks.md",
+                }
+            )
+
+    tasks.sort(key=lambda row: _task_key(str(row.get("id", ""))))
+    total = len(tasks)
+    passed = sum(1 for row in tasks if bool(row.get("passed", False)))
+    failed = total - passed
+    score_pct = round((passed / total) * 100, 2) if total else 0.0
+
+    return {
+        "schema_version": 1,
+        "suite": "phase1-canonical-benchmark",
+        "target_score_pct": 80.0,
+        "total": total,
+        "passed": passed,
+        "failed": failed,
+        "score_pct": score_pct,
+        "tasks": tasks,
+        "methodology": {
+            "description": "Phase 1 canonical task pass/fail benchmark",
+            "task_source": "assistant/canonical-tasks.md",
+            "runner": "tools/phase1-hardening.py",
+        },
+    }
+
+
+def _compare_with_baseline(current: Dict[str, Any], baseline: Dict[str, Any]) -> List[str]:
+    drifts: List[str] = []
+
+    for key in ("suite", "schema_version", "total", "passed", "failed", "score_pct"):
+        if current.get(key) != baseline.get(key):
+            drifts.append(
+                f"summary mismatch for '{key}': current={current.get(key)!r} baseline={baseline.get(key)!r}"
+            )
+
+    current_tasks = current.get("tasks", [])
+    baseline_tasks = baseline.get("tasks", [])
+    if not isinstance(current_tasks, list) or not isinstance(baseline_tasks, list):
+        drifts.append("invalid task structure in current or baseline payload")
+        return drifts
+
+    current_index = {
+        str(item.get("id", "")).strip(): item
+        for item in current_tasks
+        if isinstance(item, dict)
+    }
+    baseline_index = {
+        str(item.get("id", "")).strip(): item
+        for item in baseline_tasks
+        if isinstance(item, dict)
+    }
+
+    current_ids = sorted([task_id for task_id in current_index if task_id])
+    baseline_ids = sorted([task_id for task_id in baseline_index if task_id])
+
+    if current_ids != baseline_ids:
+        drifts.append("task id set mismatch between current run and baseline")
+
+    shared_ids = sorted(set(current_ids).intersection(baseline_ids), key=_task_key)
+    for task_id in shared_ids:
+        current_item = current_index[task_id]
+        baseline_item = baseline_index[task_id]
+        if bool(current_item.get("passed", False)) != bool(baseline_item.get("passed", False)):
+            drifts.append(
+                f"task {task_id} pass/fail changed: current={bool(current_item.get('passed', False))} "
+                f"baseline={bool(baseline_item.get('passed', False))}"
+            )
+
+    return drifts
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Run Gaia canonical benchmark")
+    parser.add_argument("--json-out", default=str(DEFAULT_JSON_OUT), help="Path for benchmark output JSON")
+    parser.add_argument("--baseline", default=str(DEFAULT_BASELINE), help="Path to baseline JSON")
+    parser.add_argument(
+        "--update-baseline",
+        action="store_true",
+        help="Overwrite baseline with the current benchmark output",
+    )
+    args = parser.parse_args()
+
+    json_out = Path(args.json_out).expanduser()
+    baseline_path = Path(args.baseline).expanduser()
+
+    rc, hardening_payload, hardening_stdout, hardening_stderr = _run_phase1_hardening()
+    if not hardening_payload:
+        print("Benchmark failed: could not read phase1-hardening output", file=sys.stderr)
+        if hardening_stdout:
+            print(hardening_stdout, file=sys.stderr)
+        if hardening_stderr:
+            print(hardening_stderr, file=sys.stderr)
+        return 1
+
+    benchmark_payload = _build_benchmark_payload(hardening_payload)
+    _write_json(json_out, benchmark_payload)
+
+    if args.update_baseline:
+        _write_json(baseline_path, benchmark_payload)
+        print(f"Updated baseline: {baseline_path}")
+    else:
+        baseline_payload = _load_json(baseline_path)
+        if not baseline_payload:
+            print(
+                f"Baseline not found at {baseline_path}. Run with --update-baseline to create it.",
+                file=sys.stderr,
+            )
+            return 1
+        drifts = _compare_with_baseline(benchmark_payload, baseline_payload)
+        if drifts:
+            print("Benchmark drift detected against baseline:", file=sys.stderr)
+            for item in drifts:
+                print(f"- {item}", file=sys.stderr)
+            print("Run with --update-baseline to accept this new baseline.", file=sys.stderr)
+            return 1
+
+    print(json.dumps(benchmark_payload, indent=2, sort_keys=True))
+    print(f"Benchmark results written to {json_out}")
+
+    if rc != 0:
+        print("Underlying hardening runner returned non-zero status.", file=sys.stderr)
+        if hardening_stdout:
+            print(hardening_stdout, file=sys.stderr)
+        if hardening_stderr:
+            print(hardening_stderr, file=sys.stderr)
+        return 1
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

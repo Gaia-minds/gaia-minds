@@ -28,6 +28,9 @@ npm run gaia -- doctor
 # Single dry-run cycle
 npm run gaia -- run --mode single --dry-run
 
+# Deterministic benchmark run
+make benchmark
+
 # Continuous assistant track
 npm run gaia -- run --mode continuous --track assistant
 
@@ -130,6 +133,17 @@ Capability policy can be reviewed and overridden locally:
 gaia capability list
 gaia capability set send_email confirm
 ```
+
+## Benchmarking
+
+Benchmark the 20 canonical Phase 1 tasks:
+
+```bash
+make benchmark
+```
+
+- Methodology and update process: `assistant/benchmarking.md`
+- Baseline artifact: `assistant/benchmark-baseline.json`
 
 ## Budget Policy
 
