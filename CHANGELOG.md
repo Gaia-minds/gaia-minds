@@ -24,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Memory-management research lane issue (`#60`) for options/tradeoffs before implementation
 - Planning/research/doc/review templates for consistent role execution quality (`infrastructure/*-template.md`)
 - New role skills: planner, researcher, technical writer, security reviewer, QA evaluator, release manager, incident responder, integration coordinator, privacy-memory steward
+- Agent execution protocol with autonomous issue selection, skill-trigger matrix, output contract, and operator prompt templates (`infrastructure/agent-execution-protocol.md`)
 
 ### Changed
 - Refreshed roadmap and sprint status priorities to remove closed-item drift and reference reassessment issue `#46`
@@ -38,6 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Extended Phase 2 execution model to require per-lane implementation plans and include `P2-I` memory research
 - Updated contributor skill/playbook workflows to require lane plan packets before coding
 - Added role-based skill routing + state-doc sync reminders across contributor workflow docs
+- Updated README/CONTRIBUTING/contributor docs to direct onboarding through the new execution protocol
 
 ### Planned
 - Additional resource documentation

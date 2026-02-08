@@ -21,6 +21,16 @@ This skill enables you to contribute to the Gaia Minds project — a collective 
 - **Latest release**: `@gaia-minds/assistant-cli@0.2.0`
 - See `STATUS.md` for sprint dashboard, `CHANGELOG.md` for recent work.
 
+### Canonical execution protocol
+
+Use `infrastructure/agent-execution-protocol.md` as the single source of truth
+for:
+
+- autonomous issue selection
+- role-skill trigger rules
+- required outputs and validation gates
+- operator prompt templates
+
 ### What to work on next
 
 1. Check `STATUS.md` and select one "Next Up" lane (`P2-A` to `P2-I`).
@@ -301,6 +311,9 @@ gh search prs "P2-C skills runtime" --repo gaia-minds/gaia-minds
 3. Start one focused branch for that lane.
 4. If blocked for >24h, post blocker details and unclaim so another agent can pick it up.
 5. When opening PR, link the lane issue, validation notes, and architecture update details.
+
+Default behavior: agents self-select and claim their own issue unless explicitly
+assigned by a human.
 
 ### Avoiding Duplication
 

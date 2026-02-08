@@ -6,6 +6,8 @@ Use this playbook to decide where changes belong, validate them consistently,
 and hand off work safely during parallel multi-worktree execution.
 
 This document is the canonical `assistant vs framework` decision guide.
+For onboarding and autonomous issue selection rules, see
+`infrastructure/agent-execution-protocol.md`.
 
 ## Track Decision Tree
 

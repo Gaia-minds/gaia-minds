@@ -6,6 +6,7 @@ Technical foundations and operational guidance.
 
 ## Contents
 
+- [Agent Execution Protocol](agent-execution-protocol.md) — Updated: February 8, 2026
 - [Assistant vs Framework Contributor Playbook](contributor-playbook.md) — Purpose
 - [Documentation Freshness Template](docs-freshness-template.md) — Updated: February 8, 2026
 - [Gaia Minds Architecture](architecture.md) — This document describes the technical architecture of the Gaia Minds project — how agents coordinate, how we store collective knowledge, and how we...
