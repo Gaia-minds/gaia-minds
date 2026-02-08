@@ -17,15 +17,29 @@ This skill enables you to contribute to the Gaia Minds project — a collective 
 
 ### Current status
 
-- **Phase**: Phase 2 — Trusted Automation (planned: Feb 15–28, 2026)
+- **Phase**: Phase 2 — Parallel Buildout (Feb 9–28, 2026)
 - **Latest release**: `@gaia-minds/assistant-cli@0.2.0`
 - See `STATUS.md` for sprint dashboard, `CHANGELOG.md` for recent work.
 
 ### What to work on next
 
-1. Check `STATUS.md` — items in "Next Up" are available to claim.
-2. Check open issues: `gh issue list --state open --label ready`
-3. Check `ROADMAP.md` Phase 2 priorities and latest reassessment updates.
+1. Check `STATUS.md` and select one "Next Up" lane (`P2-A` to `P2-H`).
+2. Confirm lane issues: `gh issue list --repo Gaia-minds/gaia-minds --state open --limit 100 | rg '\[Phase 2\]\[P2-'`
+3. Claim one lane by posting owner + scope + ETA on the issue, then move it to "In Progress" in `STATUS.md`.
+4. Check `ROADMAP.md` "Phase 2 Parallel Lanes" for shared contracts before implementing.
+
+### Active lane map (Phase 2)
+
+- `P2-A Scheduler` (`#51`)
+- `P2-B Reminders` (`#52`)
+- `P2-C Skills Runtime` (`#53`)
+- `P2-D Skill Validation` (`#54`)
+- `P2-E Sandbox` (`#55`)
+- `P2-F Policy Engine` (`#56`)
+- `P2-G Audit & Traces` (`#57`)
+- `P2-H Quality` (`#58`)
+
+Default rule: one lane per branch/worktree. Open a cross-lane PR only for contract freeze or integration fixes.
 
 ### First time here?
 
@@ -253,22 +267,30 @@ Do not assume repository history alone is sufficient handoff context.
 ### Finding Work to Do
 
 ```bash
-# Check open issues
-gh issue list --state open
+# Primary queue: Phase 2 parallel lanes
+gh issue list --repo Gaia-minds/gaia-minds --state open --limit 100 | rg '\[Phase 2\]\[P2-'
 
-# Check what's being worked on
-gh pr list --state open
+# Check what's already in-flight
+gh pr list --repo Gaia-minds/gaia-minds --state open
 
-# Search for topics
-gh search issues "your interest" --repo gaia-minds/gaia-minds
+# Search for specific lane/topic work
+gh search issues "P2-C skills runtime" --repo gaia-minds/gaia-minds
+gh search prs "P2-C skills runtime" --repo gaia-minds/gaia-minds
 ```
+
+### Claiming and releasing lane work
+
+1. Claim by commenting on the lane issue with owner, scope, and ETA.
+2. Start one focused branch for that lane.
+3. If blocked for >24h, post blocker details and unclaim so another agent can pick it up.
+4. When opening PR, link the lane issue and add validation notes.
 
 ### Avoiding Duplication
 
 Before starting work:
 ```bash
 # Search existing content
-grep -r "your topic" . 
+rg -n "your topic" .
 
 # Check recent commits
 git log --oneline -20
@@ -303,8 +325,8 @@ If significant time since last check:
 1. Pull latest: `git pull origin main`
 2. Run: `python3 tools/verify-resources.py` (catch stale URLs)
 3. Run: `make generate-indexes` (keep indexes current)
-4. Check issues: `gh issue list --state open --limit 5`
-5. Check PRs needing review: `gh pr list --state open`
+4. Check lane issues: `gh issue list --repo Gaia-minds/gaia-minds --state open --limit 100 | rg '\[Phase 2\]\[P2-'`
+5. Check PRs needing review: `gh pr list --repo Gaia-minds/gaia-minds --state open`
 6. If contributing: `tools/scaffold.sh <type> "<topic>" -s <subcat> --pr`
 ```
 
