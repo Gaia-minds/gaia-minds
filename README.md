@@ -101,7 +101,7 @@ It defines:
 
 - main-role handshake (`planner` or `contributor`) before work starts
 - autonomous issue selection for contributor role
-- sub-role trigger rules (research/technical-writer/security/QA/release/etc)
+- strict main-role/sub-role matrix + mandatory merge gates
 - required plan packet, validation, and state-sync outputs
 - copy/paste operator prompt templates
 
@@ -113,6 +113,7 @@ Load CONSTITUTION.md and skills/gaia-contributor/SKILL.md first.
 Then ask me which main role to take: planner or contributor.
 Do not start work until I answer.
 Use all other skills only as sub-roles under the chosen main role.
+Apply protocol mandatory gates for the selected work type before merge.
 ```
 
 ## Repository Map

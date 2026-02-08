@@ -32,6 +32,25 @@ All other skills are sub-roles and must be used under one of the two main roles:
 - `gaia-integration-coordinator`
 - `gaia-privacy-memory-steward`
 
+## Segregation Rules (Mandatory)
+
+1. Exactly one main role is active per issue at a time: `planner` or
+   `contributor`.
+2. Sub-roles are selected from the allowed set for that main role only.
+3. `gaia-planner` is a planner-role sub-role; contributor-role tasks do not use
+   it unless a human explicitly overrides.
+4. If required sub-role gates are not satisfied, the PR is not merge-ready.
+5. Maximum active sub-roles per issue:
+   - default: 3
+   - incident/release workflows: 4
+
+### Allowed Sub-Roles by Main Role
+
+| Main Role | Allowed Sub-Roles |
+| --- | --- |
+| `planner` | `gaia-planner`, `gaia-researcher`, `gaia-integration-coordinator`, `gaia-technical-writer`, `gaia-privacy-memory-steward` |
+| `contributor` | `gaia-researcher`, `gaia-technical-writer`, `gaia-security-reviewer`, `gaia-qa-evaluator`, `gaia-release-manager`, `gaia-incident-responder`, `gaia-integration-coordinator`, `gaia-privacy-memory-steward` |
+
 ## Startup Handshake (Required)
 
 After reading repo context, the agent must ask:
@@ -81,34 +100,37 @@ Planner-role agents should:
 4. Recommend owners and next actions.
 5. Sync state docs (`STATUS.md`, `ROADMAP.md`, `CHANGELOG.md`) or record no-change reason.
 
-## Sub-Role Trigger Matrix
+## Sub-Role Trigger Matrix (Strict)
 
 `gaia-contributor` is always active as baseline workflow.
 
-- Trigger `gaia-planner`:
-  - at planning/reprioritization rounds
-  - when issue readiness/dependencies are unclear
-  - when work must be decomposed into parallel lanes
-- Trigger `gaia-researcher`:
-  - when decisions depend on external evidence/tradeoffs
-  - when implementation path is unclear or controversial
-- Trigger `gaia-technical-writer`:
-  - after merge batches
-  - before release
-  - when roadmap/status/changelog drift is suspected
-- Trigger `gaia-security-reviewer`:
-  - for auth, permissions, sandbox, policy, skill onboarding, or high-risk changes
-- Trigger `gaia-qa-evaluator`:
-  - before merge on feature lanes
-  - before release go/no-go
-- Trigger `gaia-release-manager`:
-  - when preparing or executing a release
-- Trigger `gaia-incident-responder`:
-  - on regressions, failed automation, or reliability/safety incidents
-- Trigger `gaia-integration-coordinator`:
-  - when two or more lanes are active and contract compatibility needs coordination
-- Trigger `gaia-privacy-memory-steward`:
-  - for memory-related research, design, or implementation
+| Condition | Main Role | Required Sub-Roles | Optional Sub-Roles |
+| --- | --- | --- | --- |
+| Planning/reprioritization round | `planner` | `gaia-planner` | `gaia-researcher`, `gaia-integration-coordinator`, `gaia-technical-writer` |
+| Decision unclear or tradeoff-heavy | `planner` or `contributor` | `gaia-researcher` | `gaia-technical-writer` |
+| 2+ active lanes with contract coupling | `planner` or `contributor` | `gaia-integration-coordinator` | `gaia-researcher`, `gaia-technical-writer` |
+| Docs drift risk / post-merge docs pass | `planner` or `contributor` | `gaia-technical-writer` | none |
+| High-risk implementation (auth/policy/sandbox/skills validation) | `contributor` | `gaia-security-reviewer`, `gaia-qa-evaluator` | `gaia-technical-writer` |
+| Memory-related design/implementation | `planner` or `contributor` | `gaia-privacy-memory-steward`, `gaia-qa-evaluator` | `gaia-researcher`, `gaia-security-reviewer` |
+| Release preparation/execution | `contributor` | `gaia-release-manager`, `gaia-qa-evaluator` | `gaia-technical-writer`, `gaia-security-reviewer` |
+| Incident response or reliability regression | `contributor` | `gaia-incident-responder` | `gaia-qa-evaluator`, `gaia-security-reviewer`, `gaia-technical-writer` |
+
+## Mandatory Merge Gates
+
+Before merge, enforce these gates:
+
+1. High-risk change:
+   - `gaia-security-reviewer` findings resolved or accepted with rationale
+   - `gaia-qa-evaluator` pass/go decision
+2. Memory-related change:
+   - `gaia-privacy-memory-steward` review complete
+   - `gaia-qa-evaluator` pass/go decision
+3. Release PR:
+   - `gaia-release-manager` go/no-go documented
+   - `gaia-qa-evaluator` pass/go decision
+4. Incident fix PR:
+   - `gaia-incident-responder` report/postmortem link
+   - `gaia-qa-evaluator` regression verification
 
 ## Required Output Contract
 
@@ -118,7 +140,8 @@ Every active issue should include:
 2. Claim comment (owner/scope/ETA/sub-roles) for contributor work.
 3. Plan packet or research/design packet (per relevant template).
 4. Validation evidence in PR notes.
-5. State sync update (or no-change reason):
+5. Required sub-role gate evidence for the selected work type.
+6. State sync update (or no-change reason):
    - `STATUS.md`
    - `ROADMAP.md`
    - `CHANGELOG.md`
@@ -149,6 +172,8 @@ Do not start work until I answer with the main role.
 Then:
 - If planner: run a planning round and publish the planning artifact.
 - If contributor: select your own issue from the open Phase 2 queue, post claim + plan packet, then execute in a focused branch and open a PR.
+- Use only sub-roles allowed by the protocol matrix for your chosen main role.
+- Satisfy mandatory merge gates for your work type before requesting merge.
 
 Mandatory before PR:
 - run make generate-indexes (if needed)
@@ -168,4 +193,10 @@ Add one line to force a sub-role skill:
 
 ```text
 Primary sub-role skill for this task: skills/<role-skill>/SKILL.md
+```
+
+To constrain to mandatory gates, add:
+
+```text
+Enforce protocol mandatory gates for this work type and include evidence in PR notes.
 ```

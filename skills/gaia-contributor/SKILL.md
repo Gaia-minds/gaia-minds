@@ -28,7 +28,7 @@ for:
 
 - main-role handshake (`planner` or `contributor`)
 - autonomous issue selection
-- sub-role skill trigger rules
+- strict sub-role matrix and mandatory merge gates
 - required outputs and validation gates
 - operator prompt templates
 

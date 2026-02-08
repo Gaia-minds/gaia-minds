@@ -32,7 +32,7 @@ This protocol defines:
 
 - two main roles (`planner`, `contributor`) with required startup handshake
 - autonomous issue selection for contributor-role work
-- when to trigger sub-role skills (`researcher`, `technical-writer`, etc.)
+- strict sub-role matrix by main role + mandatory merge gates by work type
 - required plan packet + validation + state sync deliverables
 - standard onboarding prompt templates for operators
 
