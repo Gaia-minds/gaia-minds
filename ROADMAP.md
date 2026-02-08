@@ -93,6 +93,7 @@ Framework track outcomes:
 
 - Add policy engine for action gating by risk, source, user scope, and per-skill tool allowlists.
 - Add skill registry schema + compatibility rules for `SKILL.md`-style packages and metadata manifests.
+- Add external skill bundle validator/compatibility matrix (starting with `vercel-labs/agent-skills`).
 - Add sandbox policy profiles and approval rules (default least privilege; network denied unless explicitly required).
 - Add rollback primitives for failed automation runs.
 - Add incident log schema and postmortem template for regressions.
@@ -221,7 +222,8 @@ Framework KPIs:
 1. Complete roadmap/backlog reassessment and publish execution ordering (`#46`).
 2. Open scoped Phase 2 implementation issues for skills runtime, sandbox profiles, and policy engine v1.
 3. Deliver MVP `gaia skills` command surface (`list`, `inspect`, `validate`) plus safe invocation path.
-4. Define incident/postmortem template and add skill/sandbox UAT + benchmark coverage.
+4. Define external skill compatibility criteria using `vercel-labs/agent-skills` as baseline test corpus.
+5. Define incident/postmortem template and add skill/sandbox UAT + benchmark coverage.
 
 ## Milestones Log
 

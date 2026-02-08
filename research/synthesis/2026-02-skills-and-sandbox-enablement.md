@@ -20,6 +20,7 @@ deliverables for Gaia assistant:
 
 - Agent Skills home: https://agentskills.io/home
 - Agent Skills reference: https://agentskills.io/reference
+- Vercel skills repository: https://github.com/vercel-labs/agent-skills
 - Claude Code Skills docs: https://code.claude.com/docs/en/skills
 - OpenAI Codex Skills docs: https://developers.openai.com/codex/skills/
 - OpenAI Codex configuration reference: https://github.com/openai/codex/blob/main/docs/config.md
@@ -36,6 +37,8 @@ deliverables for Gaia assistant:
 2. Skill packaging should be explicit and versionable
    - Codex supports discoverable skill directories and a `SKILL.md` contract.
    - Agent Skills emphasizes metadata + examples and interoperability patterns.
+   - Vercel's `agent-skills` repo demonstrates a practical bundle shape:
+     `SKILL.md` + optional `metadata.json` + modular rule files + optional scripts.
    - Practical implication: Gaia should support a canonical metadata shape and
      adapters for common skill formats.
 
@@ -59,6 +62,13 @@ deliverables for Gaia assistant:
    - Practical implication: add skill/sandbox scenarios to UAT and benchmark
      suites during Phase 2, not later.
 
+6. Script I/O and packaging conventions improve operational reliability
+   - In `vercel-labs/agent-skills`, executable skills place helper logic in
+     `scripts/`, emit machine-readable JSON for automation, and include
+     distribution packaging patterns.
+   - Practical implication: Gaia should define a stable script contract and
+     validation rules for skill bundles imported from external repositories.
+
 ## Cross-Platform Design Implications for Gaia
 
 ### Skill lifecycle
@@ -68,6 +78,8 @@ deliverables for Gaia assistant:
 - Resolve skill at runtime based on metadata and request context.
 - Record invocation traces with `skill_id`, source path, required tools, and
   approval decisions.
+- Validate imported bundles for required files (`SKILL.md`) and optional assets
+  (`metadata.json`, `scripts/`, `rules/`, packaged archives).
 
 ### Sandbox lifecycle
 
@@ -91,6 +103,8 @@ Assistant track:
 Framework track:
 
 - Add skill registry schema + compatibility adapter (`SKILL.md` and metadata-based specs)
+- Add skill bundle validator and compatibility matrix for external skill repos
+  (starting with `vercel-labs/agent-skills`)
 - Add per-skill tool allowlist support in policy engine
 - Add sandbox profile policy (`read-only`, `workspace-write`) with approval mapping
 - Add skill/sandbox trace schema and retention guidance
