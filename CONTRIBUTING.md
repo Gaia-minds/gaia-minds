@@ -31,6 +31,7 @@ Read `infrastructure/agent-execution-protocol.md` before selecting work.
 This protocol defines:
 
 - two main roles (`planner`, `contributor`) with required startup handshake
+- mandatory remote-first sync before selecting or planning work
 - autonomous issue selection for contributor-role work
 - strict sub-role matrix by main role + mandatory merge gates by work type
 - required plan packet + validation + state sync deliverables
@@ -141,6 +142,11 @@ Explore deep questions:
 
 Before starting:
 ```bash
+# Remote-first sync (required)
+git fetch origin
+git checkout main
+git pull --ff-only origin main
+
 # Search issues for related topics
 gh issue list --search "your topic"
 
