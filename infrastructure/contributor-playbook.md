@@ -48,6 +48,9 @@ High-risk changes should not merge without explicit maintainer review.
 
 Use the specialized skill matching your task type:
 
+- Main roles:
+  - `planner` (primary planning/backlog role)
+  - `contributor` (primary execution role)
 - Planning: `skills/gaia-planner/SKILL.md`
 - Research: `skills/gaia-researcher/SKILL.md`
 - Documentation freshness: `skills/gaia-technical-writer/SKILL.md`

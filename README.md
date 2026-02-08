@@ -99,8 +99,9 @@ protocol for agent onboarding and execution.
 
 It defines:
 
-- autonomous issue selection (agent claims its own issue)
-- when to trigger planner/research/technical-writer/security/QA/release/etc skills
+- main-role handshake (`planner` or `contributor`) before work starts
+- autonomous issue selection for contributor role
+- sub-role trigger rules (research/technical-writer/security/QA/release/etc)
 - required plan packet, validation, and state-sync outputs
 - copy/paste operator prompt templates
 
@@ -109,8 +110,9 @@ Quick onboarding prompt:
 ```text
 Work autonomously on Gaia Minds using infrastructure/agent-execution-protocol.md.
 Load CONSTITUTION.md and skills/gaia-contributor/SKILL.md first.
-Select your own issue, post claim + plan packet before coding, run required checks,
-and sync STATUS.md/ROADMAP.md/CHANGELOG.md (or no-change reasons) before PR.
+Then ask me which main role to take: planner or contributor.
+Do not start work until I answer.
+Use all other skills only as sub-roles under the chosen main role.
 ```
 
 ## Repository Map

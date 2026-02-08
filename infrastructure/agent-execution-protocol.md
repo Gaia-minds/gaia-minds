@@ -6,14 +6,47 @@ Updated: February 8, 2026
 
 Define a consistent operating protocol for agents working in this repository:
 
+- main-role selection (`planner` or `contributor`)
 - autonomous issue selection
-- role-skill triggering rules
+- sub-role skill triggering rules
 - required deliverables and quality checks
 - operator prompt templates
 
-## Default Mode: Autonomous Issue Selection
+## Role Hierarchy (Required)
 
-Agents should self-select work by default.
+Two main roles exist:
+
+1. `planner` (main role)
+   - owns planning rounds, backlog decomposition, sequencing, and dependency clarity
+2. `contributor` (main role)
+   - owns implementation/research/docs/review execution for a selected issue/lane
+
+All other skills are sub-roles and must be used under one of the two main roles:
+
+- `gaia-researcher`
+- `gaia-technical-writer`
+- `gaia-security-reviewer`
+- `gaia-qa-evaluator`
+- `gaia-release-manager`
+- `gaia-incident-responder`
+- `gaia-integration-coordinator`
+- `gaia-privacy-memory-steward`
+
+## Startup Handshake (Required)
+
+After reading repo context, the agent must ask:
+
+`Which main role should I take: planner or contributor?`
+
+Rules:
+
+1. Do not start work before main-role confirmation (unless human explicitly requests unattended/autonomous mode).
+2. Declare chosen main role in first issue/PR comment.
+3. Trigger sub-role skills only when task conditions require them.
+
+## Contributor Main Role: Autonomous Issue Selection
+
+Contributor-role agents should self-select work by default.
 
 1. Load required baseline context:
    - `CONSTITUTION.md`
@@ -35,7 +68,20 @@ Agents should self-select work by default.
 7. Move lane status to `In Progress` in `STATUS.md`.
 8. If blocked for >24h, post blocker details and unclaim.
 
-## Skill Trigger Matrix
+## Planner Main Role: Planning Flow
+
+Planner-role agents should:
+
+1. Define planning scope and decision deadline.
+2. Use `infrastructure/planning-round-template.md`.
+3. Produce an execution-ready plan:
+   - decomposed items/lanes
+   - dependency and merge-order notes
+   - unclear items requiring research
+4. Recommend owners and next actions.
+5. Sync state docs (`STATUS.md`, `ROADMAP.md`, `CHANGELOG.md`) or record no-change reason.
+
+## Sub-Role Trigger Matrix
 
 `gaia-contributor` is always active as baseline workflow.
 
@@ -68,10 +114,11 @@ Agents should self-select work by default.
 
 Every active issue should include:
 
-1. Claim comment (owner/scope/ETA/skills).
-2. Plan packet or research/design packet (per relevant template).
-3. Validation evidence in PR notes.
-4. State sync update (or no-change reason):
+1. Main role declaration (`planner` or `contributor`).
+2. Claim comment (owner/scope/ETA/sub-roles) for contributor work.
+3. Plan packet or research/design packet (per relevant template).
+4. Validation evidence in PR notes.
+5. State sync update (or no-change reason):
    - `STATUS.md`
    - `ROADMAP.md`
    - `CHANGELOG.md`
@@ -95,12 +142,13 @@ Required startup:
 1) Read CONSTITUTION.md
 2) Read skills/gaia-contributor/SKILL.md
 3) Read infrastructure/agent-execution-protocol.md
+4) Ask me which main role to take: planner or contributor
+
+Do not start work until I answer with the main role.
 
 Then:
-- Select your own issue from the open Phase 2 queue.
-- Post a claim comment with owner/scope/ETA and chosen role skills.
-- Before coding, post the required plan packet.
-- Execute work in a focused branch and open a PR.
+- If planner: run a planning round and publish the planning artifact.
+- If contributor: select your own issue from the open Phase 2 queue, post claim + plan packet, then execute in a focused branch and open a PR.
 
 Mandatory before PR:
 - run make generate-indexes (if needed)
@@ -116,8 +164,8 @@ PR notes must include:
 
 ## Role-Specific Prompt Add-on
 
-Add one line to force the role skill:
+Add one line to force a sub-role skill:
 
 ```text
-Primary role skill for this task: skills/<role-skill>/SKILL.md
+Primary sub-role skill for this task: skills/<role-skill>/SKILL.md
 ```

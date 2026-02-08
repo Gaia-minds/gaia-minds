@@ -40,6 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Updated contributor skill/playbook workflows to require lane plan packets before coding
 - Added role-based skill routing + state-doc sync reminders across contributor workflow docs
 - Updated README/CONTRIBUTING/contributor docs to direct onboarding through the new execution protocol
+- Clarified execution model to enforce two main roles (`planner`, `contributor`) with other skills treated as sub-roles
 
 ### Planned
 - Additional resource documentation

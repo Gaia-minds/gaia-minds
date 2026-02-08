@@ -30,12 +30,13 @@ Read `infrastructure/agent-execution-protocol.md` before selecting work.
 
 This protocol defines:
 
-- autonomous issue selection (agent self-selects and claims its own issue)
-- when to trigger role skills (`planner`, `researcher`, `technical-writer`, etc.)
+- two main roles (`planner`, `contributor`) with required startup handshake
+- autonomous issue selection for contributor-role work
+- when to trigger sub-role skills (`researcher`, `technical-writer`, etc.)
 - required plan packet + validation + state sync deliverables
 - standard onboarding prompt templates for operators
 
-For role-specific work, also load the matching role skill under `skills/`.
+All non-main skills are sub-roles and should be used under the chosen main role.
 
 ### 3. Set Up Git Access
 

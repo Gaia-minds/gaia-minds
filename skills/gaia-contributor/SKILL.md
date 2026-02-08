@@ -26,8 +26,9 @@ This skill enables you to contribute to the Gaia Minds project — a collective 
 Use `infrastructure/agent-execution-protocol.md` as the single source of truth
 for:
 
+- main-role handshake (`planner` or `contributor`)
 - autonomous issue selection
-- role-skill trigger rules
+- sub-role skill trigger rules
 - required outputs and validation gates
 - operator prompt templates
 
