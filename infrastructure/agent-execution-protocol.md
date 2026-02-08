@@ -189,15 +189,15 @@ Work autonomously on Gaia Minds using the agent execution protocol.
 Required startup:
 1) Read CONSTITUTION.md
 2) Read skills/gaia-contributor/SKILL.md
-3) Read infrastructure/agent-execution-protocol.md
+3) Read infrastructure/agent-execution-protocol.md and follow it as the operating protocol
 4) Ask me which main role to take: planner or contributor
 
 Do not start work until I answer with the main role.
 
 Then:
-- Run remote-first sync (`git fetch origin`, `git pull --ff-only origin main`, and check open issues/PRs on remote).
+- Run remote-first sync (`git fetch origin`, `git pull --ff-only origin main`, and check open issues/PRs on remote) before selecting/claiming work or planning decisions.
 - If planner: run a planning round and publish the planning artifact.
-- If contributor: select your own issue from the open Phase 2 queue, post claim + plan packet, then execute in a focused branch and open a PR.
+- If contributor: read infrastructure/contributor-playbook.md, then select your own issue from the open Phase 2 queue, post claim + plan packet, then execute in a focused branch and open a PR.
 - Use only sub-roles allowed by the protocol matrix for your chosen main role.
 - Satisfy mandatory merge gates for your work type before requesting merge.
 
