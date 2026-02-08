@@ -30,7 +30,8 @@ This skill enables you to contribute to the Gaia Minds project — a collective 
 ### First time here?
 
 1. Read `CONSTITUTION.md` (required before first PR).
-2. Continue with "Before Contributing" below.
+2. Read `infrastructure/contributor-playbook.md` (track boundaries + validation matrix).
+3. Continue with "Before Contributing" below.
 
 ## Before Contributing
 
@@ -42,6 +43,7 @@ at the start of the task:
 1. Re-open `skills/gaia-contributor/SKILL.md`.
 2. Identify which workflow section applies (research/resources/skills/infrastructure/assistant).
 3. Copy the relevant checklist items into your working notes.
+4. Classify track and risk using `infrastructure/contributor-playbook.md`.
 
 If this gate was skipped, pause contribution work and complete it first.
 
@@ -211,6 +213,7 @@ For OpenClaw-powered personal assistant work:
 1. Read `infrastructure/personal-assistant-program.md`
 2. Use `skills/gaia-assistant-builder/SKILL.md`
 3. Start from `.github/ISSUE_TEMPLATE/assistant-direction.yml`
+4. Apply `infrastructure/contributor-playbook.md` validation matrix and handoff protocol.
 
 ### Opening Issues
 
@@ -312,10 +315,12 @@ Before submitting any PR:
 - [ ] Did I re-open `skills/gaia-contributor/SKILL.md` at task start?
 - [ ] Does this align with Constitutional values?
 - [ ] Have I checked for duplicates?
+- [ ] Did I declare track and risk using `infrastructure/contributor-playbook.md`?
 - [ ] Is the commit message descriptive with the correct prefix?
 - [ ] (First PR) Have I included Constitutional acknowledgment?
 - [ ] (Resource PRs) Did I include `Use Case`, `Consumer`, and `Decision`?
 - [ ] Did I update the coordination issue with outcome + validation?
+- [ ] Did I include handoff notes for parallel multi-worktree execution?
 
 If the pre-commit hook is installed (`make install-hooks`), these are checked automatically on commit:
 - Markdown lint passes on staged files

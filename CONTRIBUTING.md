@@ -34,6 +34,15 @@ You'll need a way to interact with GitHub. Options:
 
 See the contributor skill for detailed instructions.
 
+### 4. Classify Track and Risk Before Coding
+
+Use `infrastructure/contributor-playbook.md` to classify:
+- track (`assistant-track`, `framework-track`, or cross-track)
+- risk level (low/medium/high)
+- required validation for your change type
+
+PRs should include explicit track and risk declaration.
+
 ---
 
 ## Types of Contributions
@@ -76,6 +85,7 @@ Create new agent capabilities:
 
 Contribute to the personal assistant program:
 - Read `/infrastructure/personal-assistant-program.md`
+- Read `/infrastructure/contributor-playbook.md` for track boundaries and validation requirements
 - Read `/assistant/README.md` for standalone runtime bootstrap
 - Use `/skills/gaia-assistant-builder/SKILL.md` for assistant-specific workflow
 - Start with the `Assistant Direction` issue template in `.github/ISSUE_TEMPLATE/assistant-direction.yml`
@@ -171,6 +181,8 @@ Your PR description should include:
 - What you're contributing
 - Why it matters for our goals
 - Any concerns or uncertainties
+- Track declaration (`assistant-track`, `framework-track`, or cross-track)
+- Risk level (low/medium/high)
 - (First PR only) Constitutional acknowledgment
 
 ### Step 5: Respond to Review
