@@ -118,34 +118,38 @@ def _is_path_changed(changed: Set[str], path: str) -> bool:
     return path in changed
 
 
-def _extract_pr_context() -> Tuple[Optional[str], Optional[int], str]:
+def _extract_pr_context() -> Tuple[Optional[str], Optional[int], str, str]:
     event_path = os.environ.get("GITHUB_EVENT_PATH", "").strip()
     repo = os.environ.get("GITHUB_REPOSITORY", "").strip()
+    author = ""
     if not event_path:
-        return None, None, repo
+        return None, None, repo, author
 
     try:
         payload = json.loads(Path(event_path).read_text(encoding="utf-8"))
     except Exception:
-        return None, None, repo
+        return None, None, repo, author
 
     if not isinstance(payload, dict):
-        return None, None, repo
+        return None, None, repo, author
 
     pr = payload.get("pull_request")
     if not isinstance(pr, dict):
-        return None, None, repo
+        return None, None, repo, author
 
     body = str(pr.get("body", "") or "")
     number = pr.get("number")
     pr_number = int(number) if isinstance(number, int) else None
+    user = pr.get("user", {})
+    if isinstance(user, dict):
+        author = str(user.get("login", "") or "").strip()
     if not repo:
         head_repo = pr.get("head", {})
         if isinstance(head_repo, dict):
             repo_info = head_repo.get("repo", {})
             if isinstance(repo_info, dict):
                 repo = str(repo_info.get("full_name", "") or "")
-    return body, pr_number, repo
+    return body, pr_number, repo, author
 
 
 def _extract_justification(body: str) -> str:
@@ -341,7 +345,7 @@ def main() -> int:
                 "protected UAT files changed without a change record under docs/uat-changes/"
             )
 
-        pr_body, pr_number, repo = _extract_pr_context()
+        pr_body, pr_number, repo, pr_author = _extract_pr_context()
         if pr_body is None:
             notes.append("PR context unavailable locally; skipping justification/reviewer checks")
         else:
@@ -352,22 +356,29 @@ def main() -> int:
                     "(at least 80 non-whitespace characters)"
                 )
 
-            token = os.environ.get("GITHUB_TOKEN", "").strip()
-            if not token:
-                errors.append("GITHUB_TOKEN is required to validate protected UAT reviewer approval")
-            elif not repo or pr_number is None:
-                errors.append("Unable to resolve PR repository/number for reviewer validation")
+            reviewer_login = args.reviewer.strip().lower()
+            if pr_author.strip().lower() == reviewer_login and reviewer_login:
+                notes.append(
+                    f"PR author @{pr_author} matches required UAT reviewer @{args.reviewer}; "
+                    "owner-authored protected UAT changes allowed without separate review"
+                )
             else:
-                try:
-                    reviews = _fetch_reviews(repo, pr_number, token)
-                    if not _reviewer_is_approved(reviews, args.reviewer):
-                        errors.append(
-                            f"protected UAT changes require approval from @{args.reviewer}"
-                        )
-                except urllib.error.HTTPError as exc:
-                    errors.append(f"failed to fetch PR reviews: HTTP {exc.code}")
-                except Exception as exc:
-                    errors.append(f"failed to fetch PR reviews: {exc}")
+                token = os.environ.get("GITHUB_TOKEN", "").strip()
+                if not token:
+                    errors.append("GITHUB_TOKEN is required to validate protected UAT reviewer approval")
+                elif not repo or pr_number is None:
+                    errors.append("Unable to resolve PR repository/number for reviewer validation")
+                else:
+                    try:
+                        reviews = _fetch_reviews(repo, pr_number, token)
+                        if not _reviewer_is_approved(reviews, args.reviewer):
+                            errors.append(
+                                f"protected UAT changes require approval from @{args.reviewer}"
+                            )
+                    except urllib.error.HTTPError as exc:
+                        errors.append(f"failed to fetch PR reviews: HTTP {exc.code}")
+                    except Exception as exc:
+                        errors.append(f"failed to fetch PR reviews: {exc}")
 
     print("UAT policy summary")
     print("==================")

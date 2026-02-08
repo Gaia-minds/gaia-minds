@@ -16,7 +16,8 @@ surfaces, including newly introduced features from manual and self-evolve paths.
 - Added explicit feature catalog + scenario manifest.
 - Added policy checker for command/action coverage and new-feature UAT updates.
 - Added PR-body justification and reviewer-approval enforcement for protected
-  UAT changes.
+  UAT changes (with owner-authored exception for `@TonyThePredictor` to avoid
+  self-approval deadlock).
 
 ## Validation
 

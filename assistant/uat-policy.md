@@ -64,7 +64,7 @@ When protected files change, PRs must include:
 
 1. `## UAT Change Justification` section in PR body.
 2. Change record under `docs/uat-changes/`.
-3. Approval from `@TonyThePredictor`.
+3. Approval from `@TonyThePredictor` (or PR authored by `@TonyThePredictor`).
 
 ## Local Commands
 
