@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Nightly benchmark trend workflow (`.github/workflows/benchmark-nightly.yml`) with history/summary updates
 - Benchmark trend tool and local command (`tools/benchmark-trend.py`, `make benchmark-trend`)
 - Skills + sandbox enablement synthesis from Agent Skills, Claude Code, and Codex docs (`research/synthesis/2026-02-skills-and-sandbox-enablement.md`)
+- Skill onboarding security validation synthesis with anti-malicious checks (`research/synthesis/2026-02-skill-onboarding-security-validation.md`)
 
 ### Changed
 - Refreshed roadmap and sprint status priorities to remove closed-item drift and reference reassessment issue `#46`
@@ -27,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Expanded benchmark docs with nightly trend and incident linkage guidance
 - Expanded Phase 2 roadmap/sprint scope with first-class skill workflows and sandbox execution policy deliverables
 - Added external skill compatibility planning based on `vercel-labs/agent-skills` repository patterns
+- Expanded Phase 2 scope with skill onboarding security-gate requirements and validation-report criteria
 
 ### Planned
 - Additional resource documentation

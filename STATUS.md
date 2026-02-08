@@ -33,7 +33,8 @@ See `ROADMAP.md` for full phase details and exit criteria.
 4. Implement MVP skill workflows (`list`, `inspect`, `validate`) with trace metadata
 5. Implement sandbox policy profiles (`read-only`, `workspace-write`) + approval flow
 6. Add external-skill compatibility matrix and validator (baseline: `vercel-labs/agent-skills`)
-7. Extend skill/sandbox UAT + benchmark coverage and incident linkage after `#48` lands
+7. Implement onboarding security gate and malicious-skill fixture tests
+8. Extend skill/sandbox UAT + benchmark coverage and incident linkage after `#48` lands
 
 ## Blocked
 

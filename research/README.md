@@ -74,6 +74,7 @@ Use this template:
 ### Synthesis
 - [Roadmap and Backlog Research Playbook (2026-02)](synthesis/2026-02-roadmap-backlog-research-playbook.md) - Reusable method and evidence model for backlog realism reviews
 - [Skills and Sandbox Enablement Research (2026-02)](synthesis/2026-02-skills-and-sandbox-enablement.md) - Cross-platform skill/sandbox patterns and concrete Phase 2 inputs
+- [Skill Onboarding Security Validation (2026-02)](synthesis/2026-02-skill-onboarding-security-validation.md) - Threat model and validation gate for malicious-skill prevention
 
 ---
 

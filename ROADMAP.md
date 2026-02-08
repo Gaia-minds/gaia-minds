@@ -88,12 +88,14 @@ Assistant track outcomes:
 - Add recurring/scheduled task execution.
 - Add proactive reminders with user-controlled cadence.
 - Add sandboxed code execution profile for coding tasks (`read-only` and `workspace-write`) with explicit user approvals.
+- Add pre-activation skill security checks (`gaia skills validate`) with actionable findings.
 
 Framework track outcomes:
 
 - Add policy engine for action gating by risk, source, user scope, and per-skill tool allowlists.
 - Add skill registry schema + compatibility rules for `SKILL.md`-style packages and metadata manifests.
 - Add external skill bundle validator/compatibility matrix (starting with `vercel-labs/agent-skills`).
+- Add onboarding security gate pipeline: structure/schema validation, static script lint, provenance checks, policy compatibility checks, and sandbox dry-run.
 - Add sandbox policy profiles and approval rules (default least privilege; network denied unless explicitly required).
 - Add rollback primitives for failed automation runs.
 - Add incident log schema and postmortem template for regressions.
@@ -106,6 +108,8 @@ Exit criteria:
 - All automated tasks linked to explicit policy decisions.
 - 100% of skill-triggered runs include skill + approval trace metadata.
 - Zero unapproved sandbox escalations in CI and terminal UAT suites.
+- Zero onboarding of skills that fail high-severity security validation checks.
+- 100% of onboarded skills include immutable source/hash and validation report artifacts.
 
 ## Phase 3: Framework Self-Evolution v1
 
@@ -223,7 +227,8 @@ Framework KPIs:
 2. Open scoped Phase 2 implementation issues for skills runtime, sandbox profiles, and policy engine v1.
 3. Deliver MVP `gaia skills` command surface (`list`, `inspect`, `validate`) plus safe invocation path.
 4. Define external skill compatibility criteria using `vercel-labs/agent-skills` as baseline test corpus.
-5. Define incident/postmortem template and add skill/sandbox UAT + benchmark coverage.
+5. Implement skill onboarding security gate and malicious-skill fixture tests.
+6. Define incident/postmortem template and add skill/sandbox UAT + benchmark coverage.
 
 ## Milestones Log
 
@@ -237,5 +242,6 @@ Framework KPIs:
 | 2026-02-08 | npm CLI release published (`0.2.0`) | PR #39 + tag `v0.2.0` |
 | 2026-02-08 | Roadmap/backlog reassessment opened | Issue #46 with research-backed sequencing |
 | 2026-02-08 | Skills/sandbox research synthesized | Added Phase 2 items from Agent Skills + Claude + Codex docs |
+| 2026-02-08 | Skill onboarding security research synthesized | Added Phase 2 validation-gate requirements for malicious-skill prevention |
 
 This roadmap is a living document and should be updated at least weekly.
