@@ -2,7 +2,7 @@
 """Standalone Gaia personal assistant launcher.
 
 This wrapper makes it easier for users to run Gaia's dual-track evolution loop
-as a personal assistant runtime without OpenClaw as a hard dependency.
+as a standalone personal assistant runtime.
 """
 
 from __future__ import annotations
@@ -35,9 +35,6 @@ DEFAULT_GAIA_AUTH_STORE = DEFAULT_HOME / "auth-profiles.json"
 DEFAULT_CODEX_AUTH_PATH = Path(
     os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))
 ).expanduser() / "auth.json"
-DEFAULT_OPENCLAW_STATE_DIR = Path(
-    os.environ.get("OPENCLAW_STATE_DIR", str(Path.home() / ".openclaw"))
-).expanduser()
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
 DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
 DEFAULT_OPENROUTER_MODEL = "openrouter/auto"
@@ -410,12 +407,6 @@ def _configure_api_key_provider(
     return 0
 
 
-def _resolve_openclaw_auth_store(openclaw_agent: str, override_path: Optional[str]) -> Path:
-    if override_path:
-        return Path(override_path).expanduser()
-    return DEFAULT_OPENCLAW_STATE_DIR / "agents" / openclaw_agent / "agent" / "auth-profiles.json"
-
-
 def _resolve_codex_auth_path(override_path: Optional[str]) -> Path:
     if override_path:
         return Path(override_path).expanduser()
@@ -511,12 +502,6 @@ def _read_codex_cli_credentials(codex_auth_path: Path) -> Optional[Dict[str, Any
         "source": "codex-cli",
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
-
-
-def _load_openclaw_profiles(path: Path) -> Dict[str, Any]:
-    payload = _load_json(path)
-    profiles = payload.get("profiles", {})
-    return profiles if isinstance(profiles, dict) else {}
 
 
 def _is_expired(credential: Dict[str, Any]) -> bool:
@@ -635,15 +620,6 @@ def _import_codex_profile_to_gaia(
     return 0, profile_id
 
 
-def _link_openclaw_profile(
-    cfg_path: Path,
-    provider: str,
-    profile_id: str,
-    openclaw_store: Path,
-) -> int:
-    return _link_profile(cfg_path, provider, profile_id, "openclaw", openclaw_store)
-
-
 def _read_linked_credential(active_profile: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], str]:
     source = str(active_profile.get("source", "")).strip()
     provider = str(active_profile.get("provider", "")).strip()
@@ -658,8 +634,6 @@ def _read_linked_credential(active_profile: Dict[str, Any]) -> Tuple[Optional[Di
 
     if source == "gaia-local":
         profiles = _load_gaia_auth_store(store_path).get("profiles", {})
-    elif source == "openclaw":
-        profiles = _load_openclaw_profiles(store_path)
     else:
         return None, f"unknown auth source: {source}"
 
@@ -714,7 +688,7 @@ def cmd_init(args: argparse.Namespace) -> int:
 def cmd_doctor(args: argparse.Namespace) -> int:
     problems = 0
     required_cmds = ["python3", "git"]
-    optional_cmds = ["gh", "codex", "openclaw"]
+    optional_cmds = ["gh", "codex"]
     cfg_path = Path(args.config).expanduser()
 
     print("Gaia assistant doctor")
@@ -852,8 +826,6 @@ def cmd_onboard(args: argparse.Namespace) -> int:
             source="codex-cli",
             codex_auth_path=args.codex_auth_path,
             gaia_auth_store=args.gaia_auth_store,
-            openclaw_agent="main",
-            openclaw_auth_store=None,
             no_prompt=True,
             profile_id=None,
         )
@@ -950,60 +922,8 @@ def cmd_auth_login(args: argparse.Namespace) -> int:
         print("Note: credentials are stored in local Gaia auth store, not in this repository.")
         return 0
 
-    if source == "openclaw":
-        if not args.no_prompt:
-            answer = input(
-                "OAuth login opens a browser and stores tokens in OpenClaw local state.\n"
-                "Continue? [Y/n]: "
-            ).strip().lower()
-            if answer in ("n", "no"):
-                print("Canceled.")
-                return 1
-
-        if not shutil.which("openclaw"):
-            print(
-                "OpenClaw CLI is not installed. Install it, or use --source codex-cli.",
-                file=sys.stderr,
-            )
-            return 1
-
-        rc = subprocess.run(["openclaw", "models", "auth", "login", "--provider", provider]).returncode
-        if rc != 0:
-            return rc
-
-        store_path = _resolve_openclaw_auth_store(args.openclaw_agent, args.openclaw_auth_store)
-        profiles = _load_openclaw_profiles(store_path)
-        provider_profiles = _collect_provider_profiles(profiles, provider)
-        if not provider_profiles:
-            print(
-                "OAuth login finished but no matching OpenClaw profile was found.\n"
-                f"Expected store: {store_path}",
-                file=sys.stderr,
-            )
-            return 1
-
-        selected_profile_id = args.profile_id or _pick_profile_id(provider_profiles)
-        if selected_profile_id not in provider_profiles:
-            print(
-                f"Requested profile not found for provider {provider}: {selected_profile_id}",
-                file=sys.stderr,
-            )
-            return 1
-
-        _link_openclaw_profile(cfg_path, provider, selected_profile_id, store_path)
-        credential = provider_profiles[selected_profile_id]
-        print("[ok] OAuth profile linked for Gaia assistant")
-        print(f"     source:   openclaw")
-        print(f"     provider: {provider}")
-        print(f"     profile:  {selected_profile_id}")
-        print(f"     store:    {store_path}")
-        print(f"     expires:  {_format_expiry(credential)}")
-        print("")
-        print("Note: tokens are not written to this repository.")
-        return 0
-
     print(f"Unsupported auth source: {source}", file=sys.stderr)
-    print("Supported sources: codex-cli, openclaw", file=sys.stderr)
+    print("Supported sources: codex-cli", file=sys.stderr)
     return 1
 
 
@@ -1025,31 +945,8 @@ def cmd_auth_link(args: argparse.Namespace) -> int:
         print(f"     store:    {gaia_auth_store}")
         return 0
 
-    if source == "openclaw":
-        store_path = _resolve_openclaw_auth_store(args.openclaw_agent, args.openclaw_auth_store)
-        profiles = _load_openclaw_profiles(store_path)
-        provider_profiles = _collect_provider_profiles(profiles, provider)
-        if not provider_profiles:
-            print(
-                f"No profiles found for provider '{provider}' in {store_path}.",
-                file=sys.stderr,
-            )
-            return 1
-
-        selected_profile_id = args.profile_id or _pick_profile_id(provider_profiles)
-        if selected_profile_id not in provider_profiles:
-            print(f"Requested profile not found: {selected_profile_id}", file=sys.stderr)
-            return 1
-
-        _link_openclaw_profile(cfg_path, provider, selected_profile_id, store_path)
-        print("[ok] Linked existing OpenClaw auth profile")
-        print(f"     provider: {provider}")
-        print(f"     profile:  {selected_profile_id}")
-        print(f"     store:    {store_path}")
-        return 0
-
     print(f"Unsupported auth source: {source}", file=sys.stderr)
-    print("Supported sources: codex-cli, openclaw", file=sys.stderr)
+    print("Supported sources: codex-cli", file=sys.stderr)
     return 1
 
 
@@ -1261,7 +1158,7 @@ def build_parser() -> argparse.ArgumentParser:
     auth_login.add_argument("--provider", default="openai-codex", help="Provider id (default: openai-codex)")
     auth_login.add_argument(
         "--source",
-        choices=["codex-cli", "openclaw"],
+        choices=["codex-cli"],
         default="codex-cli",
         help="OAuth source (default: codex-cli)",
     )
@@ -1275,12 +1172,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Path to Codex auth.json (optional override)",
     )
-    auth_login.add_argument("--openclaw-agent", default="main", help="OpenClaw agent id (openclaw source only)")
-    auth_login.add_argument(
-        "--openclaw-auth-store",
-        default=None,
-        help="Path to OpenClaw auth-profiles.json (openclaw source only)",
-    )
     auth_login.add_argument("--profile-id", default=None, help="Explicit profile id to link")
     auth_login.add_argument("--no-prompt", action="store_true", help="Skip confirmation prompts")
     auth_login.set_defaults(func=cmd_auth_login)
@@ -1290,7 +1181,7 @@ def build_parser() -> argparse.ArgumentParser:
     auth_link.add_argument("--provider", default="openai-codex", help="Provider id (default: openai-codex)")
     auth_link.add_argument(
         "--source",
-        choices=["codex-cli", "openclaw"],
+        choices=["codex-cli"],
         default="codex-cli",
         help="Profile source (default: codex-cli)",
     )
@@ -1303,12 +1194,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--codex-auth-path",
         default=None,
         help="Path to Codex auth.json (optional override)",
-    )
-    auth_link.add_argument("--openclaw-agent", default="main", help="OpenClaw agent id (openclaw source only)")
-    auth_link.add_argument(
-        "--openclaw-auth-store",
-        default=None,
-        help="Path to OpenClaw auth-profiles.json (openclaw source only)",
     )
     auth_link.add_argument("--profile-id", default=None, help="Explicit profile id to link")
     auth_link.set_defaults(func=cmd_auth_link)
