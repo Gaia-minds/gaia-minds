@@ -1,4 +1,4 @@
-.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy benchmark hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
+.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy benchmark benchmark-trend hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
 
 docs-check:
 	./tools/validate-docs.sh
@@ -27,6 +27,9 @@ uat-policy:
 
 benchmark:
 	python3 ./tools/benchmark.py
+
+benchmark-trend:
+	python3 ./tools/benchmark-trend.py --results ./assistant/benchmark-results.json --history ./assistant/benchmark-trend-history.json --summary ./assistant/benchmark-trend-summary.md
 
 hardening-phase1:
 	python3 ./tools/phase1-hardening.py

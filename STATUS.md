@@ -23,13 +23,13 @@ See `ROADMAP.md` for full phase details and exit criteria.
 
 ## In Progress
 
-_No items claimed yet._
+- Incident/postmortem template and nightly benchmark trend workflow (`#48`)
 
 ## Next Up (Ordered)
 
-1. Execute roadmap/backlog reassessment issue and sequence next work (`#46`)
-2. Open scoped Phase 2 issues for recurring execution, reminders, and policy engine v1
-3. Define incident/postmortem template and nightly benchmark trend workflow
+1. Open scoped Phase 2 issues for recurring execution, reminders, and policy engine v1
+2. Implement recurring/scheduled execution once scoped issue is claimed
+3. Implement reminders + policy engine follow-up issues after scoping
 
 ## Blocked
 
