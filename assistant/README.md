@@ -30,6 +30,9 @@ npm run gaia -- run --mode single --dry-run
 # Deterministic benchmark run
 make benchmark
 
+# Deterministic terminal UAT run
+make test-uat
+
 # Autopilot dry-run preview
 gaia autopilot run --profile safe-daily --dry-run
 
@@ -144,6 +147,21 @@ make benchmark
 - Methodology and update process: `assistant/benchmarking.md`
 - Baseline artifact: `assistant/benchmark-baseline.json`
 
+## Terminal UAT
+
+Gaia enforces deterministic terminal UAT coverage for feature surfaces.
+
+```bash
+make test-uat
+make uat-policy
+```
+
+- Scenario manifest: `assistant/uat-scenarios.json`
+- Feature catalog: `assistant/feature-catalog.json`
+- Policy details: `assistant/uat-policy.md`
+- Results: `assistant/uat-results.json`
+- Failure bundle: `assistant/uat-artifacts/<run-id>/`
+
 ## Autopilot
 
 Autopilot is limited to explicit approved profiles and capability sets.
@@ -257,6 +275,8 @@ Recommended handoff protocol:
 5. Before pushing, run:
    - `make check-all`
    - `make test-smoke`
+   - `make test-uat`
+   - `make uat-policy`
    - `python3 -m py_compile tools/gaia-assistant.py tools/agent-loop.py tools/agent-alignment.py`
 6. Update `CHANGELOG.md` with meaningful behavior changes.
 7. If this is your first PR to Gaia, include Constitutional acknowledgment from

@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "suite": "gaia-uat",
+  "mode": "deterministic-local",
+  "scenarios": [
+    {
+      "id": "cli_help_surface",
+      "description": "Top-level CLI help renders",
+      "expect_exit": 0,
+      "command": "node ./bin/gaia.js --help >/dev/null"
+    },
+    {
+      "id": "init_force",
+      "description": "Assistant init supports force reset",
+      "expect_exit": 0,
+      "command": "node ./bin/gaia.js init --force >/dev/null"
+    },
+    {
+      "id": "onboard_openai_nostore",
+      "description": "OpenAI onboarding succeeds in deterministic mode",
+      "expect_exit": 0,
+      "command": "node ./bin/gaia.js onboard --provider openai --api-key test-key --model gpt-4.1-mini --yes --no-store-api-key >/dev/null"
+    },
+    {
+      "id": "doctor_command",
+      "description": "Doctor command runs without blocking errors",
+      "expect_exit": 0,
+      "command": "node ./bin/gaia.js doctor >/dev/null"
+    },
+    {
+      "id": "config_set_get_name",
+      "description": "Config set/get roundtrip works",
+      "expect_exit": 0,
+      "command": "node ./bin/gaia.js config set name UATUser >/dev/null && value=$(node ./bin/gaia.js config get name) && [[ \"$value\" == \"UATUser\" ]]"
+    },
+    {
+      "id": "capability_set_and_list",
+      "description": "Capability override is persisted and listable",
+      "expect_exit": 0,
+      "command": "node ./bin/gaia.js capability set send_email confirm >/dev/null && listed=$(node ./bin/gaia.js capability list) && [[ \"$listed\" == *\"send_email confirm\"* ]] && node ./bin/gaia.js capability set send_email forbidden >/dev/null"
+    },
+    {
+      "id": "chat_session_create_resume",
+      "description": "Chat creates and resumes session",
+      "expect_exit": 0,
+      "command": "out=$(printf 'hello from uat\\n/exit\\n' | node ./bin/gaia.js chat 2>&1) && session_id=$(printf '%s' \"$out\" | sed -n 's/^Started session: //p' | head -n1) && [[ -n \"$session_id\" ]] && resume=$(printf '/exit\\n' | node ./bin/gaia.js chat --resume last 2>&1) && [[ \"$resume\" == *\"Resumed session: $session_id\"* ]]"
+    },
+    {
+      "id": "note_capture_and_tasks",
+      "description": "Note/task capture and listing work",
+      "expect_exit": 0,
+      "command": "node ./bin/gaia.js note --task 'UAT task capture' >/dev/null && listed=$(node ./bin/gaia.js tasks --status all) && [[ \"$listed\" == *\"UAT task capture\"* ]]"
+    },
+    {
+      "id": "summarize_and_summaries",
+      "description": "Summarize and summaries commands work with local fixture",
+      "expect_exit": 0,
+      "command": "node ./bin/gaia.js summarize \"file://$HTML_FIXTURE\" >/dev/null && listed=$(node ./bin/gaia.js summaries --last 5) && [[ \"$listed\" == *\"UAT Summary Fixture\"* ]]"
+    },
+    {
+      "id": "plan_create_and_list",
+      "description": "Plan creation and listing work",
+      "expect_exit": 0,
+      "command": "node ./bin/gaia.js plan 'UAT roadmap objective' >/dev/null && listed=$(node ./bin/gaia.js plans --last 5) && [[ \"$listed\" == *\"UAT roadmap objective\"* ]]"
+    },
+    {
+      "id": "traces_command",
+      "description": "Structured traces are queryable",
+      "expect_exit": 0,
+      "command": "out=$(node ./bin/gaia.js traces --last 5) && [[ \"$out\" == *\"|\"* ]]"
+    },
+    {
+      "id": "autopilot_dry_run",
+      "description": "Autopilot dry-run preview works",
+      "expect_exit": 0,
+      "command": "out=$(node ./bin/gaia.js autopilot run --profile safe-daily --dry-run 2>&1) && [[ \"$out\" == *\"Dry-run autopilot plan\"* ]]"
+    },
+    {
+      "id": "autopilot_run_and_trace",
+      "description": "Autopilot execution works and emits traces",
+      "expect_exit": 0,
+      "command": "node ./bin/gaia.js autopilot run --profile safe-daily >/dev/null && traces=$(node ./bin/gaia.js traces --type autopilot_run --last 1) && [[ \"$traces\" == *\"autopilot_run\"* ]]"
+    },
+    {
+      "id": "provider_twin_anthropic",
+      "description": "Anthropic digital twin path responds locally",
+      "expect_exit": 0,
+      "command": "node ./bin/gaia.js config set provider anthropic >/dev/null && out=$(printf 'anthropic twin check\\n/exit\\n' | node ./bin/gaia.js chat 2>&1) && [[ \"$out\" == *\"[local-anthropic]\"* ]]"
+    },
+    {
+      "id": "provider_twin_openai",
+      "description": "OpenAI digital twin path responds locally",
+      "expect_exit": 0,
+      "command": "node ./bin/gaia.js config set provider openai >/dev/null && out=$(printf 'openai twin check\\n/exit\\n' | node ./bin/gaia.js chat 2>&1) && [[ \"$out\" == *\"[local-openai]\"* ]]"
+    },
+    {
+      "id": "provider_twin_openrouter",
+      "description": "OpenRouter digital twin path responds locally",
+      "expect_exit": 0,
+      "command": "node ./bin/gaia.js config set provider openrouter >/dev/null && out=$(printf 'openrouter twin check\\n/exit\\n' | node ./bin/gaia.js chat 2>&1) && [[ \"$out\" == *\"[local-openrouter]\"* ]]"
+    },
+    {
+      "id": "provider_twin_openai_codex",
+      "description": "OpenAI-Codex digital twin path responds locally",
+      "expect_exit": 0,
+      "command": "node ./bin/gaia.js config set provider openai-codex >/dev/null && out=$(printf 'openai codex twin check\\n/exit\\n' | node ./bin/gaia.js chat 2>&1) && [[ \"$out\" == *\"[local-openai-codex]\"* ]]"
+    },
+    {
+      "id": "auth_status_command",
+      "description": "Auth status command path is deterministic",
+      "expect_exit": 0,
+      "command": "out=$(node ./bin/gaia.js auth status 2>&1 || true) && [[ \"$out\" == *\"No linked auth profile\"* || \"$out\" == *\"OAuth profile is ready\"* ]]"
+    },
+    {
+      "id": "auth_login_unsupported_provider",
+      "description": "Auth login rejects unsupported OAuth providers",
+      "expect_exit": 0,
+      "command": "out=$(node ./bin/gaia.js auth login --provider anthropic --source codex-cli --no-prompt 2>&1 || true) && [[ \"$out\" == *\"Unsupported OAuth provider\"* ]]"
+    },
+    {
+      "id": "auth_link_rejects_openclaw_source",
+      "description": "Auth link rejects removed OpenClaw source",
+      "expect_exit": 0,
+      "command": "out=$(node ./bin/gaia.js auth link --provider openai-codex --source openclaw 2>&1 || true) && [[ \"$out\" == *\"invalid choice\"* && \"$out\" == *\"openclaw\"* ]]"
+    },
+    {
+      "id": "auth_link_codex_missing_credentials",
+      "description": "Auth link reports missing Codex credentials",
+      "expect_exit": 0,
+      "command": "out=$(node ./bin/gaia.js auth link --provider openai-codex --source codex-cli --codex-auth-path \"$GAIA_ASSISTANT_HOME/missing-codex-auth.json\" 2>&1 || true) && [[ \"$out\" == *\"Codex credentials not found\"* || \"$out\" == *\"Expected auth file\"* ]]"
+    },
+    {
+      "id": "run_single_dry",
+      "description": "Gaia run single dry-run works",
+      "expect_exit": 0,
+      "command": "node ./bin/gaia.js run --mode single --dry-run --reasoning-provider openai --reasoning-model gpt-4.1-mini >/dev/null"
+    },
+    {
+      "id": "agent_loop_dry_run",
+      "description": "Self-evolve loop dry-run command path works",
+      "expect_exit": 0,
+      "command": "GAIA_AGENT_MEMORY_DIR=\"$GAIA_ASSISTANT_HOME/agent-memory\" python3 ./tools/agent-loop.py --config ./tools/agent-config.yml --mode single --dry-run >/dev/null"
+    }
+  ]
+}

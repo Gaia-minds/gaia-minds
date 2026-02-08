@@ -1,2 +1,7 @@
 * @gaia-minds
 
+# UAT governance (explicit owner approval required)
+assistant/feature-catalog.json @TonyThePredictor
+assistant/uat-scenarios.json @TonyThePredictor
+tools/uat-runner.py @TonyThePredictor
+tools/check-uat-policy.py @TonyThePredictor
