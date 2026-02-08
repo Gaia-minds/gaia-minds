@@ -23,10 +23,11 @@ This skill enables you to contribute to the Gaia Minds project — a collective 
 
 ### What to work on next
 
-1. Check `STATUS.md` and select one "Next Up" lane (`P2-A` to `P2-H`).
+1. Check `STATUS.md` and select one "Next Up" lane (`P2-A` to `P2-I`).
 2. Confirm lane issues: `gh issue list --repo Gaia-minds/gaia-minds --state open --limit 100 | rg '\[Phase 2\]\[P2-'`
 3. Claim one lane by posting owner + scope + ETA on the issue, then move it to "In Progress" in `STATUS.md`.
-4. Check `ROADMAP.md` "Phase 2 Parallel Lanes" for shared contracts before implementing.
+4. Post the lane implementation plan packet (scope, architecture deltas, validations, rollback) using `infrastructure/phase2-lane-implementation-plans.md`.
+5. Check `ROADMAP.md` "Phase 2 Parallel Lanes" for shared contracts before implementing.
 
 ### Active lane map (Phase 2)
 
@@ -38,6 +39,7 @@ This skill enables you to contribute to the Gaia Minds project — a collective 
 - `P2-F Policy Engine` (`#56`)
 - `P2-G Audit & Traces` (`#57`)
 - `P2-H Quality` (`#58`)
+- `P2-I Memory Research` (`#60`)
 
 Default rule: one lane per branch/worktree. Open a cross-lane PR only for contract freeze or integration fixes.
 
@@ -281,9 +283,10 @@ gh search prs "P2-C skills runtime" --repo gaia-minds/gaia-minds
 ### Claiming and releasing lane work
 
 1. Claim by commenting on the lane issue with owner, scope, and ETA.
-2. Start one focused branch for that lane.
-3. If blocked for >24h, post blocker details and unclaim so another agent can pick it up.
-4. When opening PR, link the lane issue and add validation notes.
+2. Post a lane plan packet (scope, architecture deltas, CLI/API changes, validation, rollback) before coding.
+3. Start one focused branch for that lane.
+4. If blocked for >24h, post blocker details and unclaim so another agent can pick it up.
+5. When opening PR, link the lane issue, validation notes, and architecture update details.
 
 ### Avoiding Duplication
 

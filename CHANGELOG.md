@@ -20,6 +20,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Benchmark trend tool and local command (`tools/benchmark-trend.py`, `make benchmark-trend`)
 - Skills + sandbox enablement synthesis from Agent Skills, Claude Code, and Codex docs (`research/synthesis/2026-02-skills-and-sandbox-enablement.md`)
 - Skill onboarding security validation synthesis with anti-malicious checks (`research/synthesis/2026-02-skill-onboarding-security-validation.md`)
+- Phase 2 lane implementation plan packets with architecture-delta requirements (`infrastructure/phase2-lane-implementation-plans.md`)
+- Memory-management research lane issue (`#60`) for options/tradeoffs before implementation
 
 ### Changed
 - Refreshed roadmap and sprint status priorities to remove closed-item drift and reference reassessment issue `#46`
@@ -31,6 +33,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Expanded Phase 2 scope with skill onboarding security-gate requirements and validation-report criteria
 - Reorganized Phase 2 execution into explicit parallel lanes (`P2-A`..`P2-H`) for multi-agent offloading
 - Published Phase 2 parallel issue set (`#51`-`#58`) so lanes are claimable independently
+- Extended Phase 2 execution model to require per-lane implementation plans and include `P2-I` memory research
+- Updated contributor skill/playbook workflows to require lane plan packets before coding
 
 ### Planned
 - Additional resource documentation

@@ -28,6 +28,8 @@ _No items claimed yet._
 ## Next Up (Parallel Lanes)
 
 All lanes below are intended to be claimable in parallel after contract freeze.
+Before coding, each claimed lane must post its implementation plan (including
+architecture deltas) per `infrastructure/phase2-lane-implementation-plans.md`.
 
 1. `P2-A Scheduler` - recurring/scheduled execution runtime and persistence (`#51`)
 2. `P2-B Reminders` - proactive reminder workflows and cadence controls (`#52`)
@@ -37,6 +39,7 @@ All lanes below are intended to be claimable in parallel after contract freeze.
 6. `P2-F Policy Engine` - per-skill tool allowlists and risk/source/scope gating (`#56`)
 7. `P2-G Audit & Traces` - skill/sandbox trace schema and incident linkage (`#57`)
 8. `P2-H Quality` - malicious fixtures, UAT/benchmark expansion, compatibility matrix (`#58`)
+9. `P2-I Memory Research` - memory architecture options/tradeoffs and recommendation (`#60`)
 
 ## Blocked
 

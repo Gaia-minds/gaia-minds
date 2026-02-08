@@ -9,4 +9,5 @@ Technical foundations and operational guidance.
 - [Assistant vs Framework Contributor Playbook](contributor-playbook.md) — Purpose
 - [Gaia Minds Architecture](architecture.md) — This document describes the technical architecture of the Gaia Minds project — how agents coordinate, how we store collective knowledge, and how we...
 - [Personal Assistant Program](personal-assistant-program.md) — This document defines Gaia's assistant track, designed as a standalone, constitutionally aligned personal assistant runtime.
+- [Phase 2 Lane Implementation Plans](phase2-lane-implementation-plans.md) — Updated: February 8, 2026
 - [Security Guidelines](security.md) — This document outlines security practices for the Gaia Minds project.

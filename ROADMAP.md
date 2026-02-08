@@ -89,6 +89,7 @@ Assistant track outcomes:
 - Add proactive reminders with user-controlled cadence.
 - Add sandboxed code execution profile for coding tasks (`read-only` and `workspace-write`) with explicit user approvals.
 - Add pre-activation skill security checks (`gaia skills validate`) with actionable findings.
+- Add a memory-management research gate before implementation (options/tradeoffs/recommendation).
 
 Framework track outcomes:
 
@@ -100,6 +101,7 @@ Framework track outcomes:
 - Add rollback primitives for failed automation runs.
 - Add incident log schema and postmortem template for regressions.
 - Add skill/sandbox trace schema (skill id, source, tool calls, approval decisions, sandbox profile).
+- Require lane-level implementation plans (scope, architecture deltas, validations, rollback) before coding starts.
 
 Exit criteria:
 
@@ -119,6 +121,10 @@ Only two shared contracts must be frozen first:
 - Skill contract: metadata + capability declaration + trace identifiers
 - Sandbox contract: profile names + escalation rules + approval event schema
 
+Detailed implementation plans for each lane are tracked in
+`infrastructure/phase2-lane-implementation-plans.md`.
+Every lane issue should include that lane's plan packet before implementation.
+
 Parallel lanes:
 
 1. `P2-A Scheduler` - recurring/scheduled execution runtime and persistence (`#51`)
@@ -129,11 +135,14 @@ Parallel lanes:
 6. `P2-F Policy Engine` - risk/source/scope gating + per-skill tool allowlists (`#56`)
 7. `P2-G Audit & Traces` - skill/sandbox trace schema + incident linkage (`#57`)
 8. `P2-H Quality` - malicious-skill fixtures, UAT/benchmark expansion, compatibility matrix (`#58`)
+9. `P2-I Memory Research` - memory architecture options/tradeoffs and recommendation (`#60`)
 
 Integration order is intentionally light:
 
 - `P2-C` and `P2-E` publish contracts first.
 - `P2-D`, `P2-F`, and `P2-G` integrate against those contracts.
+- `P2-A` and `P2-B` can progress in parallel, with reminders building on scheduler events.
+- `P2-I` runs in parallel as a research gate and feeds follow-on implementation scope.
 - `P2-H` validates all lanes continuously and final hardening at the end.
 
 ## Phase 3: Framework Self-Evolution v1
@@ -248,10 +257,11 @@ Framework KPIs:
 
 ## Immediate 14-Day Priorities
 
-1. Freeze Skill + Sandbox contracts and start all Phase 2 lanes in parallel (`#51`-`#58`).
-2. Assign one owner per lane (`P2-A` to `P2-H`) and merge incrementally behind tests.
-3. Run daily cross-lane integration checks (policy compatibility + trace schema).
-4. Finish with hardening pass focused on malicious-skill validation and sandbox escalation controls.
+1. Freeze Skill + Sandbox contracts and post lane implementation plans with architecture deltas (`#51`-`#58`).
+2. Assign one owner per lane (`P2-A` to `P2-I`) and merge incrementally behind tests.
+3. Run memory-management research lane (`#60`) to produce recommendation before memory implementation.
+4. Run daily cross-lane integration checks (policy compatibility + trace schema).
+5. Finish with hardening pass focused on malicious-skill validation and sandbox escalation controls.
 
 ## Milestones Log
 
@@ -267,5 +277,6 @@ Framework KPIs:
 | 2026-02-08 | Skills/sandbox research synthesized | Added Phase 2 items from Agent Skills + Claude + Codex docs |
 | 2026-02-08 | Skill onboarding security research synthesized | Added Phase 2 validation-gate requirements for malicious-skill prevention |
 | 2026-02-08 | Phase 2 parallel lane issue set opened | Issues #51-#58 created for agent offloading |
+| 2026-02-08 | Memory-management research lane opened | Issue #60 tracks options/tradeoffs before design lock |
 
 This roadmap is a living document and should be updated at least weekly.
