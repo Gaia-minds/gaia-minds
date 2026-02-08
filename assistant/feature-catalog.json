@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "description": "Feature-to-UAT coverage map for Gaia assistant and evolution actions.",
+  "commands": [
+    {"path": "init", "scenarios": ["init_force"]},
+    {"path": "onboard", "scenarios": ["onboard_openai_nostore"]},
+    {"path": "doctor", "scenarios": ["doctor_command"]},
+    {"path": "config", "scenarios": ["cli_help_surface"]},
+    {"path": "config set", "scenarios": ["config_set_get_name", "provider_twin_openai"]},
+    {"path": "config get", "scenarios": ["config_set_get_name"]},
+    {"path": "capability", "scenarios": ["capability_set_and_list"]},
+    {"path": "capability list", "scenarios": ["capability_set_and_list"]},
+    {"path": "capability set", "scenarios": ["capability_set_and_list"]},
+    {"path": "traces", "scenarios": ["traces_command", "autopilot_run_and_trace"]},
+    {"path": "chat", "scenarios": ["chat_session_create_resume", "provider_twin_openai"]},
+    {"path": "note", "scenarios": ["note_capture_and_tasks"]},
+    {"path": "tasks", "scenarios": ["note_capture_and_tasks"]},
+    {"path": "summarize", "scenarios": ["summarize_and_summaries"]},
+    {"path": "summaries", "scenarios": ["summarize_and_summaries"]},
+    {"path": "plan", "scenarios": ["plan_create_and_list"]},
+    {"path": "plans", "scenarios": ["plan_create_and_list"]},
+    {"path": "autopilot", "scenarios": ["autopilot_dry_run"]},
+    {"path": "autopilot run", "scenarios": ["autopilot_dry_run", "autopilot_run_and_trace"]},
+    {"path": "auth", "scenarios": ["auth_status_command"]},
+    {"path": "auth login", "scenarios": ["auth_login_unsupported_provider"]},
+    {"path": "auth link", "scenarios": ["auth_link_rejects_openclaw_source", "auth_link_codex_missing_credentials"]},
+    {"path": "auth status", "scenarios": ["auth_status_command"]},
+    {"path": "run", "scenarios": ["run_single_dry"]}
+  ],
+  "agent_actions": [
+    {"type": "verify_resources", "scenarios": ["agent_loop_dry_run"]},
+    {"type": "generate_indexes", "scenarios": ["agent_loop_dry_run"]},
+    {"type": "add_research", "scenarios": ["agent_loop_dry_run"]},
+    {"type": "add_resource", "scenarios": ["agent_loop_dry_run"]},
+    {"type": "create_tool", "scenarios": ["agent_loop_dry_run"]},
+    {"type": "update_skill", "scenarios": ["agent_loop_dry_run"]},
+    {"type": "open_issue", "scenarios": ["agent_loop_dry_run"]},
+    {"type": "comment_on_pr", "scenarios": ["agent_loop_dry_run"]},
+    {"type": "check_pr_status", "scenarios": ["agent_loop_dry_run"]}
+  ]
+}

@@ -1,0 +1,36 @@
+name: uat-tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+
+jobs:
+  uat-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run deterministic UAT suite
+        run: make test-uat
+
+      - name: Upload UAT artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uat-artifacts
+          path: |
+            assistant/uat-results.json
+            assistant/uat-artifacts/
