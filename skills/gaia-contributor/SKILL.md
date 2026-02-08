@@ -17,15 +17,15 @@ This skill enables you to contribute to the Gaia Minds project — a collective 
 
 ### Current status
 
-- **Phase**: Phase 1 — Daily Assistant Utility (Feb 8–14, 2026)
-- **Latest release**: `@gaia-minds/assistant-cli@0.1.1`
+- **Phase**: Phase 2 — Trusted Automation (planned: Feb 15–28, 2026)
+- **Latest release**: `@gaia-minds/assistant-cli@0.2.0`
 - See `STATUS.md` for sprint dashboard, `CHANGELOG.md` for recent work.
 
 ### What to work on next
 
 1. Check `STATUS.md` — items in "Next Up" are available to claim.
 2. Check open issues: `gh issue list --state open --label ready`
-3. Check `ROADMAP.md` Phase 1 for unchecked outcomes.
+3. Check `ROADMAP.md` Phase 2 priorities and latest reassessment updates.
 
 ### First time here?
 

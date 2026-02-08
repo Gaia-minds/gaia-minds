@@ -29,7 +29,7 @@
 
   <rect x="64" y="560" width="1150" height="138" rx="12" fill="#0D1628" stroke="#33507E"/>
   <text x="88" y="598" fill="#C3D6FF" font-size="20" font-family="monospace">Current status</text>
-  <text x="88" y="630" fill="#D8E5FF" font-size="18" font-family="monospace">- npm package is live: @gaia-minds/assistant-cli@0.1.1</text>
+  <text x="88" y="630" fill="#D8E5FF" font-size="18" font-family="monospace">- npm package is live: @gaia-minds/assistant-cli@0.2.0</text>
   <text x="88" y="658" fill="#D8E5FF" font-size="18" font-family="monospace">- Global gaia CLI runs doctor/onboard/run without repository checkout</text>
   <text x="88" y="686" fill="#8CE99A" font-size="20" font-family="monospace">$ gaia onboard</text>
 </svg>

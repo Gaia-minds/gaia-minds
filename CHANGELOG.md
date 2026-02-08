@@ -13,10 +13,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - `skills/gaia-assistant-builder/references/openclaw-boundary.md` boundary document
 
 ### Added
-- _No entries yet_
+- Roadmap/backlog reassessment issue template (`.github/ISSUE_TEMPLATE/roadmap-backlog-review.yml`)
+- Research synthesis playbook for backlog realism reviews (`research/synthesis/2026-02-roadmap-backlog-research-playbook.md`)
 
 ### Changed
-- _No entries yet_
+- Refreshed roadmap and sprint status priorities to remove closed-item drift and reference reassessment issue `#46`
+- Synced latest release references to `@gaia-minds/assistant-cli@0.2.0` across top-level and assistant contributor docs
+- Added contributor guidance to use the roadmap/backlog review issue template for reassessment work
 
 ### Planned
 - Additional resource documentation
