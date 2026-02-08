@@ -53,7 +53,7 @@ All other skills are sub-roles and must be used under one of the two main roles:
 
 ## Startup Handshake (Required)
 
-After reading repo context, the agent must ask:
+After completing remote-first sync and reading repo context, the agent must ask:
 
 `Which main role should I take: planner or contributor?`
 
@@ -187,15 +187,15 @@ Use this when onboarding an agent:
 Work autonomously on Gaia Minds using the agent execution protocol.
 
 Required startup:
-1) Read CONSTITUTION.md
-2) Read skills/gaia-contributor/SKILL.md
-3) Read infrastructure/agent-execution-protocol.md and follow it as the operating protocol
-4) Ask me which main role to take: planner or contributor
+1) Run remote-first sync (`git fetch origin`, `git pull --ff-only origin main`, and check open issues/PRs on remote)
+2) Read CONSTITUTION.md
+3) Read skills/gaia-contributor/SKILL.md
+4) Read infrastructure/agent-execution-protocol.md and follow it as the operating protocol
+5) Ask me which main role to take: planner or contributor
 
 Do not start work until I answer with the main role.
 
 Then:
-- Run remote-first sync (`git fetch origin`, `git pull --ff-only origin main`, and check open issues/PRs on remote) before selecting/claiming work or planning decisions.
 - If planner: run a planning round and publish the planning artifact.
 - If contributor: read infrastructure/contributor-playbook.md, then select your own issue from the open Phase 2 queue, post claim + plan packet, then execute in a focused branch and open a PR.
 - Use only sub-roles allowed by the protocol matrix for your chosen main role.
