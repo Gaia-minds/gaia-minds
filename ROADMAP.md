@@ -83,20 +83,28 @@ Status: Planned
 Assistant track outcomes:
 
 - Add scoped autopilot mode for approved capability sets.
+- Add first-class skill workflows (`gaia skills ...`) for list/inspect/validate and safe invocation.
+- Add local + project skill loading with explicit metadata and on-demand instruction loading.
 - Add recurring/scheduled task execution.
 - Add proactive reminders with user-controlled cadence.
+- Add sandboxed code execution profile for coding tasks (`read-only` and `workspace-write`) with explicit user approvals.
 
 Framework track outcomes:
 
-- Add policy engine for action gating by risk, source, and user scope.
+- Add policy engine for action gating by risk, source, user scope, and per-skill tool allowlists.
+- Add skill registry schema + compatibility rules for `SKILL.md`-style packages and metadata manifests.
+- Add sandbox policy profiles and approval rules (default least privilege; network denied unless explicitly required).
 - Add rollback primitives for failed automation runs.
 - Add incident log schema and postmortem template for regressions.
+- Add skill/sandbox trace schema (skill id, source, tool calls, approval decisions, sandbox profile).
 
 Exit criteria:
 
 - >=90% pass rate on regression suite.
 - <5% failed runs requiring manual recovery.
 - All automated tasks linked to explicit policy decisions.
+- 100% of skill-triggered runs include skill + approval trace metadata.
+- Zero unapproved sandbox escalations in CI and terminal UAT suites.
 
 ## Phase 3: Framework Self-Evolution v1
 
@@ -211,8 +219,9 @@ Framework KPIs:
 ## Immediate 14-Day Priorities
 
 1. Complete roadmap/backlog reassessment and publish execution ordering (`#46`).
-2. Open scoped Phase 2 implementation issues for recurring execution, reminders, and policy engine v1.
-3. Define incident/postmortem template and nightly benchmark trend workflow.
+2. Open scoped Phase 2 implementation issues for skills runtime, sandbox profiles, and policy engine v1.
+3. Deliver MVP `gaia skills` command surface (`list`, `inspect`, `validate`) plus safe invocation path.
+4. Define incident/postmortem template and add skill/sandbox UAT + benchmark coverage.
 
 ## Milestones Log
 
@@ -225,5 +234,6 @@ Framework KPIs:
 | 2026-02-08 | Phase 1 hardening report published | PR #38, 20/20 canonical tasks passed |
 | 2026-02-08 | npm CLI release published (`0.2.0`) | PR #39 + tag `v0.2.0` |
 | 2026-02-08 | Roadmap/backlog reassessment opened | Issue #46 with research-backed sequencing |
+| 2026-02-08 | Skills/sandbox research synthesized | Added Phase 2 items from Agent Skills + Claude + Codex docs |
 
 This roadmap is a living document and should be updated at least weekly.

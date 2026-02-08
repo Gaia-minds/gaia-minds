@@ -28,8 +28,10 @@ _No items claimed yet._
 ## Next Up (Ordered)
 
 1. Execute roadmap/backlog reassessment issue and sequence next work (`#46`)
-2. Open scoped Phase 2 issues for recurring execution, reminders, and policy engine v1
-3. Define incident/postmortem template and nightly benchmark trend workflow
+2. Open scoped Phase 2 issues for skills runtime (`gaia skills`) and sandbox execution profiles
+3. Implement MVP skill workflows (`list`, `inspect`, `validate`) with trace metadata
+4. Implement sandbox policy profiles (`read-only`, `workspace-write`) + approval flow
+5. Define incident/postmortem template and add skill/sandbox UAT + benchmark coverage
 
 ## Blocked
 

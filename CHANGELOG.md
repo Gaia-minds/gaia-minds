@@ -15,11 +15,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 - Roadmap/backlog reassessment issue template (`.github/ISSUE_TEMPLATE/roadmap-backlog-review.yml`)
 - Research synthesis playbook for backlog realism reviews (`research/synthesis/2026-02-roadmap-backlog-research-playbook.md`)
+- Skills + sandbox enablement synthesis from Agent Skills, Claude Code, and Codex docs (`research/synthesis/2026-02-skills-and-sandbox-enablement.md`)
 
 ### Changed
 - Refreshed roadmap and sprint status priorities to remove closed-item drift and reference reassessment issue `#46`
 - Synced latest release references to `@gaia-minds/assistant-cli@0.2.0` across top-level and assistant contributor docs
 - Added contributor guidance to use the roadmap/backlog review issue template for reassessment work
+- Expanded Phase 2 roadmap/sprint scope with first-class skill workflows and sandbox execution policy deliverables
 
 ### Planned
 - Additional resource documentation

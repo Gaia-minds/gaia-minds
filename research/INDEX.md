@@ -14,3 +14,4 @@ Short, curated entry points for research content.
 ### Synthesis
 
 - [Roadmap and Backlog Research Playbook (2026-02)](synthesis/2026-02-roadmap-backlog-research-playbook.md) (2026-02) — Summary
+- [Skills and Sandbox Enablement Research (Phase 2 Input)](synthesis/2026-02-skills-and-sandbox-enablement.md) (2026-02) — Summary
