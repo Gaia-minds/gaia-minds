@@ -142,10 +142,14 @@ Benchmark the 20 canonical Phase 1 tasks:
 
 ```bash
 make benchmark
+make benchmark-trend
 ```
 
 - Methodology and update process: `assistant/benchmarking.md`
 - Baseline artifact: `assistant/benchmark-baseline.json`
+- Trend history: `assistant/benchmark-trend-history.json`
+- Trend summary: `assistant/benchmark-trend-summary.md`
+- Incident postmortem template: `docs/incidents/postmortem-template.md`
 
 ## Terminal UAT
 

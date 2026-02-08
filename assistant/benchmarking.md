@@ -13,6 +13,8 @@ make benchmark
 The command writes structured JSON results to:
 
 - `assistant/benchmark-results.json`
+- `assistant/benchmark-trend-history.json` (when running `make benchmark-trend`)
+- `assistant/benchmark-trend-summary.md` (when running `make benchmark-trend`)
 
 Baseline artifact:
 
@@ -55,3 +57,32 @@ Review the resulting diff in `assistant/benchmark-baseline.json` before merge.
 
 `.github/workflows/benchmark.yml` runs `make benchmark` on PRs and main,
 and uploads `assistant/benchmark-results.json` as an artifact.
+
+Nightly trend workflow:
+
+- `.github/workflows/benchmark-nightly.yml` runs on a nightly UTC schedule and on manual dispatch.
+- It runs `make benchmark`, appends a new trend record, and updates:
+  - `assistant/benchmark-trend-history.json`
+  - `assistant/benchmark-trend-summary.md`
+- It uploads nightly artifacts for triage and long-term comparison.
+
+## Local Trend Updates
+
+```bash
+make benchmark
+make benchmark-trend
+```
+
+Use the summary to quickly inspect:
+
+- current benchmark status
+- score delta versus previous run
+- pass streak and recent run table
+
+## Incident and Postmortem Integration
+
+When nightly benchmarks fail or regressions are detected, open a postmortem
+using:
+
+- `docs/incidents/postmortem-template.md`
+- `docs/incidents/README.md`

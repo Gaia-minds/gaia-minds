@@ -15,11 +15,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 - Roadmap/backlog reassessment issue template (`.github/ISSUE_TEMPLATE/roadmap-backlog-review.yml`)
 - Research synthesis playbook for backlog realism reviews (`research/synthesis/2026-02-roadmap-backlog-research-playbook.md`)
+- Incident/postmortem docs and reusable template (`docs/incidents/README.md`, `docs/incidents/postmortem-template.md`)
+- Nightly benchmark trend workflow (`.github/workflows/benchmark-nightly.yml`) with history/summary updates
+- Benchmark trend tool and local command (`tools/benchmark-trend.py`, `make benchmark-trend`)
 
 ### Changed
 - Refreshed roadmap and sprint status priorities to remove closed-item drift and reference reassessment issue `#46`
 - Synced latest release references to `@gaia-minds/assistant-cli@0.2.0` across top-level and assistant contributor docs
 - Added contributor guidance to use the roadmap/backlog review issue template for reassessment work
+- Expanded benchmark docs with nightly trend and incident linkage guidance
 
 ### Planned
 - Additional resource documentation

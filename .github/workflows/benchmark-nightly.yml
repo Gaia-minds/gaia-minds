@@ -1,0 +1,73 @@
+name: benchmark-nightly
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  benchmark-nightly:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run benchmark suite
+        id: benchmark
+        continue-on-error: true
+        run: make benchmark
+
+      - name: Update benchmark trend history
+        if: always()
+        run: |
+          python3 ./tools/benchmark-trend.py \
+            --results ./assistant/benchmark-results.json \
+            --history ./assistant/benchmark-trend-history.json \
+            --summary ./assistant/benchmark-trend-summary.md \
+            --runner-status "${{ steps.benchmark.outcome }}"
+
+      - name: Upload nightly benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-nightly-${{ github.run_id }}
+          path: |
+            assistant/benchmark-results.json
+            assistant/benchmark-trend-history.json
+            assistant/benchmark-trend-summary.md
+
+      - name: Commit nightly trend updates
+        if: always() && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add assistant/benchmark-trend-history.json assistant/benchmark-trend-summary.md
+          if git diff --cached --quiet; then
+            echo "No benchmark trend updates to commit."
+          else
+            git commit -m "chore: update nightly benchmark trend [skip ci]"
+            git push
+          fi
+
+      - name: Fail workflow if benchmark failed
+        if: always()
+        run: |
+          if [ "${{ steps.benchmark.outcome }}" != "success" ]; then
+            echo "Benchmark step outcome: ${{ steps.benchmark.outcome }}"
+            exit 1
+          fi

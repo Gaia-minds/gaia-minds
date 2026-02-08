@@ -109,6 +109,7 @@ Core principles are defined in `CONSTITUTION.md`:
 - Contribution protocol: `CONTRIBUTING.md`
 - Security policy: `SECURITY.md`
 - Code of conduct: `CODE_OF_CONDUCT.md`
+- Incident/postmortem workflow: `docs/incidents/README.md`
 
 ## Coordination
 
