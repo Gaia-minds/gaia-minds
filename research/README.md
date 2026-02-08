@@ -72,7 +72,7 @@ Use this template:
 - [To be added]
 
 ### Synthesis
-- [To be added]
+- [Roadmap and Backlog Research Playbook (2026-02)](synthesis/2026-02-roadmap-backlog-research-playbook.md) - Reusable method and evidence model for backlog realism reviews
 
 ---
 

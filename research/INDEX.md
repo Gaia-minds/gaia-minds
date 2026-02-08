@@ -10,3 +10,7 @@ Short, curated entry points for research content.
 
 - [The OpenClaw/Moltbook Phenomenon: Implications for Collective AI](ai-advances/2026-02-openclaw-moltbook-analysis.md) (2026-02) — Summary
 - [AI Safety and Alignment: Key Developments 2024-2025](ai-advances/2024-2025-safety-alignment-developments.md) (2024-20) — Summary
+
+### Synthesis
+
+- [Roadmap and Backlog Research Playbook (2026-02)](synthesis/2026-02-roadmap-backlog-research-playbook.md) (2026-02) — Summary

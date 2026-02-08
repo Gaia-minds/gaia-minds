@@ -210,9 +210,9 @@ Framework KPIs:
 
 ## Immediate 14-Day Priorities
 
-1. Complete benchmark harness and baseline scoring artifacts (`#35`).
-2. Complete autopilot-scoped task runner with rollback (`#36`).
-3. Publish contributor playbook for assistant vs framework changes (`#37`).
+1. Complete roadmap/backlog reassessment and publish execution ordering (`#46`).
+2. Open scoped Phase 2 implementation issues for recurring execution, reminders, and policy engine v1.
+3. Define incident/postmortem template and nightly benchmark trend workflow.
 
 ## Milestones Log
 
@@ -224,5 +224,6 @@ Framework KPIs:
 | 2026-02-08 | Phase 1 core utility batch merged | PRs #27, #28, #29, #30, #31, #32, #33, #34 |
 | 2026-02-08 | Phase 1 hardening report published | PR #38, 20/20 canonical tasks passed |
 | 2026-02-08 | npm CLI release published (`0.2.0`) | PR #39 + tag `v0.2.0` |
+| 2026-02-08 | Roadmap/backlog reassessment opened | Issue #46 with research-backed sequencing |
 
 This roadmap is a living document and should be updated at least weekly.

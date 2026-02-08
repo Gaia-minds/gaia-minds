@@ -1,0 +1,173 @@
+name: Roadmap Backlog Review
+description: Structured roadmap/backlog realism review with evidence, sequencing, and research gaps.
+title: "[ROADMAP REVIEW] "
+labels:
+  - framework-track
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for roadmap/backlog reassessment.
+        Follow the protocol in:
+        `research/synthesis/2026-02-roadmap-backlog-research-playbook.md`
+
+  - type: input
+    id: review_date
+    attributes:
+      label: Review Date (YYYY-MM-DD)
+      description: Use an absolute date.
+      placeholder: "2026-02-08"
+    validations:
+      required: true
+
+  - type: input
+    id: baseline_commit_sha
+    attributes:
+      label: Baseline Commit SHA
+      description: Commit used for this analysis snapshot.
+      placeholder: "2b0e6f1fdaf22231786cbdce08163646281e6c92"
+    validations:
+      required: true
+
+  - type: input
+    id: open_issue_count
+    attributes:
+      label: Open Issue Count
+      description: Count at analysis time.
+      placeholder: "0"
+    validations:
+      required: true
+
+  - type: input
+    id: open_pr_count
+    attributes:
+      label: Open PR Count
+      description: Count at analysis time.
+      placeholder: "0"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: internal_sources_reviewed
+    attributes:
+      label: Internal Sources Reviewed
+      description: Confirm core planning/runtime sources were reviewed.
+      options:
+        - label: ROADMAP.md
+          required: true
+        - label: STATUS.md
+          required: true
+        - label: README.md and assistant/README.md
+          required: true
+        - label: Core runtime/policy files in tools/ (assistant loop, config, benchmark)
+          required: true
+        - label: Relevant workflows in .github/workflows/
+          required: true
+
+  - type: textarea
+    id: observed_repository_facts
+    attributes:
+      label: Observed Repository Facts
+      description: Facts only, no interpretation.
+      placeholder: |
+        - No open issues and no open PRs.
+        - ROADMAP.md immediate priorities still reference #35/#36/#37.
+        - package.json is 0.2.0 while some docs still show 0.1.1.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence_decision_matrix
+    attributes:
+      label: Evidence-to-Decision Matrix
+      description: Map planned items to current state and decision.
+      placeholder: |
+        | Roadmap Item | Current State | Evidence | Decision |
+        | --- | --- | --- | --- |
+        | Scheduled execution | Partially-ready | ... | Implement next with guardrails |
+    validations:
+      required: true
+
+  - type: textarea
+    id: recommended_now
+    attributes:
+      label: Recommended Items to Tackle Now (0-2 weeks)
+      description: Ordered list with rationale and target dates.
+      placeholder: |
+        1. Backlog hygiene refresh (2026-02-09 to 2026-02-10)
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: recommended_next
+    attributes:
+      label: Recommended Items to Tackle Next (2-6 weeks)
+      description: Ordered list with dependencies.
+      placeholder: |
+        1. Reliability hardening
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: defer_or_do_not_start
+    attributes:
+      label: Deferred Items (and gating criteria)
+      description: What should wait and why.
+      placeholder: |
+        - Multi-agent runtime: defer until SLO + incident baselines are stable.
+    validations:
+      required: true
+
+  - type: textarea
+    id: unclear_items_research_spikes
+    attributes:
+      label: Unclear Items Requiring Research
+      description: Include unresolved question, why it blocks execution, and next research step.
+      placeholder: |
+        - Reminder channel policy: unclear privacy/compliance boundaries.
+          - Blocker: cannot define implementation scope safely.
+          - Research spike: compare local-only vs external channel options and consent model.
+    validations:
+      required: true
+
+  - type: textarea
+    id: external_sources
+    attributes:
+      label: External Sources Used
+      description: Include links and one-line relevance notes.
+      placeholder: |
+        - https://airc.nist.gov/airmf-resources/ai-risk-management-framework (governance baseline)
+        - https://platform.openai.com/docs/guides/evals-best-practices?api-mode=responses (eval process guidance)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: confidence
+    attributes:
+      label: Confidence in Recommendations
+      description: Confidence after current evidence and research.
+      options:
+        - High
+        - Medium
+        - Low
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: quality_checks
+    attributes:
+      label: Review Quality Checks
+      description: Confirm this review is complete and reproducible.
+      options:
+        - label: Absolute dates used throughout (not only relative terms).
+          required: true
+        - label: Issue and PR states were checked live.
+          required: true
+        - label: Facts are separated from inferences.
+          required: true
+        - label: Recommendations include ordered timing and scope.
+          required: true
+        - label: Unclear items include explicit research spikes.
+          required: true

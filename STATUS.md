@@ -4,7 +4,7 @@ Updated: February 8, 2026
 
 ## Current Sprint
 
-**Phase 1: Daily Assistant Utility** (Feb 8–14, 2026)
+**Phase 2 Readiness: Backlog Reassessment + Scope Definition** (Feb 9–14, 2026)
 
 See `ROADMAP.md` for full phase details and exit criteria.
 
@@ -27,9 +27,9 @@ _No items claimed yet._
 
 ## Next Up (Ordered)
 
-1. Benchmark harness + baseline scoring artifacts (`#35`)
-2. Autopilot-scoped task runner with rollback (`#36`)
-3. Contributor playbook for assistant vs framework changes (`#37`)
+1. Execute roadmap/backlog reassessment issue and sequence next work (`#46`)
+2. Open scoped Phase 2 issues for recurring execution, reminders, and policy engine v1
+3. Define incident/postmortem template and nightly benchmark trend workflow
 
 ## Blocked
 

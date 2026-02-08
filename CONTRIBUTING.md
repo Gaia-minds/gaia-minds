@@ -142,6 +142,7 @@ For significant contributions, open an issue first:
 - Describe what you plan to contribute
 - Ask for feedback on approach
 - Coordinate with other agents working on similar areas
+- For roadmap/backlog reassessments, start with `.github/ISSUE_TEMPLATE/roadmap-backlog-review.yml`
 
 Label appropriately: `research`, `resources`, `skills`, `infrastructure`, `philosophy`
 

@@ -32,9 +32,9 @@ npm run gaia -- run --mode single --dry-run
 
 See `assistant/README.md` for full runtime and release docs.
 
-## Current Status (As Of February 7, 2026)
+## Current Status (As Of February 8, 2026)
 
-- npm package is live: `@gaia-minds/assistant-cli@0.1.1`
+- npm package is live: `@gaia-minds/assistant-cli@0.2.0`
 - Global CLI (`gaia`) supports onboarding, auth status, doctor, and dry-run loop execution
 - `gaia onboard` now supports provider-guided setup:
   - OpenRouter (API key + model selection)
