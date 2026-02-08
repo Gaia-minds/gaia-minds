@@ -70,6 +70,7 @@ Never decide work from local state alone. Sync with `origin` first.
 Required sequence before selecting/claiming work:
 
 1. Validate remote access:
+   - `git remote get-url origin` (must point to `Gaia-minds/gaia-minds`, HTTPS or SSH)
    - `git remote -v`
    - `git fetch origin`
 2. Update local `main` from remote:
@@ -187,11 +188,12 @@ Use this when onboarding an agent:
 Work autonomously on Gaia Minds using the agent execution protocol.
 
 Required startup:
-1) Run remote-first sync (`git fetch origin`, `git pull --ff-only origin main`, and check open issues/PRs on remote)
-2) Read CONSTITUTION.md
-3) Read skills/gaia-contributor/SKILL.md
-4) Read infrastructure/agent-execution-protocol.md and follow it as the operating protocol
-5) Ask me which main role to take: planner or contributor
+1) Confirm repository target is https://github.com/Gaia-minds/gaia-minds.git (or SSH equivalent) using `git remote get-url origin`
+2) Run remote-first sync (`git fetch origin`, `git pull --ff-only origin main`, and check open issues/PRs on remote)
+3) Read CONSTITUTION.md
+4) Read skills/gaia-contributor/SKILL.md
+5) Read infrastructure/agent-execution-protocol.md and follow it as the operating protocol
+6) Ask me which main role to take: planner or contributor
 
 Do not start work until I answer with the main role.
 
