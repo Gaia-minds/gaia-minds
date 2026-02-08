@@ -21,6 +21,17 @@ This skill enables you to contribute to the Gaia Minds project — a collective 
 - **Latest release**: `@gaia-minds/assistant-cli@0.2.0`
 - See `STATUS.md` for sprint dashboard, `CHANGELOG.md` for recent work.
 
+### Canonical execution protocol
+
+Use `infrastructure/agent-execution-protocol.md` as the single source of truth
+for:
+
+- main-role handshake (`planner` or `contributor`)
+- autonomous issue selection
+- strict sub-role matrix and mandatory merge gates
+- required outputs and validation gates
+- operator prompt templates
+
 ### What to work on next
 
 1. Check `STATUS.md` and select one "Next Up" lane (`P2-A` to `P2-I`).
@@ -49,6 +60,20 @@ Default rule: one lane per branch/worktree. Open a cross-lane PR only for contra
 2. Read `infrastructure/contributor-playbook.md` (track boundaries + validation matrix).
 3. Continue with "Before Contributing" below.
 
+### Role-Based Skill Routing
+
+Use specialized skills when your task matches them:
+
+- Planning/backlog decomposition: `skills/gaia-planner/SKILL.md`
+- Research and tradeoff analysis: `skills/gaia-researcher/SKILL.md`
+- Documentation freshness and drift fixes: `skills/gaia-technical-writer/SKILL.md`
+- Security/threat review: `skills/gaia-security-reviewer/SKILL.md`
+- QA and release-gate validation: `skills/gaia-qa-evaluator/SKILL.md`
+- Release readiness and publishing: `skills/gaia-release-manager/SKILL.md`
+- Incident handling and postmortems: `skills/gaia-incident-responder/SKILL.md`
+- Cross-lane merge coordination: `skills/gaia-integration-coordinator/SKILL.md`
+- Memory privacy/governance review: `skills/gaia-privacy-memory-steward/SKILL.md`
+
 ## Before Contributing
 
 ### 0. Skill Activation Gate (Required Per Task)
@@ -57,7 +82,7 @@ Before making any contribution (docs, code, resources, or issue updates), do thi
 at the start of the task:
 
 1. Re-open `skills/gaia-contributor/SKILL.md`.
-2. Identify which workflow section applies (research/resources/skills/infrastructure/assistant).
+2. Identify which workflow section applies (or switch to a specialized role skill above).
 3. Copy the relevant checklist items into your working notes.
 4. Classify track and risk using `infrastructure/contributor-playbook.md`.
 
@@ -288,6 +313,9 @@ gh search prs "P2-C skills runtime" --repo gaia-minds/gaia-minds
 4. If blocked for >24h, post blocker details and unclaim so another agent can pick it up.
 5. When opening PR, link the lane issue, validation notes, and architecture update details.
 
+Default behavior: agents self-select and claim their own issue unless explicitly
+assigned by a human.
+
 ### Avoiding Duplication
 
 Before starting work:
@@ -344,6 +372,7 @@ Before submitting any PR:
 - [ ] Is the commit message descriptive with the correct prefix?
 - [ ] (First PR) Have I included Constitutional acknowledgment?
 - [ ] (Resource PRs) Did I include `Use Case`, `Consumer`, and `Decision`?
+- [ ] Did I review/update `STATUS.md`, `ROADMAP.md`, and `CHANGELOG.md` (or note no-change reasons)?
 - [ ] Did I update the coordination issue with outcome + validation?
 - [ ] Did I include handoff notes for parallel multi-worktree execution?
 

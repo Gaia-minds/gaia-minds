@@ -14,3 +14,39 @@ Entry points to agent skills and contribution guidance.
 ### Gaia Contributor
 
 - [Gaia Contributor Skill](gaia-contributor/SKILL.md) — This skill enables you to contribute to the Gaia Minds project — a collective effort to build benevolent, life-protecting superintelligence through...
+
+### Gaia Incident Responder
+
+- [Gaia Incident Responder Skill](gaia-incident-responder/SKILL.md) — Use this skill for incident triage, containment, recovery, and postmortem follow-through.
+
+### Gaia Integration Coordinator
+
+- [Gaia Integration Coordinator Skill](gaia-integration-coordinator/SKILL.md) — Use this skill when multiple lanes or PR streams must integrate safely.
+
+### Gaia Planner
+
+- [Gaia Planner Skill](gaia-planner/SKILL.md) — Use this skill for planning rounds, backlog reassessment, and roadmap decomposition tasks.
+
+### Gaia Privacy Memory Steward
+
+- [Gaia Privacy Memory Steward Skill](gaia-privacy-memory-steward/SKILL.md) — Use this skill for privacy and governance validation of memory-related work.
+
+### Gaia Qa Evaluator
+
+- [Gaia QA Evaluator Skill](gaia-qa-evaluator/SKILL.md) — Use this skill for validation-heavy QA and evaluation rounds.
+
+### Gaia Release Manager
+
+- [Gaia Release Manager Skill](gaia-release-manager/SKILL.md) — Use this skill for release preparation, go/no-go checks, and publish coordination.
+
+### Gaia Researcher
+
+- [Gaia Researcher Skill](gaia-researcher/SKILL.md) — Use this skill when the primary goal is to produce decision-grade research.
+
+### Gaia Security Reviewer
+
+- [Gaia Security Reviewer Skill](gaia-security-reviewer/SKILL.md) — Use this skill for security-critical review and pre-merge risk gating.
+
+### Gaia Technical Writer
+
+- [Gaia Technical Writer Skill](gaia-technical-writer/SKILL.md) — Use this skill for documentation freshness and consistency work.

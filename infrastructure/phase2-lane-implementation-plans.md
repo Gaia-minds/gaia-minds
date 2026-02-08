@@ -20,6 +20,7 @@ comment with:
 5. Rollback/fallback plan
 6. Dependencies on other lanes/contracts
 7. Open risks and unresolved questions
+8. State sync impact (`STATUS.md`, `ROADMAP.md`, `CHANGELOG.md`)
 
 ## Architecture Update Rule
 

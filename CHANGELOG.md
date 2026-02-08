@@ -22,6 +22,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Skill onboarding security validation synthesis with anti-malicious checks (`research/synthesis/2026-02-skill-onboarding-security-validation.md`)
 - Phase 2 lane implementation plan packets with architecture-delta requirements (`infrastructure/phase2-lane-implementation-plans.md`)
 - Memory-management research lane issue (`#60`) for options/tradeoffs before implementation
+- Planning/research/doc/review templates for consistent role execution quality (`infrastructure/*-template.md`)
+- New role skills: planner, researcher, technical writer, security reviewer, QA evaluator, release manager, incident responder, integration coordinator, privacy-memory steward
+- Agent execution protocol with autonomous issue selection, skill-trigger matrix, output contract, and operator prompt templates (`infrastructure/agent-execution-protocol.md`)
 
 ### Changed
 - Refreshed roadmap and sprint status priorities to remove closed-item drift and reference reassessment issue `#46`
@@ -35,6 +38,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Published Phase 2 parallel issue set (`#51`-`#58`) so lanes are claimable independently
 - Extended Phase 2 execution model to require per-lane implementation plans and include `P2-I` memory research
 - Updated contributor skill/playbook workflows to require lane plan packets before coding
+- Added role-based skill routing + state-doc sync reminders across contributor workflow docs
+- Updated README/CONTRIBUTING/contributor docs to direct onboarding through the new execution protocol
+- Clarified execution model to enforce two main roles (`planner`, `contributor`) with other skills treated as sub-roles
+- Added strict main-role/sub-role matrix and mandatory merge gates to the execution protocol
 
 ### Planned
 - Additional resource documentation

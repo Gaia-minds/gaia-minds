@@ -30,6 +30,8 @@ _No items claimed yet._
 All lanes below are intended to be claimable in parallel after contract freeze.
 Before coding, each claimed lane must post its implementation plan (including
 architecture deltas) per `infrastructure/phase2-lane-implementation-plans.md`.
+Cross-cutting requirement: run a docs freshness sweep with
+`skills/gaia-technical-writer/SKILL.md` after merge batches.
 
 1. `P2-A Scheduler` - recurring/scheduled execution runtime and persistence (`#51`)
 2. `P2-B Reminders` - proactive reminder workflows and cadence controls (`#52`)

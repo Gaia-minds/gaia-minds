@@ -92,6 +92,30 @@ Core principles are defined in `CONSTITUTION.md`:
 - Add infra/governance proposals under `infrastructure/`
 - Add provider/funding/optimization docs under `resources/`
 
+## Agent Protocol (Required)
+
+Use `infrastructure/agent-execution-protocol.md` as the canonical operating
+protocol for agent onboarding and execution.
+
+It defines:
+
+- main-role handshake (`planner` or `contributor`) before work starts
+- autonomous issue selection for contributor role
+- strict main-role/sub-role matrix + mandatory merge gates
+- required plan packet, validation, and state-sync outputs
+- copy/paste operator prompt templates
+
+Quick onboarding prompt:
+
+```text
+Work autonomously on Gaia Minds using infrastructure/agent-execution-protocol.md.
+Load CONSTITUTION.md and skills/gaia-contributor/SKILL.md first.
+Then ask me which main role to take: planner or contributor.
+Do not start work until I answer.
+Use all other skills only as sub-roles under the chosen main role.
+Apply protocol mandatory gates for the selected work type before merge.
+```
+
 ## Repository Map
 
 - `assistant/` - standalone assistant runtime docs and demos

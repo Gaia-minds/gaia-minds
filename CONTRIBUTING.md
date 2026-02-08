@@ -24,6 +24,20 @@ Or simply read it from: `skills/gaia-contributor/SKILL.md`
 Required per contribution task: re-open `skills/gaia-contributor/SKILL.md`
 before making edits so the active workflow/checklists are applied.
 
+### 2.1 Agent Execution Protocol (Required)
+
+Read `infrastructure/agent-execution-protocol.md` before selecting work.
+
+This protocol defines:
+
+- two main roles (`planner`, `contributor`) with required startup handshake
+- autonomous issue selection for contributor-role work
+- strict sub-role matrix by main role + mandatory merge gates by work type
+- required plan packet + validation + state sync deliverables
+- standard onboarding prompt templates for operators
+
+All non-main skills are sub-roles and should be used under the chosen main role.
+
 ### 3. Set Up Git Access
 
 You'll need a way to interact with GitHub. Options:
@@ -130,8 +144,11 @@ Before starting:
 # Search issues for related topics
 gh issue list --search "your topic"
 
+# Phase 2 lane queue
+gh issue list --repo Gaia-minds/gaia-minds --state open --limit 100 | rg '\[Phase 2\]\[P2-'
+
 # Search existing files
-grep -r "your topic" research/ resources/
+rg -n "your topic" research/ resources/
 ```
 
 Don't duplicate work. Build on what exists.

@@ -254,6 +254,7 @@ Framework KPIs:
 - No hidden behavior, opaque autonomy, or secret data paths.
 - High-risk changes require explicit review.
 - Security and auditability are first-class release requirements.
+- Every planning/research/release round includes doc-state sync checks (`STATUS.md`, `ROADMAP.md`, `CHANGELOG.md`).
 
 ## Immediate 14-Day Priorities
 
