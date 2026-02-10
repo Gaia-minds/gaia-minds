@@ -19,9 +19,29 @@
       "timestamp_utc": "2026-02-09T05:12:40.194882+00:00",
       "total": 20,
       "workflow": "benchmark-nightly"
+    },
+    {
+      "actor": "TonyThePredictor",
+      "benchmark_status": "pass",
+      "date_utc": "2026-02-10",
+      "event_name": "schedule",
+      "failed": 0,
+      "passed": 20,
+      "ref": "main",
+      "run_attempt": "1",
+      "run_id": "21852636582",
+      "runner_status": "pass",
+      "score_pct": 100.0,
+      "sha": "36531a5388f33ee11c167d9df9ca62a5d83baa26",
+      "status": "pass",
+      "suite": "phase1-canonical-benchmark",
+      "target_score_pct": 80.0,
+      "timestamp_utc": "2026-02-10T05:13:45.340337+00:00",
+      "total": 20,
+      "workflow": "benchmark-nightly"
     }
   ],
   "schema_version": 1,
   "suite": "phase1-canonical-benchmark",
-  "updated_at": "2026-02-09T05:12:40.194912+00:00"
+  "updated_at": "2026-02-10T05:13:45.340375+00:00"
 }
