@@ -528,6 +528,51 @@ Lane: `Memory Runtime Contract + SQLite Adapter` (`#75`)
 - Memory traces include `memory_id`/`memory_type`/`subject_id` metadata and
   retrieval diagnostics (`retrieval_mode`, candidate/selected counts).
 
+## Phase 2 Delta: Memory Retrieval + Ranking Pipeline (2026-02-13)
+
+Lane: `Memory Retrieval + Ranking Pipeline` (`#76`)
+
+### Runtime changes
+
+- Added retrieval command surface in assistant launcher:
+  `gaia memory retrieve`.
+- Added deterministic retrieval stage pipeline over SQLite candidates:
+  - exact (`memory_id` match)
+  - lexical (token Jaccard overlap)
+  - semantic fallback (character n-gram Dice similarity)
+- Added deterministic reranking controls combining:
+  - stage/base retrieval score
+  - record importance
+  - recency decay from `updated_at`
+- Added retrieval diagnostics to result payload:
+  - `retrieval_stage`
+  - `score_exact`, `score_lexical`, `score_semantic`, `score_recency`
+  - `score_final`
+  - `rank`
+
+### Benchmark and quality changes
+
+- Added deterministic retrieval benchmark fixture set:
+  `assistant/memory-retrieval-fixtures.json`.
+- Added benchmark runner:
+  `tools/memory-benchmark.py`.
+- Added local gate command:
+  `make memory-benchmark` (fails when thresholds regress).
+- Added threshold metrics:
+  - Recall@k minimum
+  - nDCG@k minimum
+  - p95 latency maximum
+  - average token-overhead maximum
+
+### CI/local enforcement changes
+
+- Expanded smoke suite with retrieval pipeline assertions and benchmark gate:
+  `tools/smoke-test.sh` (`memory_retrieve_ranking_and_benchmark`).
+- Expanded deterministic UAT suite with retrieval + benchmark threshold scenario:
+  `assistant/uat-scenarios.json` (`memory_retrieve_ranking_benchmark`).
+- Added UAT feature governance mapping for `gaia memory retrieve`:
+  `assistant/feature-catalog.json`.
+
 ---
 
 ## Open Technical Questions

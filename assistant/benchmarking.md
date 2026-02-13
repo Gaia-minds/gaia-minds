@@ -1,9 +1,10 @@
-# Benchmark Methodology (Phase 1 + Quality Matrix)
+# Benchmark Methodology (Phase 1 + Quality Matrix + Memory Retrieval)
 
 This benchmark tracks:
 
 1. quality on the 20 canonical Phase 1 assistant tasks
 2. deterministic quality-matrix guardrails for skills/sandbox/policy compatibility
+3. deterministic memory retrieval quality/latency/token-overhead thresholds
 
 ## Command Surface
 
@@ -11,11 +12,13 @@ Run benchmark:
 
 ```bash
 make benchmark
+make memory-benchmark
 ```
 
 The command writes structured JSON results to:
 
 - `assistant/benchmark-results.json`
+- `assistant/memory-retrieval-benchmark-results.json` (when running `make memory-benchmark`)
 - `assistant/quality-matrix-results.json` (when running `make quality-matrix`)
 - `assistant/benchmark-trend-history.json` (when running `make benchmark-trend`)
 - `assistant/benchmark-trend-summary.md` (when running `make benchmark-trend`)
@@ -29,6 +32,7 @@ Baseline artifact:
 - Task source: `assistant/canonical-tasks.md`
 - Runner source: `tools/phase1-hardening.py`
 - Quality runner source: `tools/quality-matrix.py`
+- Memory retrieval runner source: `tools/memory-benchmark.py`
 - Benchmark wrapper: `tools/benchmark.py`
 - Combined score: `(canonical_passed + quality_passed) / (canonical_total + quality_total) * 100`
 - Success target: `>=80%`
@@ -45,6 +49,14 @@ Quality matrix emits:
 - fixture/runtime check id
 - category (`prompt-injection`, `unsafe-script`, `exfiltration`, `sandbox`, `policy`, `compatibility`)
 - pass/fail status
+
+Memory retrieval benchmark emits:
+
+- per-query returned ids vs expected ids
+- Recall@k and nDCG@k
+- retrieval latency (ms), including p95 threshold check
+- token-overhead estimate and threshold check
+- pass/fail status from fixture-defined thresholds
 
 ## Determinism Rules
 
@@ -69,6 +81,10 @@ Review the resulting diff in `assistant/benchmark-baseline.json` before merge.
 `.github/workflows/benchmark.yml` runs `make benchmark` on PRs and main,
 and uploads `assistant/benchmark-results.json` as an artifact.
 
+Memory retrieval thresholds are also enforced in CI via smoke/UAT suites:
+- `make test-smoke` runs retrieval + `tools/memory-benchmark.py --check`
+- `make test-uat` runs retrieval + `tools/memory-benchmark.py --check`
+
 `.github/workflows/quality-matrix.yml` runs `make quality-matrix` on PRs and main,
 and uploads `assistant/quality-matrix-results.json` as an artifact.
 
@@ -84,6 +100,7 @@ Nightly trend workflow:
 
 ```bash
 make benchmark
+make memory-benchmark
 make quality-matrix
 make benchmark-trend
 ```

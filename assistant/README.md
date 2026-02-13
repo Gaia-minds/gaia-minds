@@ -30,6 +30,9 @@ npm run gaia -- run --mode single --dry-run
 # Deterministic benchmark run
 make benchmark
 
+# Deterministic memory retrieval benchmark gate
+make memory-benchmark
+
 # Deterministic quality matrix run
 make quality-matrix
 
@@ -161,12 +164,15 @@ Benchmark the 20 canonical Phase 1 tasks plus quality-matrix guardrails:
 
 ```bash
 make benchmark
+make memory-benchmark
 make quality-matrix
 make benchmark-trend
 ```
 
 - Methodology and update process: `assistant/benchmarking.md`
 - Baseline artifact: `assistant/benchmark-baseline.json`
+- Memory retrieval benchmark fixture: `assistant/memory-retrieval-fixtures.json`
+- Memory retrieval benchmark result: `assistant/memory-retrieval-benchmark-results.json`
 - Quality matrix artifact: `assistant/quality-matrix-results.json`
 - Trend history: `assistant/benchmark-trend-history.json`
 - Trend summary: `assistant/benchmark-trend-summary.md`
@@ -283,12 +289,13 @@ and `reminder_fail`.
 
 ## Memory Runtime
 
-Memory commands provide deterministic local SQLite CRUD flows for structured
-long-term memory records.
+Memory commands provide deterministic local SQLite CRUD and retrieval/ranking
+flows for structured long-term memory records.
 
 ```bash
 # add one memory record
 gaia memory add \
+  --memory-id user_pref_concise \
   --type user_long \
   --subject user:default \
   --content "User prefers concise updates." \
@@ -299,10 +306,14 @@ gaia memory add \
 # retrieve and filter
 gaia memory get <memory-id>
 gaia memory list --subject user:default --q concise --limit 20
+gaia memory retrieve --query "concise updates" --subject user:default --limit 5
 
 # update and soft-delete
 gaia memory update <memory-id> --summary "concise style preference" --importance 0.9
 gaia memory delete <memory-id>
+
+# run deterministic retrieval benchmark thresholds
+make memory-benchmark
 ```
 
 Memory persistence:
@@ -312,6 +323,13 @@ Memory persistence:
 - Record contract: `memory_id`, `memory_type`, `subject_id`, `content`,
   `summary`, `source_trace_id`, `confidence`, `importance`, `retention_ttl`,
   `consent_scope`, timestamps, and soft-delete marker
+
+Retrieval pipeline:
+
+- deterministic stage order: exact -> lexical -> semantic fallback
+- optional semantic fallback disable flag: `--no-semantic-fallback`
+- ranking components: stage match score + importance + recency decay
+- retrieval diagnostics in JSON output: stage, score breakdown, rank
 
 Memory traces:
 

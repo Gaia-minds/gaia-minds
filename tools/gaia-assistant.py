@@ -4765,6 +4765,129 @@ def _memory_trace_metadata(
     return _with_trace_metadata(metadata=metadata)
 
 
+def _tokenize_text(raw: str) -> List[str]:
+    return [token for token in re.findall(r"[a-z0-9]+", str(raw).lower()) if token]
+
+
+def _token_jaccard_score(a: str, b: str) -> float:
+    left = set(_tokenize_text(a))
+    right = set(_tokenize_text(b))
+    if not left or not right:
+        return 0.0
+    return len(left.intersection(right)) / len(left.union(right))
+
+
+def _char_ngram_dice_score(a: str, b: str, n: int = 3) -> float:
+    left_src = str(a).lower().strip()
+    right_src = str(b).lower().strip()
+    if not left_src or not right_src:
+        return 0.0
+    if len(left_src) < n or len(right_src) < n:
+        return 1.0 if left_src == right_src else 0.0
+    left = {left_src[idx : idx + n] for idx in range(len(left_src) - n + 1)}
+    right = {right_src[idx : idx + n] for idx in range(len(right_src) - n + 1)}
+    if not left or not right:
+        return 0.0
+    return (2.0 * len(left.intersection(right))) / (len(left) + len(right))
+
+
+def _parse_iso_datetime(value: str) -> Optional[datetime]:
+    raw = str(value).strip()
+    if not raw:
+        return None
+    normalized = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _recency_score(timestamp: str, reference: datetime) -> float:
+    parsed = _parse_iso_datetime(timestamp)
+    if parsed is None:
+        return 0.0
+    age_seconds = max((reference - parsed).total_seconds(), 0.0)
+    day_seconds = 24.0 * 60.0 * 60.0
+    # Exponential-like decay without external dependencies.
+    return 1.0 / (1.0 + (age_seconds / day_seconds))
+
+
+def _memory_retrieval_pipeline(
+    query: str,
+    candidates: List[Dict[str, Any]],
+    *,
+    limit: int,
+    semantic_fallback: bool,
+) -> List[Dict[str, Any]]:
+    text_query = str(query).strip()
+    if not text_query:
+        return []
+
+    now = datetime.now(timezone.utc)
+    scored: List[Dict[str, Any]] = []
+    for candidate in candidates:
+        memory_id = str(candidate.get("memory_id", "")).strip()
+        content = str(candidate.get("content", "")).strip()
+        summary = str(candidate.get("summary", "")).strip()
+        corpus = f"{summary} {content}".strip()
+
+        exact_score = 1.0 if memory_id == text_query else 0.0
+        lexical_score = _token_jaccard_score(text_query, corpus)
+        semantic_score = 0.0
+        if semantic_fallback:
+            semantic_score = _char_ngram_dice_score(text_query, corpus)
+
+        stage = ""
+        base_score = 0.0
+        if exact_score > 0.0:
+            stage = "exact"
+            base_score = exact_score
+        elif lexical_score > 0.0:
+            stage = "lexical"
+            base_score = lexical_score
+        elif semantic_score > 0.0:
+            stage = "semantic"
+            base_score = semantic_score
+
+        if not stage:
+            continue
+
+        recency = _recency_score(str(candidate.get("updated_at", "")), now)
+        importance = max(0.0, min(float(candidate.get("importance", 0.0)), 1.0))
+        final_score = (base_score * 0.7) + (importance * 0.2) + (recency * 0.1)
+
+        scored_item = dict(candidate)
+        scored_item["retrieval_stage"] = stage
+        scored_item["score_exact"] = round(exact_score, 6)
+        scored_item["score_lexical"] = round(lexical_score, 6)
+        scored_item["score_semantic"] = round(semantic_score, 6)
+        scored_item["score_recency"] = round(recency, 6)
+        scored_item["score_final"] = round(final_score, 6)
+        scored.append(scored_item)
+
+    scored.sort(
+        key=lambda item: (
+            float(item.get("score_final", 0.0)),
+            float(item.get("score_exact", 0.0)),
+            float(item.get("score_lexical", 0.0)),
+            float(item.get("importance", 0.0)),
+            str(item.get("updated_at", "")),
+            str(item.get("memory_id", "")),
+        ),
+        reverse=True,
+    )
+
+    if limit <= 0:
+        limit = MEMORY_LIST_DEFAULT_LIMIT
+    limited = scored[: min(limit, MEMORY_LIST_MAX_LIMIT)]
+    for idx, item in enumerate(limited, start=1):
+        item["rank"] = idx
+    return limited
+
+
 def cmd_memory_add(args: argparse.Namespace) -> int:
     cfg_path = Path(args.config).expanduser()
     cfg = _ensure_config_exists(cfg_path)
@@ -4797,6 +4920,7 @@ def cmd_memory_add(args: argparse.Namespace) -> int:
     try:
         record = store.create(
             {
+                "memory_id": args.memory_id,
                 "memory_type": args.memory_type,
                 "subject_id": args.subject_id,
                 "content": args.content,
@@ -5007,6 +5131,109 @@ def cmd_memory_list(args: argparse.Namespace) -> int:
         print(
             f"{record['memory_id']} {record['memory_type']} {record['subject_id']} "
             f"{record['updated_at']} {summary}"
+        )
+    return 0
+
+
+def cmd_memory_retrieve(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    query = str(args.query).strip()
+    if not query:
+        print("--query cannot be empty.", file=sys.stderr)
+        return 1
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="memory_read",
+        input_summary=f"memory retrieve query={query}",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_retrieve",
+            input_summary=f"query={query}",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    store = _memory_store(storage_dir)
+    candidate_limit = int(args.candidate_limit)
+    if candidate_limit <= 0:
+        candidate_limit = MEMORY_LIST_MAX_LIMIT
+    candidate_limit = min(candidate_limit, MEMORY_LIST_MAX_LIMIT)
+
+    try:
+        candidates = store.list(
+            memory_type=args.memory_type,
+            subject_id=args.subject_id,
+            query=None,
+            limit=candidate_limit,
+            include_deleted=bool(args.include_deleted),
+        )
+    except ValueError as exc:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_retrieve",
+            input_summary=f"query={query}",
+            output_summary=str(exc),
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    results = _memory_retrieval_pipeline(
+        query=query,
+        candidates=candidates,
+        limit=int(args.limit),
+        semantic_fallback=not bool(args.no_semantic_fallback),
+    )
+    latency_ms = (time.perf_counter() - start) * 1000
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="memory_retrieve",
+        input_summary=f"query={query} type={args.memory_type or '-'} subject={args.subject_id or '-'}",
+        output_summary=f"{len(results)} retrieved",
+        duration_ms=latency_ms,
+        permission_level=permission_level,
+        metadata=_memory_trace_metadata(
+            memory_type=args.memory_type,
+            subject_id=args.subject_id,
+            retrieval_mode="pipeline",
+            candidate_count=len(candidates),
+            selected_count=len(results),
+        ),
+    )
+
+    if args.as_json:
+        print(json.dumps(results, indent=2))
+        return 0
+
+    if not results:
+        print("No memory retrieval matches found.")
+        return 0
+
+    for item in results:
+        summary = _summarize_text(item.get("summary") or item.get("content", ""), max_chars=80)
+        print(
+            f"rank={item.get('rank', '?')} id={item.get('memory_id', '?')} "
+            f"stage={item.get('retrieval_stage', '?')} score={float(item.get('score_final', 0.0)):.3f} "
+            f"type={item.get('memory_type', '?')} subject={item.get('subject_id', '?')} "
+            f"summary={summary}"
         )
     return 0
 
@@ -8620,6 +8847,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Memory type",
     )
+    memory_add.add_argument("--memory-id", default=None, help="Optional explicit memory id")
     memory_add.add_argument("--subject", dest="subject_id", required=True, help="Memory subject id")
     memory_add.add_argument("--content", required=True, help="Memory content text")
     memory_add.add_argument("--summary", default="", help="Optional summary text")
@@ -8656,6 +8884,29 @@ def build_parser() -> argparse.ArgumentParser:
     memory_list.add_argument("--include-deleted", action="store_true", help="Include soft-deleted records")
     memory_list.add_argument("--json", dest="as_json", action="store_true", help="Emit memory list JSON")
     memory_list.set_defaults(func=cmd_memory_list)
+
+    memory_retrieve = memory_sub.add_parser("retrieve", help="Run deterministic retrieval + ranking pipeline")
+    memory_retrieve.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    memory_retrieve.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    memory_retrieve.add_argument("--trace-dir", default=None, help="Trace directory override")
+    memory_retrieve.add_argument("--type", dest="memory_type", choices=list(MEMORY_TYPE_CHOICES), default=None)
+    memory_retrieve.add_argument("--subject", dest="subject_id", default=None, help="Filter by subject id")
+    memory_retrieve.add_argument(
+        "--candidate-limit",
+        type=int,
+        default=MEMORY_LIST_MAX_LIMIT,
+        help="Maximum candidate rows before ranking",
+    )
+    memory_retrieve.add_argument("--limit", type=int, default=MEMORY_LIST_DEFAULT_LIMIT, help="Top results to return")
+    memory_retrieve.add_argument("--include-deleted", action="store_true", help="Include soft-deleted candidates")
+    memory_retrieve.add_argument(
+        "--no-semantic-fallback",
+        action="store_true",
+        help="Disable deterministic semantic fallback stage",
+    )
+    memory_retrieve.add_argument("--json", dest="as_json", action="store_true", help="Emit retrieval result JSON")
+    memory_retrieve.add_argument("--query", required=True, help="Retrieval query")
+    memory_retrieve.set_defaults(func=cmd_memory_retrieve)
 
     memory_update = memory_sub.add_parser("update", help="Update one memory record")
     memory_update.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")

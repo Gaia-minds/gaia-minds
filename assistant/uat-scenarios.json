@@ -58,6 +58,12 @@
       "command": "node ./bin/gaia.js memory add --type user_long --subject uat-user --content 'UAT memory content' --summary 'UAT memory summary' --consent-scope user --retention-ttl P30D >/tmp/memory-add-uat.out && memory_id=$(awk 'NR==1 {print $1}' /tmp/memory-add-uat.out) && [[ -n \"$memory_id\" ]] && get_json=$(node ./bin/gaia.js memory get \"$memory_id\" --json) && [[ \"$get_json\" == *\"\\\"memory_id\\\": \\\"$memory_id\\\"\"* ]] && node ./bin/gaia.js memory update \"$memory_id\" --summary 'UAT memory summary updated' --importance 0.9 >/dev/null && listed=$(node ./bin/gaia.js memory list --subject uat-user --q updated) && [[ \"$listed\" == *\"$memory_id\"* ]] && node ./bin/gaia.js memory delete \"$memory_id\" >/dev/null && set +e; node ./bin/gaia.js memory get \"$memory_id\" >/tmp/memory-get-after-delete-uat.out 2>&1; rc=$?; set -e; [[ $rc -ne 0 ]] && gone=$(cat /tmp/memory-get-after-delete-uat.out) && [[ \"$gone\" == *\"Memory not found\"* ]]"
     },
     {
+      "id": "memory_retrieve_ranking_benchmark",
+      "description": "Memory retrieval ranking pipeline and benchmark thresholds are deterministic",
+      "expect_exit": 0,
+      "command": "node ./bin/gaia.js memory add --memory-id uat_pref_concise --type user_long --subject user:uat --content 'User prefers concise updates with bullets.' --summary 'concise preference' --consent-scope user --retention-ttl P30D >/dev/null && node ./bin/gaia.js memory add --memory-id uat_policy_keys --type safety_audit --subject system:policy --content 'Never store API keys in memory.' --summary 'api key policy' --consent-scope audit --retention-ttl P365D >/dev/null && retrieved=$(node ./bin/gaia.js memory retrieve --query 'concise updates' --subject user:uat --limit 1) && [[ \"$retrieved\" == *\"id=uat_pref_concise\"* ]] && [[ \"$retrieved\" == *\"stage=\"* ]] && python3 ./tools/memory-benchmark.py --fixtures ./assistant/memory-retrieval-fixtures.json --assistant-home \"$GAIA_ASSISTANT_HOME/memory-benchmark\" --json-out \"$GAIA_ASSISTANT_HOME/memory-benchmark-results.json\" --check >/tmp/memory-benchmark-uat.out 2>&1 && benchmark_out=$(cat /tmp/memory-benchmark-uat.out) && [[ \"$benchmark_out\" == *'\"status\": \"pass\"'* ]] && [[ -f \"$GAIA_ASSISTANT_HOME/memory-benchmark-results.json\" ]]"
+    },
+    {
       "id": "summarize_and_summaries",
       "description": "Summarize and summaries commands work with local fixture",
       "expect_exit": 0,
