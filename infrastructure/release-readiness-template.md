@@ -1,6 +1,6 @@
 # Release Readiness Template
 
-Updated: February 8, 2026
+Updated: February 13, 2026
 
 ## 1. Release Scope
 
@@ -26,18 +26,27 @@ Updated: February 8, 2026
 
 Reference rubric: `infrastructure/self-evolution-evidence-rubric.md`
 
-## 4. Risk Review
+## 4. Reliability Checkpoint Gate (Required for Phase 3 framework releases)
+
+- [ ] Reliability checkpoint artifact linked
+- [ ] Thresholds from `assistant/reliability-baseline-phase3.json` are satisfied
+- [ ] Any threshold breach has severity + owner triage record
+- [ ] Incident/postmortem links added for unresolved reliability regressions
+
+Reference workflow: `infrastructure/reliability-triage-workflow.md`
+
+## 5. Risk Review
 
 - High-risk changes:
 - Mitigations:
 
-## 5. Publish Plan
+## 6. Publish Plan
 
 - Build/publish commands:
 - Verification steps:
 - Communication targets:
 
-## 6. Decision
+## 7. Decision
 
 - Go/no-go:
 - Reason:

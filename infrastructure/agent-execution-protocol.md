@@ -161,6 +161,10 @@ Before merge, enforce these gates:
    - self-evolution applicability explicitly declared in PR template
    - required rubric fields completed (`baseline`, `delta`, `thresholds/guardrails`, `rollback/fallback`, `risk notes`)
    - deterministic CI check passes (`self-evolution-evidence` workflow / `tools/check-self-evolution-evidence.py`)
+6. Reliability checkpoint/baseline PR:
+   - checkpoint artifact generated with reproducible command evidence
+   - thresholds sourced from `assistant/reliability-baseline-phase3.json`
+   - breach triage workflow reference included (`infrastructure/reliability-triage-workflow.md`)
 
 ## Required Output Contract
 

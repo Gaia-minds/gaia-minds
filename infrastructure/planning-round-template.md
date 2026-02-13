@@ -1,6 +1,6 @@
 # Planning Round Template
 
-Updated: February 8, 2026
+Updated: February 13, 2026
 
 ## 1. Planning Question
 
@@ -14,6 +14,7 @@ Updated: February 8, 2026
 - `STATUS.md`:
 - `CHANGELOG.md`:
 - `infrastructure/self-evolution-evidence-rubric.md` (required when planning self-evolution items):
+- `assistant/reliability-baseline-phase3.json` (required when planning reliability/SLO changes):
 - Issues/PRs:
 
 ## 3. Current State Snapshot

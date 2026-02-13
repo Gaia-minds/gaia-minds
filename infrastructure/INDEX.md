@@ -16,11 +16,12 @@ Technical foundations and operational guidance.
 - [Personal Assistant Program](personal-assistant-program.md) — This document defines Gaia's assistant track, designed as a standalone, constitutionally aligned personal assistant runtime.
 - [Phase 2 Lane Implementation Plans](phase2-lane-implementation-plans.md) — Updated: February 8, 2026
 - [Phase 2 Planning Round - 2026-02-08](planning-round-2026-02-08-phase2.md) — Updated: February 8, 2026 Coordinator: Codex (planner main role) Activated sub-roles: `gaia-planner`, `gaia-integration-coordinator`...
-- [Planning Round Template](planning-round-template.md) — Updated: February 8, 2026
+- [Planning Round Template](planning-round-template.md) — Updated: February 13, 2026
 - [Post-Phase-2 Reassessment Planning Round - 2026-02-13](planning-round-2026-02-13-post-phase2-reassessment.md) — Updated: February 13, 2026 Coordinator: Codex (planner main role) Activated sub-roles: `gaia-integration-coordinator`, `gaia-technical-writer`...
 - [Privacy and Memory Review Template](privacy-memory-review-template.md) — Updated: February 8, 2026
 - [QA Evaluation Template](qa-evaluation-template.md) — Updated: February 8, 2026
-- [Release Readiness Template](release-readiness-template.md) — Updated: February 8, 2026
+- [Release Readiness Template](release-readiness-template.md) — Updated: February 13, 2026
+- [Reliability Triage Workflow](reliability-triage-workflow.md) — Updated: February 13, 2026
 - [Research Task Template](research-task-template.md) — Updated: February 8, 2026
 - [Sandbox Contract v1](sandbox-contract-v1.md) — Updated: February 13, 2026
 - [Security Guidelines](security.md) — This document outlines security practices for the Gaia Minds project.
