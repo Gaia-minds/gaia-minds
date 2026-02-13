@@ -75,6 +75,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Planning/research/doc/review templates for consistent role execution quality (`infrastructure/*-template.md`)
 - New role skills: planner, researcher, technical writer, security reviewer, QA evaluator, release manager, incident responder, integration coordinator, privacy-memory steward
 - Agent execution protocol with autonomous issue selection, skill-trigger matrix, output contract, and operator prompt templates (`infrastructure/agent-execution-protocol.md`)
+- Post-Phase-2 reassessment planning-round artifact and kickoff queue decomposition for Phase 3 (`infrastructure/planning-round-2026-02-13-post-phase2-reassessment.md`, `#84`)
+- Phase 3 kickoff issue set for evidence rubric, hypothesis pipeline v1, and reliability baseline checkpoint (`#85`, `#86`, `#87`)
 
 ### Changed
 - Assistant architecture docs now include Phase 2 scheduler delta details (`infrastructure/architecture.md`)
@@ -105,6 +107,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Clarified execution model to enforce two main roles (`planner`, `contributor`) with other skills treated as sub-roles
 - Added strict main-role/sub-role matrix and mandatory merge gates to the execution protocol
 - Added remote-first sync requirement so agents must refresh from `origin` before planning or issue selection
+- Refreshed roadmap/status to reflect completed Phase 2 delivery and queued Phase 3 kickoff priorities (`ROADMAP.md`, `STATUS.md`)
 
 ### Planned
 - Additional resource documentation
