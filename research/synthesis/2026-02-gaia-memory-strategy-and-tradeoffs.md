@@ -179,15 +179,15 @@ Sub-roles: gaia-researcher, gaia-privacy-memory-steward, gaia-qa-evaluator
 - Scope: memory schema, storage adapter, CRUD APIs, migration hooks.
 - Acceptance: deterministic read/write/delete flows, retention metadata persisted.
 
-2. `Memory Retrieval + Ranking Pipeline` (`#76`)
+1. `Memory Retrieval + Ranking Pipeline` (`#76`)
 - Scope: exact + lexical + semantic retrieval and rerank strategy.
 - Acceptance: benchmark harness reports recall/ranking metrics; regression thresholds enforced.
 
-3. `Memory Policy + Privacy Controls` (`#77`)
+1. `Memory Policy + Privacy Controls` (`#77`)
 - Scope: consent model, capability mapping, deletion/export guarantees, sensitive redaction paths.
 - Acceptance: policy decisions and trace evidence cover all memory operations; privacy tests pass.
 
-4. `Memory QA and Red-Team Harness` (`#78`)
+1. `Memory QA and Red-Team Harness` (`#78`)
 - Scope: poisoning fixtures, leakage tests, faithfulness/helpfulness eval dashboards.
 - Acceptance: CI memory suite blocks regressions and produces triage artifacts.
 
