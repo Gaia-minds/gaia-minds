@@ -4,7 +4,7 @@ Updated: February 13, 2026
 
 ## Current Sprint
 
-**Phase 2 Parallel Buildout** (Feb 9–28, 2026)
+**Post-Phase-2 Reassessment + Phase 3 Kickoff** (Feb 13–28, 2026)
 
 See `ROADMAP.md` for full phase details and exit criteria.
 
@@ -36,17 +36,13 @@ See `ROADMAP.md` for full phase details and exit criteria.
 
 ## In Progress
 
-_Nothing currently in progress._
+- `Roadmap/Backlog Reassessment` - post-Phase-2 planning artifact + state sync (`#84`) - owner: `codex-gpt5`
 
-## Next Up (Parallel Lanes)
+## Next Up (Kickoff Queue)
 
-All lanes below are intended to be claimable in parallel after contract freeze.
-Before coding, each claimed lane must post its implementation plan (including
-architecture deltas) per `infrastructure/phase2-lane-implementation-plans.md`.
-Cross-cutting requirement: run a docs freshness sweep with
-`skills/gaia-technical-writer/SKILL.md` after merge batches.
-
-_Nothing currently queued._
+1. `Phase 3` - self-evolution PR evidence rubric (`#85`)
+2. `Phase 3` - hypothesis pipeline v1: proposal -> eval -> evidence (`#86`)
+3. `Phase 3` - reliability baseline checkpoint + SLO thresholds (`#87`)
 
 ## Blocked
 
