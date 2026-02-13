@@ -142,7 +142,7 @@ def main() -> int:
 
     applies = applies_checked is True
     if applies:
-        if not re.search(r"(?im)^\s*##\s+Self-Evolution Evidence\s*$", body):
+        if not re.search(r"(?im)^\s*##\s+Self-Evolution Evidence\b", body):
             errors.append(f"missing heading: '{EVIDENCE_HEADING}'")
 
         for field in REQUIRED_FIELDS:

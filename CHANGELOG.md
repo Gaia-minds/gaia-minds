@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 - Self-evolution PR evidence rubric contract with required fields (`baseline`, `delta`, `thresholds/guardrails`, `rollback/fallback`, `risk notes`) and applicability rules (`infrastructure/self-evolution-evidence-rubric.md`, `#85`)
 - Deterministic self-evolution PR evidence enforcement in CI (`tools/check-self-evolution-evidence.py`, `.github/workflows/self-evolution-evidence.yml`)
+- UAT governance change record for self-evolution PR evidence rubric enforcement (`docs/uat-changes/2026-02-13-self-evolution-evidence-rubric.md`)
 - Scheduler core command surface with durable schedule persistence and due-run execution (`gaia schedule create/list/update/cancel/run-due`) for lane `P2-A` (`#51`)
 - Scheduler run ledger for idempotent execution keys (`~/.gaia-assistant/data/schedule-runs.jsonl`)
 - Reminder command surface with cadence controls and lifecycle actions (`gaia reminder create/list/update/pause/resume/snooze/dismiss`) for lane `P2-B` (`#52`)
