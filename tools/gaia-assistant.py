@@ -504,6 +504,84 @@ def _read_action_traces(trace_dir: Path) -> List[Dict[str, Any]]:
     return traces
 
 
+def _trace_metadata(item: Dict[str, Any]) -> Dict[str, Any]:
+    metadata = item.get("metadata", {})
+    return metadata if isinstance(metadata, dict) else {}
+
+
+def _with_trace_metadata(
+    metadata: Optional[Dict[str, Any]] = None,
+    *,
+    correlation_id: Optional[str] = None,
+    skill_id: Optional[str] = None,
+    skill_source: Optional[str] = None,
+    policy_decision: Optional[str] = None,
+    policy_id: Optional[str] = None,
+    sandbox_profile: Optional[str] = None,
+    sandbox_network_mode: Optional[str] = None,
+    sandbox_escalated: Optional[bool] = None,
+    sandbox_approved: Optional[bool] = None,
+) -> Dict[str, Any]:
+    payload: Dict[str, Any] = dict(metadata) if isinstance(metadata, dict) else {}
+    payload["trace_schema_version"] = 2
+    if correlation_id:
+        payload["correlation_id"] = str(correlation_id).strip()
+    if skill_id:
+        payload["skill_id"] = str(skill_id).strip()
+    if skill_source:
+        payload["skill_source"] = str(skill_source).strip().lower()
+    if policy_decision:
+        payload["policy_decision"] = str(policy_decision).strip().lower()
+    if policy_id:
+        payload["policy_id"] = str(policy_id).strip()
+    if sandbox_profile:
+        payload["sandbox_profile"] = str(sandbox_profile).strip().lower()
+    if sandbox_network_mode:
+        payload["sandbox_network_mode"] = str(sandbox_network_mode).strip().lower()
+    if isinstance(sandbox_escalated, bool):
+        payload["sandbox_escalated"] = sandbox_escalated
+    if isinstance(sandbox_approved, bool):
+        payload["sandbox_approved"] = sandbox_approved
+    return payload
+
+
+def _trace_skill_id(item: Dict[str, Any]) -> str:
+    metadata = _trace_metadata(item)
+    return str(metadata.get("skill_id", "")).strip()
+
+
+def _trace_skill_source(item: Dict[str, Any]) -> str:
+    metadata = _trace_metadata(item)
+    value = str(metadata.get("skill_source", metadata.get("source", ""))).strip().lower()
+    return value
+
+
+def _trace_policy_decision(item: Dict[str, Any]) -> str:
+    metadata = _trace_metadata(item)
+    value: Any = metadata.get("policy_decision")
+    if isinstance(value, dict):
+        value = value.get("decision")
+    if not value and isinstance(metadata.get("decision"), dict):
+        value = metadata.get("decision", {}).get("decision")
+    normalized = str(value or "").strip().lower()
+    if normalized in POLICY_DECISION_CHOICES:
+        return normalized
+    return ""
+
+
+def _trace_sandbox_profile(item: Dict[str, Any]) -> str:
+    metadata = _trace_metadata(item)
+    value = str(metadata.get("sandbox_profile", metadata.get("profile", ""))).strip().lower()
+    if value in SANDBOX_PROFILE_CHOICES:
+        return value
+    return ""
+
+
+def _trace_correlation_id(item: Dict[str, Any]) -> str:
+    metadata = _trace_metadata(item)
+    return str(metadata.get("correlation_id", "")).strip()
+
+
 def _capability_registry(cfg: Dict[str, Any]) -> Dict[str, str]:
     registry = dict(DEFAULT_CAPABILITY_LEVELS)
     capabilities = cfg.get("capabilities", {})
@@ -3841,12 +3919,18 @@ def cmd_policy_evaluate(args: argparse.Namespace) -> int:
         duration_ms=(time.perf_counter() - start) * 1000,
         permission_level="safe",
         status="ok" if decision.get("decision") != "deny" else "blocked",
-        metadata={
-            "decision": decision,
-            "skill": args.skill,
-            "skill_id": skill_id,
-            "scanned_roots": scanned_roots,
-        },
+        metadata=_with_trace_metadata(
+            {
+                "decision": decision,
+                "skill": args.skill,
+                "skill_id": skill_id,
+                "scanned_roots": scanned_roots,
+            },
+            skill_id=skill_id,
+            skill_source=source,
+            policy_decision=str(decision.get("decision", "")),
+            policy_id=str(decision.get("policy_id", "")),
+        ),
     )
     return 0 if decision.get("decision") != "deny" else 1
 
@@ -3923,7 +4007,11 @@ def cmd_policy_allowlist_set(args: argparse.Namespace) -> int:
         output_summary=f"{len(tools)} tools",
         duration_ms=(time.perf_counter() - start) * 1000,
         permission_level=permission_level,
-        metadata={"skill_id": skill_id, "tools": tools, "scanned_roots": scanned_roots},
+        metadata=_with_trace_metadata(
+            {"skill_id": skill_id, "tools": tools, "scanned_roots": scanned_roots},
+            skill_id=skill_id,
+            skill_source=str(skill_ctx.get("source", "")),
+        ),
     )
     print(f"{skill_id}: {', '.join(tools)}")
     return 0
@@ -3987,7 +4075,11 @@ def cmd_policy_allowlist_clear(args: argparse.Namespace) -> int:
         output_summary="removed" if removed else "not found",
         duration_ms=(time.perf_counter() - start) * 1000,
         permission_level=permission_level,
-        metadata={"skill_id": skill_id, "removed": removed, "scanned_roots": scanned_roots},
+        metadata=_with_trace_metadata(
+            {"skill_id": skill_id, "removed": removed, "scanned_roots": scanned_roots},
+            skill_id=skill_id,
+            skill_source=str(skill_ctx.get("source", "")),
+        ),
     )
     if removed:
         print(f"{skill_id}: cleared")
@@ -4023,7 +4115,11 @@ def cmd_policy_allowlist_list(args: argparse.Namespace) -> int:
             return 1
         skill_id = str(skill_ctx.get("skill_id", "")).strip()
         selected = {skill_id: allowlists.get(skill_id, [])}
-        metadata: Dict[str, Any] = {"skill_id": skill_id, "scanned_roots": scanned_roots}
+        metadata: Dict[str, Any] = {
+            "skill_id": skill_id,
+            "skill_source": str(skill_ctx.get("source", "")),
+            "scanned_roots": scanned_roots,
+        }
     else:
         selected = dict(sorted(allowlists.items()))
         metadata = {"count": len(selected)}
@@ -4045,7 +4141,11 @@ def cmd_policy_allowlist_list(args: argparse.Namespace) -> int:
         output_summary=f"{len(selected)} entries",
         duration_ms=(time.perf_counter() - start) * 1000,
         permission_level="safe",
-        metadata=metadata,
+        metadata=_with_trace_metadata(
+            metadata,
+            skill_id=str(metadata.get("skill_id", "")) if isinstance(metadata, dict) else None,
+            skill_source=str(metadata.get("skill_source", "")) if isinstance(metadata, dict) else None,
+        ),
     )
     return 0
 
@@ -4059,11 +4159,38 @@ def cmd_traces(args: argparse.Namespace) -> int:
         wanted = str(args.type).strip()
         traces = [item for item in traces if str(item.get("action_type", "")).strip() == wanted]
 
+    if args.skill_id:
+        wanted_skill_id = str(args.skill_id).strip()
+        traces = [item for item in traces if _trace_skill_id(item) == wanted_skill_id]
+
+    if args.skill_source and str(args.skill_source).strip().lower() != "all":
+        wanted_skill_source = str(args.skill_source).strip().lower()
+        traces = [item for item in traces if _trace_skill_source(item) == wanted_skill_source]
+
+    if args.policy_decision:
+        wanted_policy_decision = str(args.policy_decision).strip().lower()
+        traces = [item for item in traces if _trace_policy_decision(item) == wanted_policy_decision]
+
+    if args.sandbox_profile:
+        wanted_profile = str(args.sandbox_profile).strip().lower()
+        traces = [item for item in traces if _trace_sandbox_profile(item) == wanted_profile]
+
+    if args.correlation_id:
+        wanted_correlation_id = str(args.correlation_id).strip()
+        traces = [item for item in traces if _trace_correlation_id(item) == wanted_correlation_id]
+
     if args.last and args.last > 0:
         traces = traces[-args.last :]
 
     if not traces:
-        print(f"No traces found in {trace_dir}")
+        if args.as_json:
+            print("[]")
+        else:
+            print(f"No traces found in {trace_dir}")
+        return 0
+
+    if args.as_json:
+        print(json.dumps(traces, indent=2))
         return 0
 
     for item in traces:
@@ -4071,8 +4198,10 @@ def cmd_traces(args: argparse.Namespace) -> int:
         action_type = str(item.get("action_type", "?")).strip()
         level = str(item.get("permission_level", "?")).strip()
         status = str(item.get("status", "?")).strip()
+        corr = _trace_correlation_id(item)
+        corr_label = corr[:8] if corr else "-"
         summary = _summarize_text(item.get("output_summary", ""), max_chars=100)
-        print(f"{ts} | {action_type:<20} | {level:<9} | {status:<7} | {summary}")
+        print(f"{ts} | {action_type:<20} | {level:<9} | {status:<7} | {corr_label:<8} | {summary}")
     return 0
 
 
@@ -4596,11 +4725,14 @@ def cmd_skills_list(args: argparse.Namespace) -> int:
         output_summary=f"{len(contracts)} skills",
         duration_ms=(time.perf_counter() - start) * 1000,
         permission_level=permission_level,
-        metadata={
-            "source": str(args.source),
-            "skill_count": len(contracts),
-            "scanned_roots": scanned_roots,
-        },
+        metadata=_with_trace_metadata(
+            {
+                "source": str(args.source),
+                "skill_count": len(contracts),
+                "scanned_roots": scanned_roots,
+            },
+            skill_source=str(args.source),
+        ),
     )
     return 0
 
@@ -4642,7 +4774,10 @@ def cmd_skills_inspect(args: argparse.Namespace) -> int:
             duration_ms=(time.perf_counter() - start) * 1000,
             permission_level=permission_level,
             status="error",
-            metadata={"source": str(args.source), "scanned_roots": scanned_roots},
+            metadata=_with_trace_metadata(
+                {"source": str(args.source), "scanned_roots": scanned_roots},
+                skill_source=str(args.source),
+            ),
         )
         print(error_message or "Skill not found.", file=sys.stderr)
         return 1
@@ -4655,12 +4790,16 @@ def cmd_skills_inspect(args: argparse.Namespace) -> int:
         output_summary=f"loaded {target.get('skill_id', '?')}",
         duration_ms=(time.perf_counter() - start) * 1000,
         permission_level=permission_level,
-        metadata={
-            "source": str(args.source),
-            "skill_id": target.get("skill_id"),
-            "entrypoint": target.get("entrypoint"),
-            "scanned_roots": scanned_roots,
-        },
+        metadata=_with_trace_metadata(
+            {
+                "source": str(args.source),
+                "skill_id": target.get("skill_id"),
+                "entrypoint": target.get("entrypoint"),
+                "scanned_roots": scanned_roots,
+            },
+            skill_id=str(target.get("skill_id", "")),
+            skill_source=str(target.get("source", args.source)),
+        ),
     )
     return 0
 
@@ -4705,7 +4844,10 @@ def cmd_skills_validate(args: argparse.Namespace) -> int:
             duration_ms=(time.perf_counter() - start) * 1000,
             permission_level=permission_level,
             status="error",
-            metadata={"source": str(args.source), "scanned_roots": scanned_roots},
+            metadata=_with_trace_metadata(
+                {"source": str(args.source), "scanned_roots": scanned_roots},
+                skill_source=str(args.source),
+            ),
         )
         print(error_message or "Unable to resolve target.", file=sys.stderr)
         return 1
@@ -5040,15 +5182,19 @@ def cmd_skills_validate(args: argparse.Namespace) -> int:
         duration_ms=(time.perf_counter() - start) * 1000,
         permission_level=permission_level,
         status="ok" if status == "pass" else "error",
-        metadata={
-            "source": str(args.source),
-            "require_sandbox": bool(args.require_sandbox),
-            "target": str(resolved.get("reference", "")),
-            "skill_id": contract.get("skill_id"),
-            "report_path": str(report_path),
-            "status": status,
-            "summary": summary,
-        },
+        metadata=_with_trace_metadata(
+            {
+                "source": str(args.source),
+                "require_sandbox": bool(args.require_sandbox),
+                "target": str(resolved.get("reference", "")),
+                "skill_id": contract.get("skill_id"),
+                "report_path": str(report_path),
+                "status": status,
+                "summary": summary,
+            },
+            skill_id=str(contract.get("skill_id", "")),
+            skill_source=str(contract.get("source", args.source)),
+        ),
     )
 
     return 0 if status == "pass" else 1
@@ -5079,7 +5225,10 @@ def cmd_sandbox_profiles(args: argparse.Namespace) -> int:
         output_summary=f"{len(payload['profiles'])} profiles",
         duration_ms=(time.perf_counter() - start) * 1000,
         permission_level="safe",
-        metadata={"default_profile": payload["default_profile"]},
+        metadata=_with_trace_metadata(
+            {"default_profile": payload["default_profile"]},
+            sandbox_profile=str(payload["default_profile"]),
+        ),
     )
     return 0
 
@@ -5099,10 +5248,33 @@ def cmd_sandbox_run(args: argparse.Namespace) -> int:
 
     profile = _normalize_sandbox_profile(args.profile, cfg)
     allow_network = bool(args.allow_network or _sandbox_default_allow_network(cfg))
+    network_mode = "allow" if allow_network else "deny"
     command_text = shlex.join(command_tokens)
+    trace_correlation_id = str(uuid.uuid4())
     skill_id = ""
     skill_scanned_roots: List[str] = []
     policy_source = "unknown"
+
+    def _sandbox_trace_metadata(
+        base: Optional[Dict[str, Any]] = None,
+        *,
+        policy_state: Optional[str] = None,
+        policy_rule_id: Optional[str] = None,
+        escalated_state: Optional[bool] = None,
+        approved_state: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        return _with_trace_metadata(
+            base,
+            correlation_id=trace_correlation_id,
+            skill_id=skill_id,
+            skill_source=policy_source,
+            policy_decision=policy_state,
+            policy_id=policy_rule_id,
+            sandbox_profile=profile,
+            sandbox_network_mode=network_mode,
+            sandbox_escalated=escalated_state,
+            sandbox_approved=approved_state,
+        )
 
     if args.skill:
         skill_ctx, error_message, skill_scanned_roots = _resolve_policy_skill_reference(
@@ -5119,7 +5291,9 @@ def cmd_sandbox_run(args: argparse.Namespace) -> int:
                 duration_ms=(time.perf_counter() - start) * 1000,
                 permission_level="safe",
                 status="error",
-                metadata={"profile": profile, "skill": str(args.skill), "scanned_roots": skill_scanned_roots},
+                metadata=_sandbox_trace_metadata(
+                    {"skill": str(args.skill), "scanned_roots": skill_scanned_roots}
+                ),
             )
             print(error_message or "Unable to resolve skill reference.", file=sys.stderr)
             return 1
@@ -5139,15 +5313,14 @@ def cmd_sandbox_run(args: argparse.Namespace) -> int:
                 duration_ms=(time.perf_counter() - start) * 1000,
                 permission_level="safe",
                 status="error",
-                metadata={
-                    "profile": profile,
-                    "network_mode": "allow" if allow_network else "deny",
-                    "tool_inferred": inferred_policy_tool,
-                    "tool_requested": requested_policy_tool,
-                    "scope": _normalize_policy_scope(args.policy_scope, cfg),
-                    "source": policy_source,
-                    "skill_id": skill_id,
-                },
+                metadata=_sandbox_trace_metadata(
+                    {
+                        "tool_inferred": inferred_policy_tool,
+                        "tool_requested": requested_policy_tool,
+                        "scope": _normalize_policy_scope(args.policy_scope, cfg),
+                        "source": policy_source,
+                    }
+                ),
             )
             print(
                 "Policy tool assertion mismatch: "
@@ -5175,14 +5348,17 @@ def cmd_sandbox_run(args: argparse.Namespace) -> int:
         duration_ms=(time.perf_counter() - start) * 1000,
         permission_level="safe",
         status="blocked" if policy_decision.get("decision") == "deny" else "ok",
-        metadata={
-            "decision": policy_decision,
-            "tool": policy_tool,
-            "scope": policy_scope,
-            "source": policy_source,
-            "skill_id": skill_id,
-            "skill_scanned_roots": skill_scanned_roots,
-        },
+        metadata=_sandbox_trace_metadata(
+            {
+                "decision": policy_decision,
+                "tool": policy_tool,
+                "scope": policy_scope,
+                "source": policy_source,
+                "skill_scanned_roots": skill_scanned_roots,
+            },
+            policy_state=str(policy_decision.get("decision", "")),
+            policy_rule_id=str(policy_decision.get("policy_id", "")),
+        ),
     )
 
     policy_decision_state = str(policy_decision.get("decision", "allow")).strip().lower()
@@ -5198,15 +5374,16 @@ def cmd_sandbox_run(args: argparse.Namespace) -> int:
             duration_ms=(time.perf_counter() - start) * 1000,
             permission_level="safe",
             status="blocked",
-            metadata={
-                "profile": profile,
-                "network_mode": "allow" if allow_network else "deny",
-                "policy_decision": policy_decision,
-                "tool": policy_tool,
-                "scope": policy_scope,
-                "source": policy_source,
-                "skill_id": skill_id,
-            },
+            metadata=_sandbox_trace_metadata(
+                {
+                    "policy_decision": policy_decision,
+                    "tool": policy_tool,
+                    "scope": policy_scope,
+                    "source": policy_source,
+                },
+                policy_state=policy_decision_state,
+                policy_rule_id=policy_id,
+            ),
         )
         print(f"Policy denied ({policy_id}): {reason}", file=sys.stderr)
         return 1
@@ -5231,15 +5408,16 @@ def cmd_sandbox_run(args: argparse.Namespace) -> int:
                 duration_ms=(time.perf_counter() - start) * 1000,
                 permission_level="safe",
                 status="blocked",
-                metadata={
-                    "profile": profile,
-                    "network_mode": "allow" if allow_network else "deny",
-                    "policy_decision": policy_decision,
-                    "tool": policy_tool,
-                    "scope": policy_scope,
-                    "source": policy_source,
-                    "skill_id": skill_id,
-                },
+                metadata=_sandbox_trace_metadata(
+                    {
+                        "policy_decision": policy_decision,
+                        "tool": policy_tool,
+                        "scope": policy_scope,
+                        "source": policy_source,
+                    },
+                    policy_state=policy_decision_state,
+                    policy_rule_id=str(policy_decision.get("policy_id", "")),
+                ),
             )
             print(
                 "Policy confirmation required but not approved. Re-run with --approve-policy to continue.",
@@ -5257,7 +5435,13 @@ def cmd_sandbox_run(args: argparse.Namespace) -> int:
             duration_ms=(time.perf_counter() - start) * 1000,
             permission_level=permission_level,
             status="blocked",
-            metadata={"profile": profile, "network_mode": "allow" if allow_network else "deny"},
+            metadata=_sandbox_trace_metadata(
+                {
+                    "shell_reason": shell_reason,
+                },
+                policy_state=policy_decision_state,
+                policy_rule_id=str(policy_decision.get("policy_id", "")),
+            ),
         )
         print("Action blocked by capability policy.", file=sys.stderr)
         return 1
@@ -5273,7 +5457,11 @@ def cmd_sandbox_run(args: argparse.Namespace) -> int:
                 duration_ms=(time.perf_counter() - start) * 1000,
                 permission_level=network_level,
                 status="blocked",
-                metadata={"profile": profile, "network_mode": "allow"},
+                metadata=_sandbox_trace_metadata(
+                    {"network_policy": "blocked by network_request"},
+                    policy_state=policy_decision_state,
+                    policy_rule_id=str(policy_decision.get("policy_id", "")),
+                ),
             )
             print("Action blocked by capability policy.", file=sys.stderr)
             return 1
@@ -5322,13 +5510,17 @@ def cmd_sandbox_run(args: argparse.Namespace) -> int:
             duration_ms=(time.perf_counter() - start) * 1000,
             permission_level=permission_level,
             status="ok" if approved else "blocked",
-            metadata={
-                "profile": profile,
-                "network_mode": "allow" if allow_network else "deny",
-                "decision_source": decision_source,
-                "reasons": reasons,
-                "event_id": event.get("event_id") if isinstance(event, dict) else None,
-            },
+            metadata=_sandbox_trace_metadata(
+                {
+                    "decision_source": decision_source,
+                    "reasons": reasons,
+                    "event_id": event.get("event_id") if isinstance(event, dict) else None,
+                },
+                policy_state=policy_decision_state,
+                policy_rule_id=str(policy_decision.get("policy_id", "")),
+                escalated_state=True,
+                approved_state=approved,
+            ),
         )
 
         if not approved:
@@ -5340,12 +5532,16 @@ def cmd_sandbox_run(args: argparse.Namespace) -> int:
                 duration_ms=(time.perf_counter() - start) * 1000,
                 permission_level=permission_level,
                 status="blocked",
-                metadata={
-                    "profile": profile,
-                    "network_mode": "allow" if allow_network else "deny",
-                    "escalation_reasons": reasons,
-                    "event_id": event.get("event_id") if isinstance(event, dict) else None,
-                },
+                metadata=_sandbox_trace_metadata(
+                    {
+                        "escalation_reasons": reasons,
+                        "event_id": event.get("event_id") if isinstance(event, dict) else None,
+                    },
+                    policy_state=policy_decision_state,
+                    policy_rule_id=str(policy_decision.get("policy_id", "")),
+                    escalated_state=True,
+                    approved_state=False,
+                ),
             )
             print(
                 "Escalation required but not approved. Re-run with --approve-escalation to continue.",
@@ -5356,13 +5552,13 @@ def cmd_sandbox_run(args: argparse.Namespace) -> int:
     run_cwd = Path(args.cwd).expanduser() if args.cwd else REPO_ROOT
     sandbox_env = os.environ.copy()
     sandbox_env["GAIA_SANDBOX_PROFILE"] = profile
-    sandbox_env["GAIA_SANDBOX_NETWORK_MODE"] = "allow" if allow_network else "deny"
+    sandbox_env["GAIA_SANDBOX_NETWORK_MODE"] = network_mode
     sandbox_env["GAIA_SANDBOX_ESCALATION"] = "approved" if escalated else "not-required"
     sandbox_env["GAIA_POLICY_DECISION"] = policy_decision_state
     sandbox_env["GAIA_POLICY_ID"] = str(policy_decision.get("policy_id", "policy.default.v1"))
 
     if args.dry_run:
-        print(f"Sandbox dry-run profile={profile} network={'allow' if allow_network else 'deny'}")
+        print(f"Sandbox dry-run profile={profile} network={network_mode}")
         print(
             "Policy: "
             f"{policy_decision.get('decision')} "
@@ -5381,17 +5577,21 @@ def cmd_sandbox_run(args: argparse.Namespace) -> int:
             output_summary="dry-run",
             duration_ms=(time.perf_counter() - start) * 1000,
             permission_level=permission_level,
-            metadata={
-                "profile": profile,
-                "network_mode": "allow" if allow_network else "deny",
-                "dry_run": True,
-                "escalated": escalated,
-                "approved": approved,
-                "policy_confirmed": policy_confirmed,
-                "policy_decision": policy_decision,
-                "reasons": reasons,
-                "event_id": event.get("event_id") if isinstance(event, dict) else None,
-            },
+            metadata=_sandbox_trace_metadata(
+                {
+                    "dry_run": True,
+                    "escalated": escalated,
+                    "approved": approved,
+                    "policy_confirmed": policy_confirmed,
+                    "policy_decision": policy_decision,
+                    "reasons": reasons,
+                    "event_id": event.get("event_id") if isinstance(event, dict) else None,
+                },
+                policy_state=policy_decision_state,
+                policy_rule_id=str(policy_decision.get("policy_id", "")),
+                escalated_state=escalated,
+                approved_state=approved,
+            ),
         )
         return 0
 
@@ -5417,19 +5617,23 @@ def cmd_sandbox_run(args: argparse.Namespace) -> int:
         duration_ms=(time.perf_counter() - start) * 1000,
         permission_level=permission_level,
         status="ok" if proc.returncode == 0 else "error",
-        metadata={
-            "profile": profile,
-            "network_mode": "allow" if allow_network else "deny",
-            "dry_run": False,
-            "escalated": escalated,
-            "approved": approved,
-            "policy_confirmed": policy_confirmed,
-            "policy_decision": policy_decision,
-            "reasons": reasons,
-            "event_id": event.get("event_id") if isinstance(event, dict) else None,
-            "cwd": str(run_cwd),
-            "return_code": proc.returncode,
-        },
+        metadata=_sandbox_trace_metadata(
+            {
+                "dry_run": False,
+                "escalated": escalated,
+                "approved": approved,
+                "policy_confirmed": policy_confirmed,
+                "policy_decision": policy_decision,
+                "reasons": reasons,
+                "event_id": event.get("event_id") if isinstance(event, dict) else None,
+                "cwd": str(run_cwd),
+                "return_code": proc.returncode,
+            },
+            policy_state=policy_decision_state,
+            policy_rule_id=str(policy_decision.get("policy_id", "")),
+            escalated_state=escalated,
+            approved_state=approved,
+        ),
     )
     return int(proc.returncode)
 
@@ -7542,6 +7746,27 @@ def build_parser() -> argparse.ArgumentParser:
     traces.add_argument("--trace-dir", default=None, help="Trace directory override")
     traces.add_argument("--last", type=int, default=20, help="Number of recent trace entries to show")
     traces.add_argument("--type", default=None, help="Filter by action type")
+    traces.add_argument("--skill-id", default=None, help="Filter by metadata skill_id")
+    traces.add_argument(
+        "--skill-source",
+        choices=[*list(POLICY_SOURCE_CHOICES), "all"],
+        default="all",
+        help="Filter by metadata skill_source",
+    )
+    traces.add_argument(
+        "--policy-decision",
+        choices=list(POLICY_DECISION_CHOICES),
+        default=None,
+        help="Filter by metadata policy_decision",
+    )
+    traces.add_argument(
+        "--sandbox-profile",
+        choices=list(SANDBOX_PROFILE_CHOICES),
+        default=None,
+        help="Filter by metadata sandbox_profile",
+    )
+    traces.add_argument("--correlation-id", default=None, help="Filter by metadata correlation_id")
+    traces.add_argument("--json", dest="as_json", action="store_true", help="Emit selected trace records as JSON")
     traces.set_defaults(func=cmd_traces)
 
     chat = sub.add_parser("chat", help="Start an interactive Gaia chat session")
