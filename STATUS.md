@@ -4,7 +4,7 @@ Updated: February 13, 2026
 
 ## Current Sprint
 
-**Post-Phase-2 Reassessment + Phase 3 Kickoff** (Feb 13–28, 2026)
+**Phase 3 Execution Queue (Post-Kickoff)** (Feb 13–28, 2026)
 
 See `ROADMAP.md` for full phase details and exit criteria.
 
@@ -36,14 +36,24 @@ See `ROADMAP.md` for full phase details and exit criteria.
 - `Post-Phase-2 Reassessment` - planning artifact + Phase 3 kickoff queue/state sync (`#84`, PR #88)
 - `Phase 3 Evidence Rubric` - self-evolution PR evidence contract + CI gate (`#85`, PR #89)
 - `Phase 3 Hypothesis Pipeline v1` - deterministic proposal -> eval -> evidence workflow (`#86`, PR #90)
+- `Phase 3 Reliability Baseline Checkpoint` - baseline thresholds + checkpoint tooling + triage workflow (`#87`, PR #91)
 
 ## In Progress
 
-- `Phase 3` - reliability baseline checkpoint + SLO thresholds (`#87`) - owner: `codex-gpt5`
+_Nothing currently in progress._
 
 ## Next Up (Kickoff Queue)
 
-_Queue refresh required after `#87`._
+1. `#93` (`framework-track`) - Drift detection automation against reliability baselines
+   - Recommended owner role: contributor + `gaia-qa-evaluator` (with incident responder coordination)
+2. `#95` (`framework-track`) - Hard token-budget enforcement per cycle and track
+   - Recommended owner role: contributor + `gaia-security-reviewer` + `gaia-qa-evaluator`
+3. `#94` (`framework-track`) - Canary gate for hypothesis rollout decisions
+   - Dependency: after `#93`
+4. `#96` (`assistant-track`) - Feedback loop capture and correction records
+   - Recommended owner role: contributor + `gaia-technical-writer`
+5. `#97` (`assistant-track`) - Personalized response profiles and memory summarization
+   - Dependency: after `#96`
 
 ## Blocked
 
