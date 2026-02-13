@@ -27,6 +27,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Unified trace metadata envelope with correlation ids across skills/policy/sandbox actions for lane `P2-G` (`#57`)
 - Quality matrix harness for malicious fixtures + runtime guardrails (`make quality-matrix`, `tools/quality-matrix.py`) for lane `P2-H` (`#58`)
 - Compatibility matrix baseline + reproducible renderer/checker against `vercel-labs/agent-skills` (`assistant/compatibility-matrix-baseline.json`, `assistant/compatibility-matrix.md`, `tools/compatibility-matrix.py`)
+- Memory strategy/tradeoff synthesis with architecture recommendation and benchmark plan for lane `P2-I` (`research/synthesis/2026-02-gaia-memory-strategy-and-tradeoffs.md`, `#60`)
+- Follow-on memory implementation issue set split into parallel lanes (`#75`, `#76`, `#77`, `#78`)
 - Versioned skill metadata contract publication (`infrastructure/skill-contract-v1.md`)
 - Versioned sandbox contract publication (`infrastructure/sandbox-contract-v1.md`)
 - Deterministic UAT + smoke coverage for the new scheduler command paths (`assistant/feature-catalog.json`, `assistant/uat-scenarios.json`, `tools/smoke-test.sh`)
