@@ -153,8 +153,8 @@ Integration order is intentionally light:
 
 ## Phase 3: Framework Self-Evolution v1
 
-Timeline: March 1 to March 21, 2026
-Status: Planned
+Timeline: February 13 to March 21, 2026
+Status: In Progress (kickoff complete as of February 13, 2026)
 
 Assistant track outcomes:
 
@@ -172,6 +172,20 @@ Framework track outcomes (self-evolution core):
   - full rollout on pass
 - Add automatic drift detection against safety and quality baselines.
 - Add hard token-budget enforcement per cycle and per track.
+
+Kickoff delivered:
+
+- `#85` Self-evolution evidence rubric + CI enforcement
+- `#86` Hypothesis pipeline v1 (proposal -> eval -> evidence)
+- `#87` Reliability baseline checkpoint + triage workflow
+
+Execution queue (post-kickoff reassessment):
+
+- `#93` Drift detection automation against reliability baselines
+- `#95` Hard token-budget enforcement per cycle and track
+- `#94` Canary gate for hypothesis rollout decisions (after `#93`)
+- `#96` Feedback loop capture and correction records
+- `#97` Personalized response profiles and memory summarization (after `#96`)
 
 Exit criteria:
 
