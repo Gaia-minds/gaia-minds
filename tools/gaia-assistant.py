@@ -65,6 +65,11 @@ SKILL_VALIDATION_MAX_SCAN_FILE_BYTES = 512 * 1024
 SKILL_VALIDATION_MAX_HITS_PER_RULE = 8
 SANDBOX_PROFILE_CHOICES = ("read-only", "workspace-write")
 SANDBOX_DEFAULT_PROFILE = "read-only"
+POLICY_DECISION_CHOICES = ("allow", "confirm", "deny")
+POLICY_RISK_CHOICES = ("low", "medium", "high", "critical")
+POLICY_SOURCE_CHOICES = ("project", "local", "path", "unknown")
+POLICY_SCOPE_CHOICES = ("standard", "restricted", "admin")
+POLICY_DEFAULT_SCOPE = "standard"
 DEFAULT_CAPABILITY_LEVELS = {
     "file_read": "safe",
     "file_write": "safe",
@@ -74,6 +79,7 @@ DEFAULT_CAPABILITY_LEVELS = {
     "send_email": "forbidden",
     "external_messaging": "forbidden",
 }
+POLICY_TOOL_CHOICES = tuple(sorted(DEFAULT_CAPABILITY_LEVELS.keys()))
 AUTOPILOT_STEP_CAPABILITY = {
     "capture_note": "file_write",
     "list_tasks": "file_read",
@@ -165,6 +171,30 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "sandbox": {
         "default_profile": SANDBOX_DEFAULT_PROFILE,
         "allow_network": False,
+    },
+    "policy": {
+        "default_scope": POLICY_DEFAULT_SCOPE,
+        "source_effect": {
+            "project": "allow",
+            "local": "confirm",
+            "path": "deny",
+            "unknown": "allow",
+        },
+        "tool_risk": {
+            "file_read": "low",
+            "file_write": "medium",
+            "network_request": "high",
+            "shell_exec": "high",
+            "delete_files": "critical",
+            "send_email": "critical",
+            "external_messaging": "critical",
+        },
+        "scope_max_risk": {
+            "standard": "high",
+            "restricted": "medium",
+            "admin": "critical",
+        },
+        "skill_tool_allowlists": {},
     },
 }
 
@@ -274,6 +304,80 @@ def _normalize_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     sandbox["default_profile"] = default_profile
     sandbox_allow_network = sandbox.get("allow_network", False)
     sandbox["allow_network"] = bool(sandbox_allow_network)
+
+    policy = cfg.setdefault("policy", {})
+    if not isinstance(policy, dict):
+        policy = {}
+        cfg["policy"] = policy
+
+    default_policy = DEFAULT_CONFIG.get("policy", {})
+    default_scope = str(policy.get("default_scope", default_policy.get("default_scope", POLICY_DEFAULT_SCOPE))).strip().lower()
+    if default_scope not in POLICY_SCOPE_CHOICES:
+        default_scope = POLICY_DEFAULT_SCOPE
+    policy["default_scope"] = default_scope
+
+    source_effect = policy.get("source_effect", {})
+    if not isinstance(source_effect, dict):
+        source_effect = {}
+    normalized_source_effect: Dict[str, str] = {}
+    default_source_effect = default_policy.get("source_effect", {})
+    for source in POLICY_SOURCE_CHOICES:
+        raw = source_effect.get(source, default_source_effect.get(source, "allow"))
+        effect = str(raw).strip().lower()
+        if effect not in POLICY_DECISION_CHOICES:
+            effect = "allow"
+        normalized_source_effect[source] = effect
+    policy["source_effect"] = normalized_source_effect
+
+    tool_risk = policy.get("tool_risk", {})
+    if not isinstance(tool_risk, dict):
+        tool_risk = {}
+    normalized_tool_risk: Dict[str, str] = {}
+    default_tool_risk = default_policy.get("tool_risk", {})
+    for tool in POLICY_TOOL_CHOICES:
+        raw = tool_risk.get(tool, default_tool_risk.get(tool, "medium"))
+        risk = str(raw).strip().lower()
+        if risk not in POLICY_RISK_CHOICES:
+            risk = "medium"
+        normalized_tool_risk[tool] = risk
+    policy["tool_risk"] = normalized_tool_risk
+
+    scope_max_risk = policy.get("scope_max_risk", {})
+    if not isinstance(scope_max_risk, dict):
+        scope_max_risk = {}
+    normalized_scope_max: Dict[str, str] = {}
+    default_scope_max = default_policy.get("scope_max_risk", {})
+    for scope in POLICY_SCOPE_CHOICES:
+        raw = scope_max_risk.get(scope, default_scope_max.get(scope, "high"))
+        risk = str(raw).strip().lower()
+        if risk not in POLICY_RISK_CHOICES:
+            risk = "high"
+        normalized_scope_max[scope] = risk
+    policy["scope_max_risk"] = normalized_scope_max
+
+    allowlists = policy.get("skill_tool_allowlists", {})
+    if not isinstance(allowlists, dict):
+        allowlists = {}
+    normalized_allowlists: Dict[str, List[str]] = {}
+    for raw_skill_id, raw_tools in allowlists.items():
+        skill_id = str(raw_skill_id).strip()
+        if not skill_id:
+            continue
+        tools: List[str] = []
+        if isinstance(raw_tools, str):
+            tools = [item.strip().lower() for item in raw_tools.split(",") if item.strip()]
+        elif isinstance(raw_tools, list):
+            tools = [str(item).strip().lower() for item in raw_tools if str(item).strip()]
+        deduped: List[str] = []
+        seen: set[str] = set()
+        for tool in tools:
+            if tool not in POLICY_TOOL_CHOICES or tool in seen:
+                continue
+            seen.add(tool)
+            deduped.append(tool)
+        if deduped:
+            normalized_allowlists[skill_id] = deduped
+    policy["skill_tool_allowlists"] = normalized_allowlists
 
     return cfg
 
@@ -1480,6 +1584,240 @@ def _emit_sandbox_approval_event(
     }
     _append_jsonl(_sandbox_approvals_path(trace_dir), event)
     return event
+
+
+def _policy_risk_rank(value: str) -> int:
+    try:
+        return POLICY_RISK_CHOICES.index(value)
+    except ValueError:
+        return 0
+
+
+def _normalize_policy_source(raw: Optional[str]) -> str:
+    value = str(raw or "").strip().lower()
+    if value in POLICY_SOURCE_CHOICES:
+        return value
+    return "unknown"
+
+
+def _normalize_policy_tool(raw: Optional[str]) -> str:
+    value = str(raw or "").strip().lower()
+    if value in POLICY_TOOL_CHOICES:
+        return value
+    return "file_read"
+
+
+def _policy_default_scope(cfg: Dict[str, Any]) -> str:
+    policy = cfg.get("policy", {})
+    if isinstance(policy, dict):
+        value = str(policy.get("default_scope", POLICY_DEFAULT_SCOPE)).strip().lower()
+        if value in POLICY_SCOPE_CHOICES:
+            return value
+    return POLICY_DEFAULT_SCOPE
+
+
+def _normalize_policy_scope(raw: Optional[str], cfg: Dict[str, Any]) -> str:
+    if raw:
+        value = str(raw).strip().lower()
+        if value in POLICY_SCOPE_CHOICES:
+            return value
+    return _policy_default_scope(cfg)
+
+
+def _policy_effect_for_source(cfg: Dict[str, Any], source: str) -> str:
+    policy = cfg.get("policy", {})
+    source_effect = policy.get("source_effect", {}) if isinstance(policy, dict) else {}
+    if isinstance(source_effect, dict):
+        value = str(source_effect.get(source, source_effect.get("unknown", "allow"))).strip().lower()
+        if value in POLICY_DECISION_CHOICES:
+            return value
+    return "allow"
+
+
+def _policy_risk_for_tool(cfg: Dict[str, Any], tool: str) -> str:
+    policy = cfg.get("policy", {})
+    tool_risk = policy.get("tool_risk", {}) if isinstance(policy, dict) else {}
+    if isinstance(tool_risk, dict):
+        value = str(tool_risk.get(tool, "medium")).strip().lower()
+        if value in POLICY_RISK_CHOICES:
+            return value
+    return "medium"
+
+
+def _policy_scope_max_risk(cfg: Dict[str, Any], scope: str) -> str:
+    policy = cfg.get("policy", {})
+    scope_map = policy.get("scope_max_risk", {}) if isinstance(policy, dict) else {}
+    if isinstance(scope_map, dict):
+        value = str(scope_map.get(scope, scope_map.get(POLICY_DEFAULT_SCOPE, "high"))).strip().lower()
+        if value in POLICY_RISK_CHOICES:
+            return value
+    return "high"
+
+
+def _policy_skill_allowlist(cfg: Dict[str, Any], skill_id: str) -> Optional[List[str]]:
+    if not skill_id:
+        return None
+    policy = cfg.get("policy", {})
+    allowlists = policy.get("skill_tool_allowlists", {}) if isinstance(policy, dict) else {}
+    if not isinstance(allowlists, dict):
+        return None
+    raw = allowlists.get(skill_id)
+    if not isinstance(raw, list):
+        return None
+    values = [str(item).strip().lower() for item in raw if str(item).strip()]
+    return [tool for tool in values if tool in POLICY_TOOL_CHOICES]
+
+
+def _resolve_policy_skill_reference(
+    cfg: Dict[str, Any],
+    reference: str,
+    *,
+    source_filter: str = "all",
+) -> Tuple[Optional[Dict[str, Any]], Optional[str], List[str]]:
+    resolved, error_message, scanned_roots = _resolve_skill_validation_target(
+        cfg,
+        reference,
+        source_filter=source_filter,
+    )
+    if resolved is None:
+        return None, error_message or "unable to resolve skill", scanned_roots
+    contract = resolved.get("contract", {})
+    contract = contract if isinstance(contract, dict) else {}
+    skill_id = str(contract.get("skill_id", "")).strip()
+    if not skill_id:
+        return None, "resolved skill is missing skill_id", scanned_roots
+    return (
+        {
+            "skill_id": skill_id,
+            "source": _normalize_policy_source(str(contract.get("source", "unknown"))),
+            "name": str(contract.get("name", "")).strip(),
+            "entrypoint": str(contract.get("entrypoint", "")).strip(),
+            "reference": str(resolved.get("reference", "")).strip(),
+        },
+        None,
+        scanned_roots,
+    )
+
+
+def _infer_policy_tool_from_command(command_text: str, command_tokens: List[str]) -> str:
+    lowered = [token.strip().lower() for token in command_tokens]
+    if any(token in ("rm", "rmdir", "unlink", "shred") for token in lowered):
+        return "delete_files"
+    if _is_network_command(command_tokens):
+        return "network_request"
+    if _is_write_command(command_text, command_tokens):
+        return "file_write"
+    if lowered and lowered[0] in ("sh", "bash", "zsh", "python", "python3", "node"):
+        return "shell_exec"
+    return "file_read"
+
+
+def _evaluate_policy_decision(
+    cfg: Dict[str, Any],
+    *,
+    tool: str,
+    source: str,
+    user_scope: str,
+    skill_id: str = "",
+) -> Dict[str, Any]:
+    normalized_tool = _normalize_policy_tool(tool)
+    normalized_source = _normalize_policy_source(source)
+    normalized_scope = _normalize_policy_scope(user_scope, cfg)
+    risk = _policy_risk_for_tool(cfg, normalized_tool)
+    max_risk = _policy_scope_max_risk(cfg, normalized_scope)
+    source_effect = _policy_effect_for_source(cfg, normalized_source)
+    allowlist = _policy_skill_allowlist(cfg, skill_id)
+
+    explanations: List[str] = []
+    policy_id = "policy.default.v1"
+    decision = "allow"
+
+    if allowlist is not None:
+        policy_id = f"policy.skill_allowlist.v1:{skill_id}"
+        if normalized_tool not in allowlist:
+            return {
+                "schema_version": 1,
+                "decision": "deny",
+                "policy_id": policy_id,
+                "reason": (
+                    f"tool '{normalized_tool}' is not allowed for skill '{skill_id}' "
+                    f"(allowlist: {', '.join(allowlist) or 'empty'})."
+                ),
+                "tool": normalized_tool,
+                "risk": risk,
+                "source": normalized_source,
+                "scope": normalized_scope,
+                "skill_id": skill_id,
+                "explanations": explanations,
+            }
+        explanations.append(f"tool '{normalized_tool}' allowed by skill allowlist for '{skill_id}'")
+
+    if source_effect == "deny":
+        return {
+            "schema_version": 1,
+            "decision": "deny",
+            "policy_id": f"policy.source.v1:{normalized_source}",
+            "reason": f"source '{normalized_source}' is denied by policy.",
+            "tool": normalized_tool,
+            "risk": risk,
+            "source": normalized_source,
+            "scope": normalized_scope,
+            "skill_id": skill_id,
+            "explanations": explanations,
+        }
+    if source_effect == "confirm":
+        decision = "confirm"
+        policy_id = f"policy.source.v1:{normalized_source}"
+        explanations.append(f"source '{normalized_source}' requires confirmation")
+
+    if _policy_risk_rank(risk) > _policy_risk_rank(max_risk):
+        return {
+            "schema_version": 1,
+            "decision": "deny",
+            "policy_id": f"policy.scope.v1:{normalized_scope}",
+            "reason": (
+                f"tool risk '{risk}' exceeds scope '{normalized_scope}' max risk '{max_risk}'."
+            ),
+            "tool": normalized_tool,
+            "risk": risk,
+            "source": normalized_source,
+            "scope": normalized_scope,
+            "skill_id": skill_id,
+            "explanations": explanations,
+        }
+
+    if decision == "confirm":
+        reason = f"confirmation required for source '{normalized_source}' before running tool '{normalized_tool}'."
+    else:
+        reason = f"tool '{normalized_tool}' is allowed for source '{normalized_source}' under scope '{normalized_scope}'."
+
+    return {
+        "schema_version": 1,
+        "decision": decision,
+        "policy_id": policy_id,
+        "reason": reason,
+        "tool": normalized_tool,
+        "risk": risk,
+        "source": normalized_source,
+        "scope": normalized_scope,
+        "skill_id": skill_id,
+        "explanations": explanations,
+    }
+
+
+def _policy_allowlists(cfg: Dict[str, Any]) -> Dict[str, List[str]]:
+    policy = cfg.setdefault("policy", {})
+    if not isinstance(policy, dict):
+        policy = {}
+        cfg["policy"] = policy
+    allowlists = policy.setdefault("skill_tool_allowlists", {})
+    if not isinstance(allowlists, dict):
+        allowlists = {}
+        policy["skill_tool_allowlists"] = allowlists
+    normalized = _normalize_config(cfg)
+    policy = normalized.get("policy", {}) if isinstance(normalized, dict) else {}
+    allowlists = policy.get("skill_tool_allowlists", {}) if isinstance(policy, dict) else {}
+    return allowlists if isinstance(allowlists, dict) else {}
 
 
 def _load_schedule_run_keys(storage_dir: Path) -> Dict[str, Dict[str, Any]]:
@@ -3427,6 +3765,291 @@ def cmd_capability_set(args: argparse.Namespace) -> int:
     return 0
 
 
+def _parse_policy_tools(raw: str) -> Tuple[Optional[List[str]], Optional[str]]:
+    values = [item.strip().lower() for item in raw.split(",") if item.strip()]
+    if not values:
+        return None, "tools list cannot be empty"
+    deduped: List[str] = []
+    seen: set[str] = set()
+    for tool in values:
+        if tool not in POLICY_TOOL_CHOICES:
+            return None, (
+                f"Invalid tool '{tool}'. Expected one of: {', '.join(POLICY_TOOL_CHOICES)}."
+            )
+        if tool in seen:
+            continue
+        seen.add(tool)
+        deduped.append(tool)
+    return deduped, None
+
+
+def cmd_policy_evaluate(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    start = time.perf_counter()
+
+    skill_id = ""
+    source = _normalize_policy_source(args.source)
+    scanned_roots: List[str] = []
+    if args.skill:
+        skill_ctx, error_message, scanned_roots = _resolve_policy_skill_reference(
+            cfg,
+            str(args.skill),
+            source_filter=str(args.skill_source),
+        )
+        if skill_ctx is None:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="policy_evaluate",
+                input_summary=f"skill={args.skill}",
+                output_summary=error_message or "skill resolution failed",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level="safe",
+                status="error",
+            )
+            print(error_message or "Unable to resolve skill reference.", file=sys.stderr)
+            return 1
+        skill_id = str(skill_ctx.get("skill_id", "")).strip()
+        source = _normalize_policy_source(str(skill_ctx.get("source", source)))
+
+    decision = _evaluate_policy_decision(
+        cfg,
+        tool=str(args.tool),
+        source=source,
+        user_scope=str(args.scope),
+        skill_id=skill_id,
+    )
+    if args.as_json:
+        print(json.dumps(decision, indent=2))
+    else:
+        print(
+            f"decision={decision.get('decision')} policy_id={decision.get('policy_id')} "
+            f"tool={decision.get('tool')} source={decision.get('source')} scope={decision.get('scope')}"
+        )
+        print(f"reason={decision.get('reason')}")
+        explanations = decision.get("explanations", [])
+        if isinstance(explanations, list):
+            for item in explanations:
+                print(f"- {item}")
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="policy_evaluate",
+        input_summary=f"tool={args.tool} source={source} scope={args.scope}",
+        output_summary=f"{decision.get('decision')} ({decision.get('policy_id')})",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level="safe",
+        status="ok" if decision.get("decision") != "deny" else "blocked",
+        metadata={
+            "decision": decision,
+            "skill": args.skill,
+            "skill_id": skill_id,
+            "scanned_roots": scanned_roots,
+        },
+    )
+    return 0 if decision.get("decision") != "deny" else 1
+
+
+def cmd_policy_allowlist_set(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_write",
+        input_summary="policy allowlist set",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="policy_allowlist_set",
+            input_summary=f"skill={args.skill}",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    tools, parse_error = _parse_policy_tools(str(args.tools))
+    if parse_error:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="policy_allowlist_set",
+            input_summary=f"skill={args.skill}",
+            output_summary=parse_error,
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(parse_error, file=sys.stderr)
+        return 1
+    assert tools is not None
+
+    skill_ctx, error_message, scanned_roots = _resolve_policy_skill_reference(
+        cfg,
+        str(args.skill),
+        source_filter=str(args.skill_source),
+    )
+    if skill_ctx is None:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="policy_allowlist_set",
+            input_summary=f"skill={args.skill}",
+            output_summary=error_message or "skill resolution failed",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(error_message or "Unable to resolve skill reference.", file=sys.stderr)
+        return 1
+
+    skill_id = str(skill_ctx.get("skill_id", "")).strip()
+    allowlists = _policy_allowlists(cfg)
+    allowlists[skill_id] = tools
+    cfg.setdefault("policy", {})["skill_tool_allowlists"] = allowlists
+    _write_json(cfg_path, _normalize_config(cfg))
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="policy_allowlist_set",
+        input_summary=f"skill={skill_id}",
+        output_summary=f"{len(tools)} tools",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata={"skill_id": skill_id, "tools": tools, "scanned_roots": scanned_roots},
+    )
+    print(f"{skill_id}: {', '.join(tools)}")
+    return 0
+
+
+def cmd_policy_allowlist_clear(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_write",
+        input_summary="policy allowlist clear",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="policy_allowlist_clear",
+            input_summary=f"skill={args.skill}",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    skill_ctx, error_message, scanned_roots = _resolve_policy_skill_reference(
+        cfg,
+        str(args.skill),
+        source_filter=str(args.skill_source),
+    )
+    if skill_ctx is None:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="policy_allowlist_clear",
+            input_summary=f"skill={args.skill}",
+            output_summary=error_message or "skill resolution failed",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(error_message or "Unable to resolve skill reference.", file=sys.stderr)
+        return 1
+
+    skill_id = str(skill_ctx.get("skill_id", "")).strip()
+    allowlists = _policy_allowlists(cfg)
+    removed = skill_id in allowlists
+    allowlists.pop(skill_id, None)
+    cfg.setdefault("policy", {})["skill_tool_allowlists"] = allowlists
+    _write_json(cfg_path, _normalize_config(cfg))
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="policy_allowlist_clear",
+        input_summary=f"skill={skill_id}",
+        output_summary="removed" if removed else "not found",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata={"skill_id": skill_id, "removed": removed, "scanned_roots": scanned_roots},
+    )
+    if removed:
+        print(f"{skill_id}: cleared")
+    else:
+        print(f"{skill_id}: no allowlist entry")
+    return 0
+
+
+def cmd_policy_allowlist_list(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    start = time.perf_counter()
+
+    allowlists = _policy_allowlists(cfg)
+    if args.skill:
+        skill_ctx, error_message, scanned_roots = _resolve_policy_skill_reference(
+            cfg,
+            str(args.skill),
+            source_filter=str(args.skill_source),
+        )
+        if skill_ctx is None:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="policy_allowlist_list",
+                input_summary=f"skill={args.skill}",
+                output_summary=error_message or "skill resolution failed",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level="safe",
+                status="error",
+            )
+            print(error_message or "Unable to resolve skill reference.", file=sys.stderr)
+            return 1
+        skill_id = str(skill_ctx.get("skill_id", "")).strip()
+        selected = {skill_id: allowlists.get(skill_id, [])}
+        metadata: Dict[str, Any] = {"skill_id": skill_id, "scanned_roots": scanned_roots}
+    else:
+        selected = dict(sorted(allowlists.items()))
+        metadata = {"count": len(selected)}
+
+    if args.as_json:
+        print(json.dumps(selected, indent=2))
+    elif not selected:
+        print("No policy skill allowlists configured.")
+    else:
+        for skill_id in sorted(selected):
+            tools = selected.get(skill_id, [])
+            if isinstance(tools, list):
+                print(f"{skill_id}: {', '.join(tools) if tools else '(empty)'}")
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="policy_allowlist_list",
+        input_summary="policy allowlist list",
+        output_summary=f"{len(selected)} entries",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level="safe",
+        metadata=metadata,
+    )
+    return 0
+
+
 def cmd_traces(args: argparse.Namespace) -> int:
     cfg_path = Path(args.config).expanduser()
     cfg = _ensure_config_exists(cfg_path)
@@ -4477,6 +5100,152 @@ def cmd_sandbox_run(args: argparse.Namespace) -> int:
     profile = _normalize_sandbox_profile(args.profile, cfg)
     allow_network = bool(args.allow_network or _sandbox_default_allow_network(cfg))
     command_text = shlex.join(command_tokens)
+    skill_id = ""
+    skill_scanned_roots: List[str] = []
+    policy_source = "unknown"
+
+    if args.skill:
+        skill_ctx, error_message, skill_scanned_roots = _resolve_policy_skill_reference(
+            cfg,
+            str(args.skill),
+            source_filter=str(args.skill_source),
+        )
+        if skill_ctx is None:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="sandbox_run",
+                input_summary=command_text,
+                output_summary=error_message or "skill resolution failed",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level="safe",
+                status="error",
+                metadata={"profile": profile, "skill": str(args.skill), "scanned_roots": skill_scanned_roots},
+            )
+            print(error_message or "Unable to resolve skill reference.", file=sys.stderr)
+            return 1
+        skill_id = str(skill_ctx.get("skill_id", "")).strip()
+        policy_source = _normalize_policy_source(str(skill_ctx.get("source", "unknown")))
+
+    inferred_policy_tool = _infer_policy_tool_from_command(command_text, command_tokens)
+    policy_tool = inferred_policy_tool
+    if args.tool:
+        requested_policy_tool = _normalize_policy_tool(args.tool)
+        if requested_policy_tool != inferred_policy_tool:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="sandbox_run",
+                input_summary=command_text,
+                output_summary="policy tool assertion mismatch",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level="safe",
+                status="error",
+                metadata={
+                    "profile": profile,
+                    "network_mode": "allow" if allow_network else "deny",
+                    "tool_inferred": inferred_policy_tool,
+                    "tool_requested": requested_policy_tool,
+                    "scope": _normalize_policy_scope(args.policy_scope, cfg),
+                    "source": policy_source,
+                    "skill_id": skill_id,
+                },
+            )
+            print(
+                "Policy tool assertion mismatch: "
+                f"inferred '{inferred_policy_tool}' from command, got '{requested_policy_tool}'.",
+                file=sys.stderr,
+            )
+            return 1
+        policy_tool = requested_policy_tool
+    policy_scope = _normalize_policy_scope(args.policy_scope, cfg)
+    policy_decision = _evaluate_policy_decision(
+        cfg,
+        tool=policy_tool,
+        source=policy_source,
+        user_scope=policy_scope,
+        skill_id=skill_id,
+    )
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="policy_decision",
+        input_summary=command_text,
+        output_summary=(
+            f"{policy_decision.get('decision')} "
+            f"({policy_decision.get('policy_id', 'policy.default.v1')})"
+        ),
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level="safe",
+        status="blocked" if policy_decision.get("decision") == "deny" else "ok",
+        metadata={
+            "decision": policy_decision,
+            "tool": policy_tool,
+            "scope": policy_scope,
+            "source": policy_source,
+            "skill_id": skill_id,
+            "skill_scanned_roots": skill_scanned_roots,
+        },
+    )
+
+    policy_decision_state = str(policy_decision.get("decision", "allow")).strip().lower()
+    policy_confirmed = policy_decision_state != "confirm"
+    if policy_decision_state == "deny":
+        policy_id = str(policy_decision.get("policy_id", "policy.default.v1"))
+        reason = str(policy_decision.get("reason", "action denied by policy"))
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="sandbox_run",
+            input_summary=command_text,
+            output_summary=f"policy denied ({policy_id})",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+            status="blocked",
+            metadata={
+                "profile": profile,
+                "network_mode": "allow" if allow_network else "deny",
+                "policy_decision": policy_decision,
+                "tool": policy_tool,
+                "scope": policy_scope,
+                "source": policy_source,
+                "skill_id": skill_id,
+            },
+        )
+        print(f"Policy denied ({policy_id}): {reason}", file=sys.stderr)
+        return 1
+    if policy_decision_state == "confirm":
+        if args.approve_policy or args.approve_escalation:
+            policy_confirmed = True
+        else:
+            policy_confirmed = _prompt_yes_no(
+                (
+                    "Policy confirmation required "
+                    f"({policy_decision.get('policy_id', 'policy.source.v1')}). Approve command execution?"
+                ),
+                default=False,
+                non_interactive=not sys.stdin.isatty(),
+            )
+        if not policy_confirmed:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="sandbox_run",
+                input_summary=command_text,
+                output_summary="policy confirmation denied",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level="safe",
+                status="blocked",
+                metadata={
+                    "profile": profile,
+                    "network_mode": "allow" if allow_network else "deny",
+                    "policy_decision": policy_decision,
+                    "tool": policy_tool,
+                    "scope": policy_scope,
+                    "source": policy_source,
+                    "skill_id": skill_id,
+                },
+            )
+            print(
+                "Policy confirmation required but not approved. Re-run with --approve-policy to continue.",
+                file=sys.stderr,
+            )
+            return 1
 
     shell_allowed, permission_level, shell_reason = _shell_permission_for_sandbox(cfg)
     if not shell_allowed:
@@ -4589,9 +5358,16 @@ def cmd_sandbox_run(args: argparse.Namespace) -> int:
     sandbox_env["GAIA_SANDBOX_PROFILE"] = profile
     sandbox_env["GAIA_SANDBOX_NETWORK_MODE"] = "allow" if allow_network else "deny"
     sandbox_env["GAIA_SANDBOX_ESCALATION"] = "approved" if escalated else "not-required"
+    sandbox_env["GAIA_POLICY_DECISION"] = policy_decision_state
+    sandbox_env["GAIA_POLICY_ID"] = str(policy_decision.get("policy_id", "policy.default.v1"))
 
     if args.dry_run:
         print(f"Sandbox dry-run profile={profile} network={'allow' if allow_network else 'deny'}")
+        print(
+            "Policy: "
+            f"{policy_decision.get('decision')} "
+            f"({policy_decision.get('policy_id', 'policy.default.v1')})"
+        )
         print(f"Command: {command_text}")
         if escalated:
             reason_ids = ", ".join(str(item.get("id", "")) for item in reasons if item.get("id"))
@@ -4611,6 +5387,8 @@ def cmd_sandbox_run(args: argparse.Namespace) -> int:
                 "dry_run": True,
                 "escalated": escalated,
                 "approved": approved,
+                "policy_confirmed": policy_confirmed,
+                "policy_decision": policy_decision,
                 "reasons": reasons,
                 "event_id": event.get("event_id") if isinstance(event, dict) else None,
             },
@@ -4645,6 +5423,8 @@ def cmd_sandbox_run(args: argparse.Namespace) -> int:
             "dry_run": False,
             "escalated": escalated,
             "approved": approved,
+            "policy_confirmed": policy_confirmed,
+            "policy_decision": policy_decision,
             "reasons": reasons,
             "event_id": event.get("event_id") if isinstance(event, dict) else None,
             "cwd": str(run_cwd),
@@ -6678,6 +7458,85 @@ def build_parser() -> argparse.ArgumentParser:
     capability_set.add_argument("level", choices=list(PERMISSION_LEVEL_CHOICES), help="Permission level")
     capability_set.set_defaults(func=cmd_capability_set)
 
+    policy = sub.add_parser("policy", help="Evaluate and manage policy decisions")
+    policy_sub = policy.add_subparsers(dest="policy_command", required=True)
+
+    policy_evaluate = policy_sub.add_parser("evaluate", help="Evaluate one policy decision")
+    policy_evaluate.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    policy_evaluate.add_argument("--trace-dir", default=None, help="Trace directory override")
+    policy_evaluate.add_argument(
+        "--tool",
+        choices=list(POLICY_TOOL_CHOICES),
+        required=True,
+        help="Tool capability to evaluate",
+    )
+    policy_evaluate.add_argument(
+        "--source",
+        choices=list(POLICY_SOURCE_CHOICES),
+        default="unknown",
+        help="Source provenance for policy evaluation",
+    )
+    policy_evaluate.add_argument(
+        "--scope",
+        choices=list(POLICY_SCOPE_CHOICES),
+        default=None,
+        help="User scope override (defaults to config policy.default_scope)",
+    )
+    policy_evaluate.add_argument("--skill", default=None, help="Optional skill id/name/path context")
+    policy_evaluate.add_argument(
+        "--skill-source",
+        choices=list(SKILL_SOURCE_CHOICES),
+        default="all",
+        help="Source filter when resolving --skill references",
+    )
+    policy_evaluate.add_argument("--json", dest="as_json", action="store_true", help="Emit full JSON payload")
+    policy_evaluate.set_defaults(func=cmd_policy_evaluate)
+
+    policy_allowlist = policy_sub.add_parser("allowlist", help="Manage per-skill policy tool allowlists")
+    policy_allowlist_sub = policy_allowlist.add_subparsers(dest="policy_allowlist_command", required=True)
+
+    policy_allowlist_set = policy_allowlist_sub.add_parser("set", help="Set a skill tool allowlist")
+    policy_allowlist_set.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    policy_allowlist_set.add_argument("--trace-dir", default=None, help="Trace directory override")
+    policy_allowlist_set.add_argument(
+        "--skill-source",
+        choices=list(SKILL_SOURCE_CHOICES),
+        default="all",
+        help="Source filter when resolving skill references",
+    )
+    policy_allowlist_set.add_argument("skill", help="Skill id, unique name, or local skill path")
+    policy_allowlist_set.add_argument(
+        "--tools",
+        required=True,
+        help="Comma-separated list of allowed tools",
+    )
+    policy_allowlist_set.set_defaults(func=cmd_policy_allowlist_set)
+
+    policy_allowlist_clear = policy_allowlist_sub.add_parser("clear", help="Clear one skill tool allowlist")
+    policy_allowlist_clear.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    policy_allowlist_clear.add_argument("--trace-dir", default=None, help="Trace directory override")
+    policy_allowlist_clear.add_argument(
+        "--skill-source",
+        choices=list(SKILL_SOURCE_CHOICES),
+        default="all",
+        help="Source filter when resolving skill references",
+    )
+    policy_allowlist_clear.add_argument("skill", help="Skill id, unique name, or local skill path")
+    policy_allowlist_clear.set_defaults(func=cmd_policy_allowlist_clear)
+
+    policy_allowlist_list = policy_allowlist_sub.add_parser("list", help="List policy skill allowlists")
+    policy_allowlist_list.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    policy_allowlist_list.add_argument("--trace-dir", default=None, help="Trace directory override")
+    policy_allowlist_list.add_argument(
+        "--skill-source",
+        choices=list(SKILL_SOURCE_CHOICES),
+        default="all",
+        help="Source filter when resolving --skill references",
+    )
+    policy_allowlist_list.add_argument("--skill", default=None, help="Optional skill id/name/path filter")
+    policy_allowlist_list.add_argument("--json", dest="as_json", action="store_true", help="Emit full JSON payload")
+    policy_allowlist_list.set_defaults(func=cmd_policy_allowlist_list)
+
     traces = sub.add_parser("traces", help="Show structured action traces")
     traces.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
     traces.add_argument("--trace-dir", default=None, help="Trace directory override")
@@ -6825,6 +7684,34 @@ def build_parser() -> argparse.ArgumentParser:
         "--approve-escalation",
         action="store_true",
         help="Approve required sandbox escalation non-interactively",
+    )
+    sandbox_run.add_argument(
+        "--approve-policy",
+        action="store_true",
+        help="Approve policy confirmation decisions non-interactively",
+    )
+    sandbox_run.add_argument(
+        "--skill",
+        default=None,
+        help="Optional skill id/name/path context for policy evaluation",
+    )
+    sandbox_run.add_argument(
+        "--skill-source",
+        choices=list(SKILL_SOURCE_CHOICES),
+        default="all",
+        help="Source filter when resolving --skill references",
+    )
+    sandbox_run.add_argument(
+        "--tool",
+        choices=list(POLICY_TOOL_CHOICES),
+        default=None,
+        help="Assert inferred policy tool for this command",
+    )
+    sandbox_run.add_argument(
+        "--policy-scope",
+        choices=list(POLICY_SCOPE_CHOICES),
+        default=None,
+        help="Policy user scope override (defaults to config policy.default_scope)",
     )
     sandbox_run.add_argument("--dry-run", action="store_true", help="Print sandbox decision without executing")
     sandbox_run.add_argument("--cwd", default=None, help="Working directory override for command execution")

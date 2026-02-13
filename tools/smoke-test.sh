@@ -177,6 +177,37 @@ run_smoke_suite() {
     [[ \"\$approvals\" == *\"sandbox_approval\"* ]]
   "
 
+  run_test "policy_engine_gating_and_allowlists" bash -lc "
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" policy evaluate --tool file_read --source project --scope standard >/dev/null &&
+    set +e
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" policy evaluate --tool delete_files --source project --scope standard >/tmp/policy-eval-denied-smoke.out 2>&1
+    deny_rc=\$?
+    set -e
+    [[ \$deny_rc -ne 0 ]] &&
+    deny_out=\$(cat /tmp/policy-eval-denied-smoke.out) &&
+    [[ \"\$deny_out\" == *\"decision=deny\"* ]] &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" policy allowlist set project:gaia-contributor --tools file_read >/dev/null &&
+    listed=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" policy allowlist list --skill project:gaia-contributor) &&
+    [[ \"\$listed\" == *\"project:gaia-contributor: file_read\"* ]] &&
+    set +e
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" sandbox run --skill project:gaia-contributor -- sh -lc 'echo blocked > \"\$GAIA_ASSISTANT_HOME/policy-blocked.txt\"' >/tmp/policy-sandbox-denied-smoke.out 2>&1
+    policy_rc=\$?
+    set -e
+    [[ \$policy_rc -ne 0 ]] &&
+    policy_out=\$(cat /tmp/policy-sandbox-denied-smoke.out) &&
+    [[ \"\$policy_out\" == *\"Policy denied\"* ]] &&
+    set +e
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" sandbox run --tool file_read -- sh -lc 'echo mismatch > \"\$GAIA_ASSISTANT_HOME/policy-mismatch.txt\"' >/tmp/policy-tool-mismatch-smoke.out 2>&1
+    mismatch_rc=\$?
+    set -e
+    [[ \$mismatch_rc -ne 0 ]] &&
+    mismatch_out=\$(cat /tmp/policy-tool-mismatch-smoke.out) &&
+    [[ \"\$mismatch_out\" == *\"Policy tool assertion mismatch\"* ]] &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" policy allowlist clear project:gaia-contributor >/dev/null &&
+    traces=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" traces --type policy_decision --last 1) &&
+    [[ \"\$traces\" == *\"policy_decision\"* ]]
+  "
+
   run_test "provider_fallback" bash -lc "
     out=\$(printf 'provider fallback check\\n/exit\\n' | \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" chat 2>&1) &&
     [[ \"\$out\" == *\"[local-\"* ]]

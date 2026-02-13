@@ -315,6 +315,12 @@ gaia sandbox run --profile read-only --approve-escalation -- sh -lc 'echo test >
 
 # request network mode explicitly (still policy-gated)
 gaia sandbox run --profile workspace-write --allow-network --approve-escalation -- curl https://example.com
+
+# run with skill context so policy uses skill source + allowlist gates
+gaia sandbox run --skill project:gaia-contributor -- printf "policy-checked\n"
+
+# assert inferred policy tool classification (mismatch blocks execution)
+gaia sandbox run --tool file_read -- cat README.md
 ```
 
 Sandbox artifacts:
@@ -322,6 +328,32 @@ Sandbox artifacts:
 - approval events: `~/.gaia-assistant/traces/sandbox-approvals.jsonl`
 - action traces: `sandbox_profiles`, `sandbox_approval`, `sandbox_run`
 - contract reference: `infrastructure/sandbox-contract-v1.md`
+
+## Policy Engine
+
+Policy commands provide explicit risk/source/scope evaluation and per-skill tool
+allowlists.
+
+```bash
+# evaluate one policy decision
+gaia policy evaluate --tool file_write --source project --scope standard
+
+# inspect the same decision payload as JSON
+gaia policy evaluate --tool delete_files --source project --scope standard --json
+
+# set/list/clear per-skill tool allowlists
+gaia policy allowlist set project:gaia-contributor --tools file_read,file_write
+gaia policy allowlist list --skill project:gaia-contributor
+gaia policy allowlist clear project:gaia-contributor
+```
+
+Policy traces:
+
+- `policy_decision` (emitted before sandbox command execution)
+- `policy_evaluate`
+- `policy_allowlist_set`
+- `policy_allowlist_clear`
+- `policy_allowlist_list`
 
 ## Budget Policy
 
