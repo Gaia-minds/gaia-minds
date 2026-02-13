@@ -51,6 +51,8 @@ DEFAULT_SESSION_CONTEXT_TURNS = 20
 SCHEDULE_STATUS_CHOICES = ("active", "paused", "canceled", "completed", "failed")
 SCHEDULE_MUTABLE_STATUS_CHOICES = ("active", "paused", "canceled")
 SCHEDULE_DEFAULT_WINDOW_MINUTES = 10
+REMINDER_DEFAULT_CADENCE_MINUTES = 24 * 60
+REMINDER_DEFAULT_WINDOW_MINUTES = 30
 DEFAULT_CAPABILITY_LEVELS = {
     "file_read": "safe",
     "file_write": "safe",
@@ -477,6 +479,10 @@ def _schedule_runs_path(storage_dir: Path) -> Path:
     return storage_dir / "schedule-runs.jsonl"
 
 
+def _reminder_events_path(storage_dir: Path) -> Path:
+    return storage_dir / "reminder-events.jsonl"
+
+
 def _autopilot_runs_path(trace_dir: Path) -> Path:
     return trace_dir / "autopilot-runs.jsonl"
 
@@ -681,6 +687,21 @@ def _schedule_profile_name(schedule: Dict[str, Any]) -> str:
     return str(payload.get("profile", "")).strip().lower()
 
 
+def _schedule_action(schedule: Dict[str, Any]) -> str:
+    return str(schedule.get("action", "")).strip().lower()
+
+
+def _is_reminder_schedule(schedule: Dict[str, Any]) -> bool:
+    return _schedule_action(schedule) == "reminder_emit"
+
+
+def _reminder_message(schedule: Dict[str, Any]) -> str:
+    payload = schedule.get("payload", {})
+    if not isinstance(payload, dict):
+        return ""
+    return str(payload.get("message", "")).strip()
+
+
 def _schedule_window_minutes(schedule: Dict[str, Any]) -> int:
     raw = schedule.get("window_minutes", SCHEDULE_DEFAULT_WINDOW_MINUTES)
     if isinstance(raw, int) and raw > 0:
@@ -729,8 +750,26 @@ def _execute_schedule_action(
     cfg_path: Path,
     storage_dir: Path,
     trace_dir: Path,
+    due_at: Optional[datetime] = None,
 ) -> Tuple[bool, str]:
-    action = str(schedule.get("action", "")).strip().lower()
+    action = _schedule_action(schedule)
+    if action == "reminder_emit":
+        reminder_text = _reminder_message(schedule)
+        if not reminder_text:
+            return False, "reminder message is empty"
+        schedule_id = str(schedule.get("id", "")).strip()
+        record: Dict[str, Any] = {
+            "event_id": str(uuid.uuid4()),
+            "schedule_id": schedule_id,
+            "triggered_at": _isoformat_utc(datetime.now(timezone.utc)),
+            "message": reminder_text,
+            "status": "delivered",
+        }
+        if due_at is not None:
+            record["due_at"] = _isoformat_utc(due_at)
+        _append_jsonl(_reminder_events_path(storage_dir), record)
+        return True, f"reminder delivered: {_summarize_text(reminder_text, max_chars=90)}"
+
     if action != "autopilot_profile_run":
         return False, f"unsupported schedule action '{action}'"
 
@@ -3056,6 +3095,15 @@ def _find_schedule(schedules: List[Dict[str, Any]], schedule_id: str) -> Optiona
     return None
 
 
+def _find_reminder(schedules: List[Dict[str, Any]], reminder_id: str) -> Optional[Dict[str, Any]]:
+    item = _find_schedule(schedules, reminder_id)
+    if item is None:
+        return None
+    if not _is_reminder_schedule(item):
+        return None
+    return item
+
+
 def _format_schedule_cadence(schedule: Dict[str, Any]) -> str:
     cadence_type = _schedule_cadence_type(schedule)
     if cadence_type == "interval":
@@ -3064,6 +3112,13 @@ def _format_schedule_cadence(schedule: Dict[str, Any]) -> str:
             return "interval(?)"
         return f"interval/{every}m"
     return "oneshot"
+
+
+def _format_reminder_summary(schedule: Dict[str, Any]) -> str:
+    message = _reminder_message(schedule)
+    if not message:
+        return "(empty)"
+    return _summarize_text(message, max_chars=80)
 
 
 def cmd_schedule_create(args: argparse.Namespace) -> int:
@@ -3631,6 +3686,7 @@ def cmd_schedule_run_due(args: argparse.Namespace) -> int:
         status = str(schedule.get("status", "active")).strip().lower()
         if status != "active":
             continue
+        is_reminder = _is_reminder_schedule(schedule)
 
         raw_due = str(schedule.get("next_run_at", "")).strip()
         if not raw_due:
@@ -3644,13 +3700,13 @@ def cmd_schedule_run_due(args: argparse.Namespace) -> int:
             failed += 1
             _write_action_trace(
                 trace_dir=trace_dir,
-                action_type="schedule_fail",
+                action_type="reminder_fail" if is_reminder else "schedule_fail",
                 input_summary=f"schedule_id={schedule.get('id', '?')}",
                 output_summary="invalid next_run_at",
                 duration_ms=0.0,
                 permission_level=permission_level,
                 status="error",
-                metadata={"schedule_id": schedule.get("id")},
+                metadata={"schedule_id": schedule.get("id"), "schedule_action": _schedule_action(schedule)},
             )
             continue
 
@@ -3680,12 +3736,17 @@ def cmd_schedule_run_due(args: argparse.Namespace) -> int:
             schedule["updated_at"] = _isoformat_utc(datetime.now(timezone.utc))
             _write_action_trace(
                 trace_dir=trace_dir,
-                action_type="schedule_skip",
+                action_type="reminder_skip" if is_reminder else "schedule_skip",
                 input_summary=f"schedule_id={schedule_id}",
                 output_summary=f"missed window ({lag_minutes:.2f}m > {effective_window}m)",
                 duration_ms=0.0,
                 permission_level=permission_level,
-                metadata={"schedule_id": schedule_id, "run_key": run_key, "reason": "missed_window"},
+                metadata={
+                    "schedule_id": schedule_id,
+                    "run_key": run_key,
+                    "reason": "missed_window",
+                    "schedule_action": _schedule_action(schedule),
+                },
             )
             print(f"- skipped {schedule_id}: missed window")
             continue
@@ -3696,12 +3757,17 @@ def cmd_schedule_run_due(args: argparse.Namespace) -> int:
             schedule["updated_at"] = _isoformat_utc(datetime.now(timezone.utc))
             _write_action_trace(
                 trace_dir=trace_dir,
-                action_type="schedule_skip",
+                action_type="reminder_skip" if is_reminder else "schedule_skip",
                 input_summary=f"schedule_id={schedule_id}",
                 output_summary="duplicate run key",
                 duration_ms=0.0,
                 permission_level=permission_level,
-                metadata={"schedule_id": schedule_id, "run_key": run_key, "reason": "duplicate_run_key"},
+                metadata={
+                    "schedule_id": schedule_id,
+                    "run_key": run_key,
+                    "reason": "duplicate_run_key",
+                    "schedule_action": _schedule_action(schedule),
+                },
             )
             print(f"- skipped {schedule_id}: duplicate run key")
             continue
@@ -3712,6 +3778,7 @@ def cmd_schedule_run_due(args: argparse.Namespace) -> int:
             cfg_path=cfg_path,
             storage_dir=storage_dir,
             trace_dir=trace_dir,
+            due_at=due_at,
         )
         duration_ms = (time.perf_counter() - run_start) * 1000
         now_ts = _isoformat_utc(datetime.now(timezone.utc))
@@ -3741,25 +3808,35 @@ def cmd_schedule_run_due(args: argparse.Namespace) -> int:
             executed += 1
             _write_action_trace(
                 trace_dir=trace_dir,
-                action_type="schedule_run",
+                action_type="reminder_run" if is_reminder else "schedule_run",
                 input_summary=f"schedule_id={schedule_id}",
                 output_summary=result_message,
                 duration_ms=duration_ms,
                 permission_level=permission_level,
-                metadata={"schedule_id": schedule_id, "run_key": run_key, "due_at": _isoformat_utc(due_at)},
+                metadata={
+                    "schedule_id": schedule_id,
+                    "run_key": run_key,
+                    "due_at": _isoformat_utc(due_at),
+                    "schedule_action": _schedule_action(schedule),
+                },
             )
             print(f"- executed {schedule_id}: {result_message}")
         else:
             failed += 1
             _write_action_trace(
                 trace_dir=trace_dir,
-                action_type="schedule_fail",
+                action_type="reminder_fail" if is_reminder else "schedule_fail",
                 input_summary=f"schedule_id={schedule_id}",
                 output_summary=result_message,
                 duration_ms=duration_ms,
                 permission_level=permission_level,
                 status="error",
-                metadata={"schedule_id": schedule_id, "run_key": run_key, "due_at": _isoformat_utc(due_at)},
+                metadata={
+                    "schedule_id": schedule_id,
+                    "run_key": run_key,
+                    "due_at": _isoformat_utc(due_at),
+                    "schedule_action": _schedule_action(schedule),
+                },
             )
             print(f"- failed {schedule_id}: {result_message}", file=sys.stderr)
 
@@ -3775,6 +3852,717 @@ def cmd_schedule_run_due(args: argparse.Namespace) -> int:
     )
     print(f"run-due summary: executed={executed} skipped={skipped} failed={failed}")
     return 1 if failed > 0 else 0
+
+
+def cmd_reminder_create(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_write",
+        input_summary="reminder create",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="reminder_create",
+            input_summary="reminder create",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    message = str(args.message).strip()
+    if not message:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="reminder_create",
+            input_summary="reminder create",
+            output_summary="empty message",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print("Reminder message cannot be empty.", file=sys.stderr)
+        return 1
+
+    every_minutes: Optional[int] = args.every_minutes if args.every_minutes is not None else None
+    if every_minutes is not None and every_minutes <= 0:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="reminder_create",
+            input_summary="reminder create",
+            output_summary="invalid --every-minutes",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print("--every-minutes must be a positive integer.", file=sys.stderr)
+        return 1
+
+    window_minutes = int(args.window_minutes)
+    if window_minutes <= 0:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="reminder_create",
+            input_summary="reminder create",
+            output_summary="invalid --window-minutes",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print("--window-minutes must be a positive integer.", file=sys.stderr)
+        return 1
+
+    now = datetime.now(timezone.utc)
+    parsed_at: Optional[datetime] = None
+    if args.at is not None:
+        try:
+            parsed_at = _parse_datetime_utc(str(args.at), "--at")
+        except ValueError as exc:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="reminder_create",
+                input_summary="reminder create",
+                output_summary=str(exc),
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=permission_level,
+                status="error",
+            )
+            print(str(exc), file=sys.stderr)
+            return 1
+
+    if every_minutes is None and parsed_at is None:
+        every_minutes = REMINDER_DEFAULT_CADENCE_MINUTES
+
+    cadence_type = "interval" if every_minutes is not None else "oneshot"
+    if cadence_type == "interval" and parsed_at is None:
+        parsed_at = now + timedelta(minutes=every_minutes or REMINDER_DEFAULT_CADENCE_MINUTES)
+    if parsed_at is None:
+        print("Internal error: reminder due time could not be resolved.", file=sys.stderr)
+        return 1
+
+    reminder_id = _new_record_id("rem")
+    timestamp = _isoformat_utc(now)
+    reminder_record: Dict[str, Any] = {
+        "id": reminder_id,
+        "action": "reminder_emit",
+        "payload": {"message": message},
+        "status": "active",
+        "cadence": {
+            "type": cadence_type,
+            "timezone": "UTC",
+        },
+        "window_minutes": window_minutes,
+        "next_run_at": _isoformat_utc(parsed_at),
+        "last_run_at": None,
+        "last_run_key": None,
+        "created_at": timestamp,
+        "updated_at": timestamp,
+    }
+    if every_minutes is not None:
+        reminder_record["cadence"]["every_minutes"] = every_minutes
+
+    schedules_path = _schedules_path(storage_dir)
+    schedules = _load_records(schedules_path)
+    schedules.append(reminder_record)
+    _save_records(schedules_path, schedules)
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="reminder_create",
+        input_summary="reminder create",
+        output_summary=f"created {reminder_id}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata={
+            "reminder_id": reminder_id,
+            "cadence": cadence_type,
+            "next_run_at": reminder_record["next_run_at"],
+        },
+    )
+    print(
+        f"{reminder_id} active next={reminder_record['next_run_at']} cadence={_format_schedule_cadence(reminder_record)} "
+        f"window={window_minutes}m message={_format_reminder_summary(reminder_record)}"
+    )
+    return 0
+
+
+def cmd_reminder_list(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_read",
+        input_summary="reminder list",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="reminder_list",
+            input_summary="reminder list",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    wanted_status = str(args.status).strip().lower()
+    reminders = [item for item in _load_records(_schedules_path(storage_dir)) if _is_reminder_schedule(item)]
+    if wanted_status != "all":
+        reminders = [
+            item
+            for item in reminders
+            if str(item.get("status", "active")).strip().lower() == wanted_status
+        ]
+
+    reminders.sort(
+        key=lambda item: (
+            str(item.get("next_run_at", "")) == "",
+            str(item.get("next_run_at", "")),
+            str(item.get("id", "")),
+        )
+    )
+
+    if not reminders:
+        print("No reminders found.")
+    else:
+        for item in reminders:
+            reminder_id = str(item.get("id", "?"))
+            status = str(item.get("status", "?")).strip().lower()
+            next_run_at = str(item.get("next_run_at", "")).strip() or "-"
+            cadence = _format_schedule_cadence(item)
+            window_minutes = _schedule_window_minutes(item)
+            print(
+                f"{reminder_id} {status:<9} next={next_run_at} cadence={cadence} "
+                f"window={window_minutes}m message={_format_reminder_summary(item)}"
+            )
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="reminder_list",
+        input_summary=f"status={wanted_status}",
+        output_summary=f"{len(reminders)} reminders",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+    )
+    return 0
+
+
+def cmd_reminder_update(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_write",
+        input_summary="reminder update",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="reminder_update",
+            input_summary=f"reminder_id={args.reminder_id}",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    if (
+        args.message is None
+        and args.every_minutes is None
+        and args.at is None
+        and args.window_minutes is None
+    ):
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="reminder_update",
+            input_summary=f"reminder_id={args.reminder_id}",
+            output_summary="no updates provided",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print("No updates requested. Provide one or more update flags.", file=sys.stderr)
+        return 1
+
+    schedules_path = _schedules_path(storage_dir)
+    schedules = _load_records(schedules_path)
+    reminder_id = str(args.reminder_id).strip()
+    target = _find_reminder(schedules, reminder_id)
+    if target is None:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="reminder_update",
+            input_summary=f"reminder_id={reminder_id}",
+            output_summary="reminder not found",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(f"Reminder not found: {reminder_id}", file=sys.stderr)
+        return 1
+
+    if args.message is not None:
+        message = str(args.message).strip()
+        if not message:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="reminder_update",
+                input_summary=f"reminder_id={reminder_id}",
+                output_summary="empty message",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=permission_level,
+                status="error",
+            )
+            print("Reminder message cannot be empty.", file=sys.stderr)
+            return 1
+        payload = target.setdefault("payload", {})
+        if not isinstance(payload, dict):
+            payload = {}
+            target["payload"] = payload
+        payload["message"] = message
+
+    if args.window_minutes is not None:
+        window_minutes = int(args.window_minutes)
+        if window_minutes <= 0:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="reminder_update",
+                input_summary=f"reminder_id={reminder_id}",
+                output_summary="invalid --window-minutes",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=permission_level,
+                status="error",
+            )
+            print("--window-minutes must be a positive integer.", file=sys.stderr)
+            return 1
+        target["window_minutes"] = window_minutes
+
+    parsed_at: Optional[datetime] = None
+    if args.at is not None:
+        try:
+            parsed_at = _parse_datetime_utc(str(args.at), "--at")
+        except ValueError as exc:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="reminder_update",
+                input_summary=f"reminder_id={reminder_id}",
+                output_summary=str(exc),
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=permission_level,
+                status="error",
+            )
+            print(str(exc), file=sys.stderr)
+            return 1
+
+    if args.every_minutes is not None:
+        every_minutes = int(args.every_minutes)
+        if every_minutes <= 0:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="reminder_update",
+                input_summary=f"reminder_id={reminder_id}",
+                output_summary="invalid --every-minutes",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=permission_level,
+                status="error",
+            )
+            print("--every-minutes must be a positive integer.", file=sys.stderr)
+            return 1
+        cadence = target.setdefault("cadence", {})
+        if not isinstance(cadence, dict):
+            cadence = {}
+            target["cadence"] = cadence
+        cadence["type"] = "interval"
+        cadence["every_minutes"] = every_minutes
+        cadence["timezone"] = "UTC"
+        if parsed_at is None:
+            parsed_at = datetime.now(timezone.utc) + timedelta(minutes=every_minutes)
+
+    if parsed_at is not None:
+        target["next_run_at"] = _isoformat_utc(parsed_at)
+
+    target["updated_at"] = _isoformat_utc(datetime.now(timezone.utc))
+    _save_records(schedules_path, schedules)
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="reminder_update",
+        input_summary=f"reminder_id={reminder_id}",
+        output_summary=f"updated {reminder_id}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata={
+            "reminder_id": reminder_id,
+            "status": target.get("status"),
+            "next_run_at": target.get("next_run_at"),
+        },
+    )
+    print(
+        f"{reminder_id} {target.get('status', '?')} next={target.get('next_run_at') or '-'} "
+        f"cadence={_format_schedule_cadence(target)} window={_schedule_window_minutes(target)}m "
+        f"message={_format_reminder_summary(target)}"
+    )
+    return 0
+
+
+def cmd_reminder_pause(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_write",
+        input_summary="reminder pause",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="reminder_pause",
+            input_summary=f"reminder_id={args.reminder_id}",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    schedules_path = _schedules_path(storage_dir)
+    schedules = _load_records(schedules_path)
+    reminder_id = str(args.reminder_id).strip()
+    target = _find_reminder(schedules, reminder_id)
+    if target is None:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="reminder_pause",
+            input_summary=f"reminder_id={reminder_id}",
+            output_summary="reminder not found",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(f"Reminder not found: {reminder_id}", file=sys.stderr)
+        return 1
+
+    status = str(target.get("status", "active")).strip().lower()
+    if status in ("canceled", "completed", "failed"):
+        print(f"Cannot pause reminder in '{status}' state.", file=sys.stderr)
+        return 1
+
+    target["status"] = "paused"
+    target["updated_at"] = _isoformat_utc(datetime.now(timezone.utc))
+    _save_records(schedules_path, schedules)
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="reminder_pause",
+        input_summary=f"reminder_id={reminder_id}",
+        output_summary=f"paused {reminder_id}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata={"reminder_id": reminder_id},
+    )
+    print(f"{reminder_id} paused next={target.get('next_run_at') or '-'}")
+    return 0
+
+
+def cmd_reminder_resume(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_write",
+        input_summary="reminder resume",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="reminder_resume",
+            input_summary=f"reminder_id={args.reminder_id}",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    schedules_path = _schedules_path(storage_dir)
+    schedules = _load_records(schedules_path)
+    reminder_id = str(args.reminder_id).strip()
+    target = _find_reminder(schedules, reminder_id)
+    if target is None:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="reminder_resume",
+            input_summary=f"reminder_id={reminder_id}",
+            output_summary="reminder not found",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(f"Reminder not found: {reminder_id}", file=sys.stderr)
+        return 1
+
+    status = str(target.get("status", "active")).strip().lower()
+    if status in ("canceled", "completed", "failed"):
+        print(f"Cannot resume reminder in '{status}' state.", file=sys.stderr)
+        return 1
+
+    parsed_at: Optional[datetime] = None
+    if args.at is not None:
+        try:
+            parsed_at = _parse_datetime_utc(str(args.at), "--at")
+        except ValueError as exc:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="reminder_resume",
+                input_summary=f"reminder_id={reminder_id}",
+                output_summary=str(exc),
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=permission_level,
+                status="error",
+            )
+            print(str(exc), file=sys.stderr)
+            return 1
+
+    if parsed_at is not None:
+        target["next_run_at"] = _isoformat_utc(parsed_at)
+    elif not str(target.get("next_run_at", "")).strip():
+        cadence_type = _schedule_cadence_type(target)
+        if cadence_type == "interval":
+            every = _schedule_interval_minutes(target)
+            if every is None:
+                print("Cannot resume interval reminder with invalid cadence.", file=sys.stderr)
+                return 1
+            target["next_run_at"] = _isoformat_utc(datetime.now(timezone.utc) + timedelta(minutes=every))
+        else:
+            print("Cannot resume one-shot reminder without --at.", file=sys.stderr)
+            return 1
+
+    target["status"] = "active"
+    target["updated_at"] = _isoformat_utc(datetime.now(timezone.utc))
+    _save_records(schedules_path, schedules)
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="reminder_resume",
+        input_summary=f"reminder_id={reminder_id}",
+        output_summary=f"resumed {reminder_id}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata={"reminder_id": reminder_id, "next_run_at": target.get("next_run_at")},
+    )
+    print(f"{reminder_id} active next={target.get('next_run_at') or '-'}")
+    return 0
+
+
+def cmd_reminder_snooze(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_write",
+        input_summary="reminder snooze",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="reminder_snooze",
+            input_summary=f"reminder_id={args.reminder_id}",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    schedules_path = _schedules_path(storage_dir)
+    schedules = _load_records(schedules_path)
+    reminder_id = str(args.reminder_id).strip()
+    target = _find_reminder(schedules, reminder_id)
+    if target is None:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="reminder_snooze",
+            input_summary=f"reminder_id={reminder_id}",
+            output_summary="reminder not found",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(f"Reminder not found: {reminder_id}", file=sys.stderr)
+        return 1
+
+    status = str(target.get("status", "active")).strip().lower()
+    if status in ("canceled", "completed", "failed"):
+        print(f"Cannot snooze reminder in '{status}' state.", file=sys.stderr)
+        return 1
+
+    due_at: Optional[datetime] = None
+    if args.until is not None:
+        try:
+            due_at = _parse_datetime_utc(str(args.until), "--until")
+        except ValueError as exc:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="reminder_snooze",
+                input_summary=f"reminder_id={reminder_id}",
+                output_summary=str(exc),
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=permission_level,
+                status="error",
+            )
+            print(str(exc), file=sys.stderr)
+            return 1
+    else:
+        minutes = int(args.minutes)
+        if minutes <= 0:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="reminder_snooze",
+                input_summary=f"reminder_id={reminder_id}",
+                output_summary="invalid --minutes",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=permission_level,
+                status="error",
+            )
+            print("--minutes must be a positive integer.", file=sys.stderr)
+            return 1
+        due_at = datetime.now(timezone.utc) + timedelta(minutes=minutes)
+
+    target["status"] = "active"
+    target["next_run_at"] = _isoformat_utc(due_at)
+    target["updated_at"] = _isoformat_utc(datetime.now(timezone.utc))
+    _save_records(schedules_path, schedules)
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="reminder_snooze",
+        input_summary=f"reminder_id={reminder_id}",
+        output_summary=f"snoozed {reminder_id}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata={"reminder_id": reminder_id, "next_run_at": target.get("next_run_at")},
+    )
+    print(f"{reminder_id} snoozed next={target.get('next_run_at') or '-'}")
+    return 0
+
+
+def cmd_reminder_dismiss(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_write",
+        input_summary="reminder dismiss",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="reminder_dismiss",
+            input_summary=f"reminder_id={args.reminder_id}",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    schedules_path = _schedules_path(storage_dir)
+    schedules = _load_records(schedules_path)
+    reminder_id = str(args.reminder_id).strip()
+    target = _find_reminder(schedules, reminder_id)
+    if target is None:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="reminder_dismiss",
+            input_summary=f"reminder_id={reminder_id}",
+            output_summary="reminder not found",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(f"Reminder not found: {reminder_id}", file=sys.stderr)
+        return 1
+
+    now_ts = _isoformat_utc(datetime.now(timezone.utc))
+    target["status"] = "canceled"
+    target["next_run_at"] = None
+    target["dismissed_at"] = now_ts
+    target["updated_at"] = now_ts
+    _save_records(schedules_path, schedules)
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="reminder_dismiss",
+        input_summary=f"reminder_id={reminder_id}",
+        output_summary=f"dismissed {reminder_id}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata={"reminder_id": reminder_id},
+    )
+    print(f"{reminder_id} dismissed")
+    return 0
 
 
 def cmd_autopilot_run(args: argparse.Namespace) -> int:
@@ -4469,6 +5257,84 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override schedule window for this run",
     )
     schedule_run_due.set_defaults(func=cmd_schedule_run_due)
+
+    reminder = sub.add_parser("reminder", help="Manage proactive reminders and cadence controls")
+    reminder_sub = reminder.add_subparsers(dest="reminder_command", required=True)
+
+    reminder_create = reminder_sub.add_parser("create", help="Create a reminder")
+    reminder_create.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    reminder_create.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    reminder_create.add_argument("--trace-dir", default=None, help="Trace directory override")
+    reminder_create.add_argument("--at", default=None, help="Initial reminder time in ISO-8601 (UTC recommended)")
+    reminder_create.add_argument(
+        "--every-minutes",
+        type=int,
+        default=None,
+        help=f"Recurring cadence in minutes (default: {REMINDER_DEFAULT_CADENCE_MINUTES})",
+    )
+    reminder_create.add_argument(
+        "--window-minutes",
+        type=int,
+        default=REMINDER_DEFAULT_WINDOW_MINUTES,
+        help="Allowed execution lag window in minutes",
+    )
+    reminder_create.add_argument("message", help="Reminder message text")
+    reminder_create.set_defaults(func=cmd_reminder_create)
+
+    reminder_list = reminder_sub.add_parser("list", help="List reminders")
+    reminder_list.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    reminder_list.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    reminder_list.add_argument("--trace-dir", default=None, help="Trace directory override")
+    reminder_list.add_argument(
+        "--status",
+        choices=[*list(SCHEDULE_STATUS_CHOICES), "all"],
+        default="active",
+        help="Filter reminders by status",
+    )
+    reminder_list.set_defaults(func=cmd_reminder_list)
+
+    reminder_update = reminder_sub.add_parser("update", help="Update reminder configuration")
+    reminder_update.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    reminder_update.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    reminder_update.add_argument("--trace-dir", default=None, help="Trace directory override")
+    reminder_update.add_argument("reminder_id", help="Reminder id")
+    reminder_update.add_argument("--message", default=None, help="Updated reminder message")
+    reminder_update.add_argument("--at", default=None, help="Next reminder time in ISO-8601")
+    reminder_update.add_argument("--every-minutes", type=int, default=None, help="Recurring cadence in minutes")
+    reminder_update.add_argument("--window-minutes", type=int, default=None, help="Execution lag window in minutes")
+    reminder_update.set_defaults(func=cmd_reminder_update)
+
+    reminder_pause = reminder_sub.add_parser("pause", help="Pause an active reminder")
+    reminder_pause.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    reminder_pause.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    reminder_pause.add_argument("--trace-dir", default=None, help="Trace directory override")
+    reminder_pause.add_argument("reminder_id", help="Reminder id")
+    reminder_pause.set_defaults(func=cmd_reminder_pause)
+
+    reminder_resume = reminder_sub.add_parser("resume", help="Resume a paused reminder")
+    reminder_resume.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    reminder_resume.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    reminder_resume.add_argument("--trace-dir", default=None, help="Trace directory override")
+    reminder_resume.add_argument("reminder_id", help="Reminder id")
+    reminder_resume.add_argument("--at", default=None, help="Resume at a specific ISO-8601 time")
+    reminder_resume.set_defaults(func=cmd_reminder_resume)
+
+    reminder_snooze = reminder_sub.add_parser("snooze", help="Snooze a reminder")
+    reminder_snooze.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    reminder_snooze.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    reminder_snooze.add_argument("--trace-dir", default=None, help="Trace directory override")
+    reminder_snooze.add_argument("reminder_id", help="Reminder id")
+    snooze_target = reminder_snooze.add_mutually_exclusive_group(required=True)
+    snooze_target.add_argument("--minutes", type=int, default=None, help="Snooze duration in minutes from now")
+    snooze_target.add_argument("--until", default=None, help="Snooze until ISO-8601 time")
+    reminder_snooze.set_defaults(func=cmd_reminder_snooze)
+
+    reminder_dismiss = reminder_sub.add_parser("dismiss", help="Dismiss a reminder")
+    reminder_dismiss.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    reminder_dismiss.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    reminder_dismiss.add_argument("--trace-dir", default=None, help="Trace directory override")
+    reminder_dismiss.add_argument("reminder_id", help="Reminder id")
+    reminder_dismiss.set_defaults(func=cmd_reminder_dismiss)
 
     autopilot = sub.add_parser("autopilot", help="Run scoped autopilot profiles")
     autopilot_sub = autopilot.add_subparsers(dest="autopilot_command", required=True)

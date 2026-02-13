@@ -106,6 +106,20 @@ run_smoke_suite() {
     \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" schedule cancel \"\$schedule_id\" >/dev/null
   "
 
+  run_test "reminder_lifecycle_and_controls" bash -lc "
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" reminder create --every-minutes 60 --at 2026-02-08T00:00:00Z \"Smoke reminder\" >/dev/null &&
+    listed=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" reminder list --status all) &&
+    reminder_id=\$(printf '%s' \"\$listed\" | awk 'NR==1 {print \$1}') &&
+    [[ -n \"\$reminder_id\" ]] &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" reminder pause \"\$reminder_id\" >/dev/null &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" reminder resume \"\$reminder_id\" --at 2026-02-08T00:00:00Z >/dev/null &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" reminder snooze \"\$reminder_id\" --until 2026-02-08T00:05:00Z >/dev/null &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" schedule run-due --at 2026-02-08T00:05:00Z >/dev/null &&
+    traces=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" traces --type reminder_run --last 1) &&
+    [[ \"\$traces\" == *\"reminder_run\"* ]] &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" reminder dismiss \"\$reminder_id\" >/dev/null
+  "
+
   run_test "provider_fallback" bash -lc "
     out=\$(printf 'provider fallback check\\n/exit\\n' | \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" chat 2>&1) &&
     [[ \"\$out\" == *\"[local-\"* ]]

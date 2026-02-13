@@ -224,8 +224,34 @@ Scheduler persistence:
 
 - Schedule store: `~/.gaia-assistant/data/schedules.json`
 - Run/idempotency log: `~/.gaia-assistant/data/schedule-runs.jsonl`
+- Reminder delivery log: `~/.gaia-assistant/data/reminder-events.jsonl`
 - Trace events in `actions.jsonl`: `schedule_create`, `schedule_run`,
   `schedule_skip`, `schedule_fail`, `schedule_update`, `schedule_cancel`
+
+## Reminders
+
+Reminder commands add proactive cadence-driven reminders backed by scheduler
+state from `P2-A`.
+
+```bash
+# create interval reminder (daily default when cadence omitted)
+gaia reminder create "Review open tasks" --every-minutes 60
+
+# list reminders and lifecycle controls
+gaia reminder list --status all
+gaia reminder pause <reminder-id>
+gaia reminder resume <reminder-id> --at 2026-02-10T09:30:00Z
+gaia reminder snooze <reminder-id> --minutes 30
+gaia reminder dismiss <reminder-id>
+
+# update cadence/message
+gaia reminder update <reminder-id> --every-minutes 120 --message "Updated reminder text"
+```
+
+Reminder lifecycle traces are recorded in `actions.jsonl` with
+`reminder_create`, `reminder_run`, `reminder_skip`, `reminder_update`,
+`reminder_pause`, `reminder_resume`, `reminder_snooze`, `reminder_dismiss`,
+and `reminder_fail`.
 
 ## Budget Policy
 
