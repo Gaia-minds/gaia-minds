@@ -163,6 +163,19 @@ run_smoke_suite() {
     [[ \"\$trace_json\" == *\"memory-policy-export.json\"* ]]
   "
 
+  run_test "memory_qa_redteam_harness" bash -lc "
+    python3 \"${ROOT_DIR}/tools/memory-quality-matrix.py\" \
+      --fixtures \"${ROOT_DIR}/assistant/memory-quality-fixtures.json\" \
+      --assistant-home \"\$GAIA_ASSISTANT_HOME/memory-quality-smoke\" \
+      --json-out \"\$GAIA_ASSISTANT_HOME/memory-quality-smoke.json\" \
+      --check >/tmp/memory-quality-smoke.out 2>&1 &&
+    quality_out=\$(cat /tmp/memory-quality-smoke.out) &&
+    [[ \"\$quality_out\" == *'\"suite\": \"gaia-memory-quality-matrix\"'* ]] &&
+    [[ \"\$quality_out\" == *'\"status\": \"pass\"'* ]] &&
+    [[ \"\$quality_out\" == *'\"leakage_block_rate\"'* ]] &&
+    [[ -f \"\$GAIA_ASSISTANT_HOME/memory-quality-smoke.json\" ]]
+  "
+
   run_test "autopilot_dry_run" bash -lc "
     out=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" autopilot run --profile safe-daily --dry-run 2>&1) &&
     [[ \"\$out\" == *\"Dry-run autopilot plan\"* ]]

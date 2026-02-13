@@ -613,6 +613,47 @@ Lane: `Memory Policy + Privacy Controls` (`#77`)
   - `gaia memory export`
   - memory policy control coverage through command map updates
 
+## Phase 2 Delta: Memory QA + Red-Team Harness (2026-02-13)
+
+Lane: `Memory QA and Red-Team Harness` (`#78`)
+
+### Runtime and evaluation changes
+
+- Added deterministic memory QA/red-team fixture contract:
+  `assistant/memory-quality-fixtures.json`.
+- Added memory QA/red-team evaluator:
+  `tools/memory-quality-matrix.py`.
+- Evaluator computes and gates:
+  - retrieval quality metrics: `recall_at_k`, `precision_at_k`,
+    `faithfulness_at_1`
+  - safety metrics: `poisoning_resistance`, `leakage_block_rate`
+  - latency/efficiency metrics: `p95_latency_ms`, `avg_token_overhead`
+- Added local regression command:
+  - `make memory-quality`
+- Added deterministic report artifact:
+  - `assistant/memory-quality-results.json`
+
+### Safety model coverage
+
+- Poisoning scenarios validate that adversarial memory records do not outrank
+  trusted expected records.
+- Leakage scenarios validate that cross-subject/cross-scope secret queries do
+  not retrieve forbidden memory IDs when subject scoping is enforced.
+- Threshold failures are surfaced as deterministic non-zero exits for CI gating.
+
+### CI/local enforcement and governance changes
+
+- Expanded smoke suite with memory QA/red-team harness checks:
+  `tools/smoke-test.sh` (`memory_qa_redteam_harness`).
+- Expanded deterministic UAT suite with memory QA/red-team harness scenario:
+  `assistant/uat-scenarios.json` (`memory_qa_redteam_harness`).
+- Updated UAT feature governance mapping for memory command paths tied to QA
+  harness coverage:
+  `assistant/feature-catalog.json`.
+- Updated benchmark/UAT policy documentation and triage workflow for failed
+  memory evaluation gates:
+  `assistant/benchmarking.md`, `assistant/uat-policy.md`, `assistant/README.md`.
+
 ---
 
 ## Open Technical Questions

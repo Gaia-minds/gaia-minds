@@ -33,6 +33,9 @@ make benchmark
 # Deterministic memory retrieval benchmark gate
 make memory-benchmark
 
+# Deterministic memory QA/red-team gate
+make memory-quality
+
 # Deterministic quality matrix run
 make quality-matrix
 
@@ -165,6 +168,7 @@ Benchmark the 20 canonical Phase 1 tasks plus quality-matrix guardrails:
 ```bash
 make benchmark
 make memory-benchmark
+make memory-quality
 make quality-matrix
 make benchmark-trend
 ```
@@ -173,6 +177,8 @@ make benchmark-trend
 - Baseline artifact: `assistant/benchmark-baseline.json`
 - Memory retrieval benchmark fixture: `assistant/memory-retrieval-fixtures.json`
 - Memory retrieval benchmark result: `assistant/memory-retrieval-benchmark-results.json`
+- Memory QA/red-team fixture: `assistant/memory-quality-fixtures.json`
+- Memory QA/red-team result: `assistant/memory-quality-results.json`
 - Quality matrix artifact: `assistant/quality-matrix-results.json`
 - Trend history: `assistant/benchmark-trend-history.json`
 - Trend summary: `assistant/benchmark-trend-summary.md`
@@ -199,6 +205,7 @@ make uat-policy
 - Results: `assistant/uat-results.json`
 - Failure bundle: `assistant/uat-artifacts/<run-id>/`
 - Quality matrix scenario: `quality_matrix_guardrails`
+- Memory QA scenario: `memory_qa_redteam_harness`
 
 ## Autopilot
 
@@ -317,6 +324,9 @@ gaia memory export --subject user:default --path ./memory-export.json --json
 
 # run deterministic retrieval benchmark thresholds
 make memory-benchmark
+
+# run deterministic memory QA/red-team thresholds
+make memory-quality
 ```
 
 Memory persistence:
