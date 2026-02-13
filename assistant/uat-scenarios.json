@@ -76,6 +76,12 @@
       "command": "node ./bin/gaia.js reminder create --every-minutes 60 --at 2026-02-08T00:00:00Z 'UAT reminder' >/dev/null && listed=$(node ./bin/gaia.js reminder list --status all) && reminder_id=$(printf '%s' \"$listed\" | awk 'NR==1 {print $1}') && [[ -n \"$reminder_id\" ]] && node ./bin/gaia.js reminder pause \"$reminder_id\" >/dev/null && node ./bin/gaia.js reminder resume \"$reminder_id\" --at 2026-02-08T00:00:00Z >/dev/null && node ./bin/gaia.js reminder snooze \"$reminder_id\" --until 2026-02-08T00:05:00Z >/dev/null && node ./bin/gaia.js schedule run-due --at 2026-02-08T00:05:00Z >/dev/null && traces=$(node ./bin/gaia.js traces --type reminder_run --last 1) && [[ \"$traces\" == *\"reminder_run\"* ]] && node ./bin/gaia.js reminder dismiss \"$reminder_id\" >/dev/null"
     },
     {
+      "id": "skills_runtime_list_and_inspect",
+      "description": "Skills runtime list/inspect is deterministic for approved project sources",
+      "expect_exit": 0,
+      "command": "listed=$(node ./bin/gaia.js skills list --source project) && [[ \"$listed\" == *\"project:gaia-contributor\"* ]] && skill_id=$(printf '%s' \"$listed\" | awk 'NR==1 {print $1}') && [[ -n \"$skill_id\" ]] && inspected=$(node ./bin/gaia.js skills inspect \"$skill_id\") && [[ \"$inspected\" == *'\"schema_version\": 1'* ]] && [[ \"$inspected\" == *'\"source\": \"project\"'* ]]"
+    },
+    {
       "id": "traces_command",
       "description": "Structured traces are queryable",
       "expect_exit": 0,
