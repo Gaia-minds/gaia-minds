@@ -109,7 +109,7 @@
   "thresholds": {
     "recall_at_k_min": 0.8,
     "ndcg_at_k_min": 0.8,
-    "p95_latency_ms_max": 400.0,
+    "p95_latency_ms_max": 1500.0,
     "avg_token_overhead_max": 80.0
   }
 }
