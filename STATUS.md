@@ -25,10 +25,11 @@ See `ROADMAP.md` for full phase details and exit criteria.
 - `P2-C Skills Runtime` - `gaia skills list/inspect` and loading/indexing (`#53`, PR #69)
 - `P2-D Skill Validation` - `gaia skills validate` onboarding security gate (`#54`, PR #70)
 - `P2-E Sandbox` - sandbox profiles and escalation approvals (`#55`, PR #71)
+- `P2-F Policy Engine` - per-skill tool allowlists and risk/source/scope gating (`#56`, PR #72)
 
 ## In Progress
 
-- `P2-F Policy Engine` - per-skill tool allowlists and risk/source/scope gating (`#56`) - owner: `codex-gpt5`
+_Nothing currently in progress._
 
 ## Next Up (Parallel Lanes)
 
