@@ -15,6 +15,7 @@ import html
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -62,6 +63,8 @@ SKILL_VALIDATION_BLOCKING_SEVERITIES = {"high", "critical"}
 SKILL_VALIDATION_MAX_SCAN_FILES = 120
 SKILL_VALIDATION_MAX_SCAN_FILE_BYTES = 512 * 1024
 SKILL_VALIDATION_MAX_HITS_PER_RULE = 8
+SANDBOX_PROFILE_CHOICES = ("read-only", "workspace-write")
+SANDBOX_DEFAULT_PROFILE = "read-only"
 DEFAULT_CAPABILITY_LEVELS = {
     "file_read": "safe",
     "file_write": "safe",
@@ -158,6 +161,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "skills": {
         "local_dir": str(DEFAULT_HOME / "skills"),
+    },
+    "sandbox": {
+        "default_profile": SANDBOX_DEFAULT_PROFILE,
+        "allow_network": False,
     },
 }
 
@@ -259,6 +266,14 @@ def _normalize_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     local_skills_dir = str(skills.get("local_dir", "")).strip()
     if not local_skills_dir:
         skills["local_dir"] = str(DEFAULT_HOME / "skills")
+
+    sandbox = cfg.setdefault("sandbox", {})
+    default_profile = str(sandbox.get("default_profile", SANDBOX_DEFAULT_PROFILE)).strip().lower()
+    if default_profile not in SANDBOX_PROFILE_CHOICES:
+        default_profile = SANDBOX_DEFAULT_PROFILE
+    sandbox["default_profile"] = default_profile
+    sandbox_allow_network = sandbox.get("allow_network", False)
+    sandbox["allow_network"] = bool(sandbox_allow_network)
 
     return cfg
 
@@ -1269,6 +1284,202 @@ def _skill_validation_summary(findings: List[Dict[str, Any]]) -> Dict[str, Any]:
         "blocking_count": blocking,
         "by_severity": counts,
     }
+
+
+def _sandbox_default_profile(cfg: Dict[str, Any]) -> str:
+    sandbox_cfg = cfg.get("sandbox", {})
+    if isinstance(sandbox_cfg, dict):
+        candidate = str(sandbox_cfg.get("default_profile", SANDBOX_DEFAULT_PROFILE)).strip().lower()
+        if candidate in SANDBOX_PROFILE_CHOICES:
+            return candidate
+    return SANDBOX_DEFAULT_PROFILE
+
+
+def _sandbox_default_allow_network(cfg: Dict[str, Any]) -> bool:
+    sandbox_cfg = cfg.get("sandbox", {})
+    if not isinstance(sandbox_cfg, dict):
+        return False
+    return bool(sandbox_cfg.get("allow_network", False))
+
+
+def _normalize_sandbox_profile(raw: Optional[str], cfg: Dict[str, Any]) -> str:
+    if raw:
+        candidate = str(raw).strip().lower()
+        if candidate in SANDBOX_PROFILE_CHOICES:
+            return candidate
+    return _sandbox_default_profile(cfg)
+
+
+def _sandbox_approvals_path(trace_dir: Path) -> Path:
+    return trace_dir / "sandbox-approvals.jsonl"
+
+
+def _sandbox_profiles_payload(default_profile: str) -> Dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "contract": "gaia.sandbox.v1",
+        "default_profile": default_profile,
+        "profiles": [
+            {
+                "name": "read-only",
+                "filesystem_mode": "read-only",
+                "network_default": "deny",
+                "escalation_reasons": [
+                    "filesystem_write",
+                    "network_access",
+                    "high_risk_command",
+                ],
+            },
+            {
+                "name": "workspace-write",
+                "filesystem_mode": "workspace-write",
+                "network_default": "deny",
+                "escalation_reasons": [
+                    "network_access",
+                    "high_risk_command",
+                ],
+            },
+        ],
+    }
+
+
+def _is_network_command(tokens: List[str]) -> bool:
+    network_tools = {
+        "curl",
+        "wget",
+        "ftp",
+        "http",
+        "https",
+        "ssh",
+        "scp",
+        "sftp",
+        "nc",
+        "netcat",
+        "ping",
+        "dig",
+        "nslookup",
+        "telnet",
+    }
+    for token in tokens:
+        value = token.strip().lower()
+        if value in network_tools:
+            return True
+        if value.startswith(("http://", "https://")):
+            return True
+    return False
+
+
+def _is_write_command(command_text: str, tokens: List[str]) -> bool:
+    if re.search(r"(?:^|\s)>{1,2}(?:\s|$)", command_text):
+        return True
+    if ">>" in command_text:
+        return True
+
+    write_tools = {
+        "rm",
+        "mv",
+        "cp",
+        "mkdir",
+        "touch",
+        "tee",
+        "truncate",
+        "dd",
+        "install",
+        "chmod",
+        "chown",
+        "ln",
+    }
+    for token in tokens:
+        if token.strip().lower() in write_tools:
+            return True
+    return False
+
+
+def _sandbox_high_risk_matches(command_text: str) -> List[str]:
+    hits: List[str] = []
+    for rule in _risk_pattern_rules():
+        severity = str(rule.get("severity", "")).strip().lower()
+        if severity not in SKILL_VALIDATION_BLOCKING_SEVERITIES:
+            continue
+        pattern = rule.get("pattern")
+        if hasattr(pattern, "search") and pattern.search(command_text):
+            hits.append(str(rule.get("code", "high_risk_pattern")))
+    return sorted(set(hits))
+
+
+def _sandbox_escalation_reasons(
+    *,
+    command_text: str,
+    command_tokens: List[str],
+    profile: str,
+    allow_network: bool,
+) -> List[Dict[str, Any]]:
+    reasons: List[Dict[str, Any]] = []
+    if _is_write_command(command_text, command_tokens) and profile == "read-only":
+        reasons.append(
+            {
+                "id": "filesystem_write",
+                "message": "Command appears to write to filesystem under read-only profile.",
+            }
+        )
+    if _is_network_command(command_tokens) and not allow_network:
+        reasons.append(
+            {
+                "id": "network_access",
+                "message": "Command appears to use network while network is denied by default.",
+            }
+        )
+
+    for rule_code in _sandbox_high_risk_matches(command_text):
+        reasons.append(
+            {
+                "id": "high_risk_command",
+                "message": f"High-risk command pattern detected ({rule_code}).",
+                "rule_code": rule_code,
+            }
+        )
+    return reasons
+
+
+def _shell_permission_for_sandbox(cfg: Dict[str, Any]) -> Tuple[bool, str, str]:
+    level = _permission_for_capability(cfg, "shell_exec")
+    if level == "forbidden":
+        return False, level, "blocked by shell_exec policy"
+    if level == "confirm":
+        return True, level, "allowed (explicit sandbox command)"
+    return True, level, "allowed"
+
+
+def _network_permission_for_sandbox(cfg: Dict[str, Any]) -> Tuple[bool, str]:
+    level = _permission_for_capability(cfg, "network_request")
+    if level == "forbidden":
+        return False, level
+    return True, level
+
+
+def _emit_sandbox_approval_event(
+    *,
+    trace_dir: Path,
+    command_text: str,
+    profile: str,
+    allow_network: bool,
+    reasons: List[Dict[str, Any]],
+    approved: bool,
+    source: str,
+) -> Dict[str, Any]:
+    event = {
+        "event_id": str(uuid.uuid4()),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "profile": profile,
+        "network_mode": "allow" if allow_network else "deny",
+        "command_summary": _summarize_text(command_text, max_chars=240),
+        "escalation_reasons": reasons,
+        "decision": "approved" if approved else "denied",
+        "decision_source": source,
+        "schema_version": 1,
+    }
+    _append_jsonl(_sandbox_approvals_path(trace_dir), event)
+    return event
 
 
 def _load_schedule_run_keys(storage_dir: Path) -> Dict[str, Dict[str, Any]]:
@@ -4220,6 +4431,229 @@ def cmd_skills_validate(args: argparse.Namespace) -> int:
     return 0 if status == "pass" else 1
 
 
+def cmd_sandbox_profiles(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    start = time.perf_counter()
+
+    payload = _sandbox_profiles_payload(_sandbox_default_profile(cfg))
+    if args.as_json:
+        print(json.dumps(payload, indent=2))
+    else:
+        print(f"default_profile={payload['default_profile']}")
+        for profile in payload["profiles"]:
+            name = str(profile.get("name", ""))
+            fs_mode = str(profile.get("filesystem_mode", ""))
+            network_default = str(profile.get("network_default", "deny"))
+            reasons = ", ".join(profile.get("escalation_reasons", []))
+            print(f"{name:<16} fs={fs_mode:<15} network={network_default:<5} escalations={reasons}")
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="sandbox_profiles",
+        input_summary="sandbox profiles",
+        output_summary=f"{len(payload['profiles'])} profiles",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level="safe",
+        metadata={"default_profile": payload["default_profile"]},
+    )
+    return 0
+
+
+def cmd_sandbox_run(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    start = time.perf_counter()
+
+    command_tokens = list(args.command)
+    if command_tokens and command_tokens[0] == "--":
+        command_tokens = command_tokens[1:]
+    if not command_tokens:
+        print("No command provided. Usage: gaia sandbox run -- <command ...>", file=sys.stderr)
+        return 1
+
+    profile = _normalize_sandbox_profile(args.profile, cfg)
+    allow_network = bool(args.allow_network or _sandbox_default_allow_network(cfg))
+    command_text = shlex.join(command_tokens)
+
+    shell_allowed, permission_level, shell_reason = _shell_permission_for_sandbox(cfg)
+    if not shell_allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="sandbox_run",
+            input_summary=command_text,
+            output_summary=shell_reason,
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+            metadata={"profile": profile, "network_mode": "allow" if allow_network else "deny"},
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    if allow_network:
+        network_allowed, network_level = _network_permission_for_sandbox(cfg)
+        if not network_allowed:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="sandbox_run",
+                input_summary=command_text,
+                output_summary="blocked by network_request policy",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=network_level,
+                status="blocked",
+                metadata={"profile": profile, "network_mode": "allow"},
+            )
+            print("Action blocked by capability policy.", file=sys.stderr)
+            return 1
+
+    reasons = _sandbox_escalation_reasons(
+        command_text=command_text,
+        command_tokens=command_tokens,
+        profile=profile,
+        allow_network=allow_network,
+    )
+    escalated = bool(reasons)
+    approved = not escalated
+    decision_source = "not-required"
+    event: Optional[Dict[str, Any]] = None
+
+    if escalated:
+        if args.approve_escalation:
+            approved = True
+            decision_source = "flag"
+        else:
+            reason_summary = ", ".join(str(item.get("id", "")) for item in reasons if item.get("id")) or "unknown"
+            approved = _prompt_yes_no(
+                (
+                    "Sandbox escalation required "
+                    f"({reason_summary}) for profile '{profile}'. Approve command execution?"
+                ),
+                default=False,
+                non_interactive=not sys.stdin.isatty(),
+            )
+            decision_source = "prompt"
+
+        event = _emit_sandbox_approval_event(
+            trace_dir=trace_dir,
+            command_text=command_text,
+            profile=profile,
+            allow_network=allow_network,
+            reasons=reasons,
+            approved=approved,
+            source=decision_source,
+        )
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="sandbox_approval",
+            input_summary=command_text,
+            output_summary="approved" if approved else "denied",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="ok" if approved else "blocked",
+            metadata={
+                "profile": profile,
+                "network_mode": "allow" if allow_network else "deny",
+                "decision_source": decision_source,
+                "reasons": reasons,
+                "event_id": event.get("event_id") if isinstance(event, dict) else None,
+            },
+        )
+
+        if not approved:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="sandbox_run",
+                input_summary=command_text,
+                output_summary="escalation denied",
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level=permission_level,
+                status="blocked",
+                metadata={
+                    "profile": profile,
+                    "network_mode": "allow" if allow_network else "deny",
+                    "escalation_reasons": reasons,
+                    "event_id": event.get("event_id") if isinstance(event, dict) else None,
+                },
+            )
+            print(
+                "Escalation required but not approved. Re-run with --approve-escalation to continue.",
+                file=sys.stderr,
+            )
+            return 1
+
+    run_cwd = Path(args.cwd).expanduser() if args.cwd else REPO_ROOT
+    sandbox_env = os.environ.copy()
+    sandbox_env["GAIA_SANDBOX_PROFILE"] = profile
+    sandbox_env["GAIA_SANDBOX_NETWORK_MODE"] = "allow" if allow_network else "deny"
+    sandbox_env["GAIA_SANDBOX_ESCALATION"] = "approved" if escalated else "not-required"
+
+    if args.dry_run:
+        print(f"Sandbox dry-run profile={profile} network={'allow' if allow_network else 'deny'}")
+        print(f"Command: {command_text}")
+        if escalated:
+            reason_ids = ", ".join(str(item.get("id", "")) for item in reasons if item.get("id"))
+            print(f"Escalation: approved ({reason_ids})")
+        else:
+            print("Escalation: not required")
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="sandbox_run",
+            input_summary=command_text,
+            output_summary="dry-run",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            metadata={
+                "profile": profile,
+                "network_mode": "allow" if allow_network else "deny",
+                "dry_run": True,
+                "escalated": escalated,
+                "approved": approved,
+                "reasons": reasons,
+                "event_id": event.get("event_id") if isinstance(event, dict) else None,
+            },
+        )
+        return 0
+
+    proc = subprocess.run(
+        command_tokens,
+        cwd=str(run_cwd),
+        env=sandbox_env,
+        capture_output=True,
+        text=True,
+    )
+    if proc.stdout:
+        print(proc.stdout, end="")
+    if proc.stderr:
+        print(proc.stderr, end="", file=sys.stderr)
+    if proc.returncode != 0:
+        print(f"Sandbox command exited with status {proc.returncode}.", file=sys.stderr)
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="sandbox_run",
+        input_summary=command_text,
+        output_summary=f"exit_code={proc.returncode}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        status="ok" if proc.returncode == 0 else "error",
+        metadata={
+            "profile": profile,
+            "network_mode": "allow" if allow_network else "deny",
+            "dry_run": False,
+            "escalated": escalated,
+            "approved": approved,
+            "reasons": reasons,
+            "event_id": event.get("event_id") if isinstance(event, dict) else None,
+            "cwd": str(run_cwd),
+            "return_code": proc.returncode,
+        },
+    )
+    return int(proc.returncode)
+
+
 def _find_schedule(schedules: List[Dict[str, Any]], schedule_id: str) -> Optional[Dict[str, Any]]:
     for item in schedules:
         if str(item.get("id", "")).strip() == schedule_id:
@@ -6363,6 +6797,39 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skill id, unique skill name, or local path to skill directory/SKILL.md",
     )
     skills_validate.set_defaults(func=cmd_skills_validate)
+
+    sandbox = sub.add_parser("sandbox", help="Run commands with sandbox profiles and escalation controls")
+    sandbox_sub = sandbox.add_subparsers(dest="sandbox_command", required=True)
+
+    sandbox_profiles = sandbox_sub.add_parser("profiles", help="Show sandbox profile contract and defaults")
+    sandbox_profiles.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    sandbox_profiles.add_argument("--trace-dir", default=None, help="Trace directory override")
+    sandbox_profiles.add_argument("--json", dest="as_json", action="store_true", help="Emit full JSON payload")
+    sandbox_profiles.set_defaults(func=cmd_sandbox_profiles)
+
+    sandbox_run = sandbox_sub.add_parser("run", help="Run a command under sandbox profile policy")
+    sandbox_run.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    sandbox_run.add_argument("--trace-dir", default=None, help="Trace directory override")
+    sandbox_run.add_argument(
+        "--profile",
+        choices=list(SANDBOX_PROFILE_CHOICES),
+        default=None,
+        help="Sandbox profile override (defaults to config sandbox.default_profile)",
+    )
+    sandbox_run.add_argument(
+        "--allow-network",
+        action="store_true",
+        help="Request network mode allow (default is deny)",
+    )
+    sandbox_run.add_argument(
+        "--approve-escalation",
+        action="store_true",
+        help="Approve required sandbox escalation non-interactively",
+    )
+    sandbox_run.add_argument("--dry-run", action="store_true", help="Print sandbox decision without executing")
+    sandbox_run.add_argument("--cwd", default=None, help="Working directory override for command execution")
+    sandbox_run.add_argument("command", nargs=argparse.REMAINDER, help="Command to run (prefix with --)")
+    sandbox_run.set_defaults(func=cmd_sandbox_run)
 
     schedule = sub.add_parser("schedule", help="Manage recurring and one-shot schedules")
     schedule_sub = schedule.add_subparsers(dest="schedule_command", required=True)
