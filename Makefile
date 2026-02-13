@@ -1,4 +1,4 @@
-.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy quality-matrix compatibility-matrix benchmark memory-benchmark memory-quality benchmark-trend hypothesis-validate hypothesis-run hypothesis-dry-run hypothesis-failure-fixture reliability-checkpoint reliability-checkpoint-check reliability-checkpoint-simulate-breach hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
+.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy quality-matrix compatibility-matrix benchmark memory-benchmark memory-quality benchmark-trend hypothesis-validate hypothesis-run hypothesis-dry-run hypothesis-failure-fixture reliability-checkpoint reliability-checkpoint-check reliability-checkpoint-simulate-breach reliability-drift reliability-drift-check reliability-drift-simulate hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
 
 HYPOTHESIS_OUTPUT_ROOT ?= /tmp/gaia-hypothesis-evals
 RELIABILITY_CHECKPOINT_ROOT ?= /tmp/gaia-reliability-checkpoints
@@ -66,6 +66,15 @@ reliability-checkpoint-check:
 
 reliability-checkpoint-simulate-breach:
 	python3 ./tools/reliability-checkpoint.py --baseline-config ./assistant/reliability-baseline-phase3.json --output-root "$(RELIABILITY_CHECKPOINT_ROOT)" --run-id simulated-breach --simulate-breach uat_pass_rate --check
+
+reliability-drift:
+	python3 ./tools/reliability-drift.py --baseline-config ./assistant/reliability-baseline-phase3.json --checkpoint-root "$(RELIABILITY_CHECKPOINT_ROOT)" --run-id latest
+
+reliability-drift-check:
+	python3 ./tools/reliability-drift.py --baseline-config ./assistant/reliability-baseline-phase3.json --checkpoint-root "$(RELIABILITY_CHECKPOINT_ROOT)" --run-id latest --check
+
+reliability-drift-simulate:
+	python3 ./tools/reliability-drift.py --baseline-config ./assistant/reliability-baseline-phase3.json --checkpoint-root "$(RELIABILITY_CHECKPOINT_ROOT)" --run-id latest --simulate-drift uat_pass_rate --check
 
 hardening-phase1:
 	python3 ./tools/phase1-hardening.py

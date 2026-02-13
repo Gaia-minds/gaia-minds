@@ -181,7 +181,7 @@ Kickoff delivered:
 
 Execution queue (post-kickoff reassessment):
 
-- `#93` Drift detection automation against reliability baselines
+- `#93` Drift detection automation against reliability baselines (delivered)
 - `#95` Hard token-budget enforcement per cycle and track
 - `#94` Canary gate for hypothesis rollout decisions (after `#93`)
 - `#96` Feedback loop capture and correction records

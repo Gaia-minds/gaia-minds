@@ -40,16 +40,37 @@ Simulate a breach for triage validation:
 make reliability-checkpoint-simulate-breach
 ```
 
+Run drift detection against recent checkpoint history:
+
+```bash
+make reliability-drift
+```
+
+Enforce actionable drift gate (non-zero on actionable drift):
+
+```bash
+make reliability-drift-check
+```
+
+Simulate a deterministic drift-breach path (expected non-zero):
+
+```bash
+make reliability-drift-simulate
+```
+
 Default artifact location:
 
 - `/tmp/gaia-reliability-checkpoints/latest/reliability-checkpoint.json`
 - `/tmp/gaia-reliability-checkpoints/latest/reliability-checkpoint.md`
+- `/tmp/gaia-reliability-checkpoints/latest/reliability-drift-report.json`
+- `/tmp/gaia-reliability-checkpoints/latest/reliability-drift-report.md`
 
 ## Triage Routing
 
 When any threshold breaches, route according to:
 
 - `infrastructure/reliability-triage-workflow.md`
+- `infrastructure/reliability-drift-report-v1.md`
 
 and create/update incident records under:
 

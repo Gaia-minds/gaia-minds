@@ -230,6 +230,15 @@ make reliability-checkpoint-check
 
 # simulate a threshold breach to validate triage routing
 make reliability-checkpoint-simulate-breach
+
+# generate drift report against recent checkpoint history
+make reliability-drift
+
+# enforce actionable drift gate (non-zero on actionable drift)
+make reliability-drift-check
+
+# simulate deterministic drift-breach path (expected non-zero)
+make reliability-drift-simulate
 ```
 
 Baseline + thresholds:
@@ -241,10 +250,13 @@ Default checkpoint output:
 
 - `/tmp/gaia-reliability-checkpoints/latest/reliability-checkpoint.json`
 - `/tmp/gaia-reliability-checkpoints/latest/reliability-checkpoint.md`
+- `/tmp/gaia-reliability-checkpoints/latest/reliability-drift-report.json`
+- `/tmp/gaia-reliability-checkpoints/latest/reliability-drift-report.md`
 
 Triage workflow:
 
 - `infrastructure/reliability-triage-workflow.md`
+- `infrastructure/reliability-drift-report-v1.md`
 - `docs/incidents/README.md`
 
 ## Terminal UAT

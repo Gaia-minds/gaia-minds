@@ -22,6 +22,7 @@ Technical foundations and operational guidance.
 - [Privacy and Memory Review Template](privacy-memory-review-template.md) — Updated: February 8, 2026
 - [QA Evaluation Template](qa-evaluation-template.md) — Updated: February 8, 2026
 - [Release Readiness Template](release-readiness-template.md) — Updated: February 13, 2026
+- [Reliability Drift Report v1](reliability-drift-report-v1.md) — Updated: February 13, 2026
 - [Reliability Triage Workflow](reliability-triage-workflow.md) — Updated: February 13, 2026
 - [Research Task Template](research-task-template.md) — Updated: February 8, 2026
 - [Sandbox Contract v1](sandbox-contract-v1.md) — Updated: February 13, 2026
