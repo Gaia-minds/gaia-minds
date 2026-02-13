@@ -30,6 +30,7 @@ See `ROADMAP.md` for full phase details and exit criteria.
 - `P2-H Quality` - malicious fixtures, UAT/benchmark expansion, compatibility matrix (`#58`, PR #74)
 - `P2-I Memory Research` - memory architecture options/tradeoffs, recommendation, and benchmark plan (`#60`)
 - `Memory Runtime Contract + SQLite Adapter` - SQLite-backed `gaia memory` CRUD runtime with policy/trace integration (`#75`)
+- `Memory Retrieval + Ranking Pipeline` - deterministic `gaia memory retrieve` stages, reranking, and benchmark thresholds (`#76`)
 
 ## In Progress
 
@@ -43,9 +44,8 @@ architecture deltas) per `infrastructure/phase2-lane-implementation-plans.md`.
 Cross-cutting requirement: run a docs freshness sweep with
 `skills/gaia-technical-writer/SKILL.md` after merge batches.
 
-1. `Memory Retrieval + Ranking Pipeline` (`#76`)
-2. `Memory Policy + Privacy Controls` (`#77`)
-3. `Memory QA and Red-Team Harness` (`#78`)
+1. `Memory Policy + Privacy Controls` (`#77`)
+2. `Memory QA and Red-Team Harness` (`#78`)
 
 ## Blocked
 

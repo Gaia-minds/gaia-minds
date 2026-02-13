@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "description": "Deterministic fixture set for memory retrieval ranking evaluation.",
+  "records": [
+    {
+      "memory_id": "m_pref_concise",
+      "memory_type": "user_long",
+      "subject_id": "user:alice",
+      "content": "User prefers concise status updates and bullet summaries.",
+      "summary": "concise update preference",
+      "importance": 0.8,
+      "confidence": 0.9,
+      "consent_scope": "user",
+      "retention_ttl": "P30D"
+    },
+    {
+      "memory_id": "m_pref_timezone",
+      "memory_type": "user_long",
+      "subject_id": "user:alice",
+      "content": "User timezone is UTC+1 and prefers morning reminders.",
+      "summary": "timezone and reminder preference",
+      "importance": 0.7,
+      "confidence": 0.85,
+      "consent_scope": "user",
+      "retention_ttl": "P30D"
+    },
+    {
+      "memory_id": "m_project_deadline",
+      "memory_type": "project",
+      "subject_id": "project:apollo",
+      "content": "Project Apollo deadline is March 20 with no scope changes.",
+      "summary": "apollo deadline",
+      "importance": 0.95,
+      "confidence": 0.9,
+      "consent_scope": "project",
+      "retention_ttl": "P60D"
+    },
+    {
+      "memory_id": "m_security_keys",
+      "memory_type": "safety_audit",
+      "subject_id": "system:policy",
+      "content": "Never store raw API keys in memory records or logs.",
+      "summary": "api key storage prohibition",
+      "importance": 1.0,
+      "confidence": 1.0,
+      "consent_scope": "audit",
+      "retention_ttl": "P365D"
+    },
+    {
+      "memory_id": "m_project_budget",
+      "memory_type": "project",
+      "subject_id": "project:apollo",
+      "content": "Budget cap for Project Apollo is 50000 USD.",
+      "summary": "apollo budget cap",
+      "importance": 0.9,
+      "confidence": 0.9,
+      "consent_scope": "project",
+      "retention_ttl": "P60D"
+    },
+    {
+      "memory_id": "m_pref_language",
+      "memory_type": "user_long",
+      "subject_id": "user:bob",
+      "content": "User Bob prefers Portuguese responses.",
+      "summary": "language preference",
+      "importance": 0.6,
+      "confidence": 0.8,
+      "consent_scope": "user",
+      "retention_ttl": "P30D"
+    }
+  ],
+  "queries": [
+    {
+      "id": "q1",
+      "query": "concise updates preference",
+      "subject_id": "user:alice",
+      "expected_ids": ["m_pref_concise"],
+      "k": 3
+    },
+    {
+      "id": "q2",
+      "query": "apollo budget limit",
+      "subject_id": "project:apollo",
+      "expected_ids": ["m_project_budget"],
+      "k": 3
+    },
+    {
+      "id": "q3",
+      "query": "api keys storage policy",
+      "subject_id": "system:policy",
+      "expected_ids": ["m_security_keys"],
+      "k": 3
+    },
+    {
+      "id": "q4",
+      "query": "project apollo deadline",
+      "subject_id": "project:apollo",
+      "expected_ids": ["m_project_deadline"],
+      "k": 3
+    },
+    {
+      "id": "q5",
+      "query": "morning reminders timezone",
+      "subject_id": "user:alice",
+      "expected_ids": ["m_pref_timezone"],
+      "k": 3
+    }
+  ],
+  "thresholds": {
+    "recall_at_k_min": 0.8,
+    "ndcg_at_k_min": 0.8,
+    "p95_latency_ms_max": 1500.0,
+    "avg_token_overhead_max": 80.0
+  }
+}

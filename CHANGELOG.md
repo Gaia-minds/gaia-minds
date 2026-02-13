@@ -30,6 +30,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Memory strategy/tradeoff synthesis with architecture recommendation and benchmark plan for lane `P2-I` (`research/synthesis/2026-02-gaia-memory-strategy-and-tradeoffs.md`, `#60`)
 - Follow-on memory implementation issue set split into parallel lanes (`#75`, `#76`, `#77`, `#78`)
 - Memory runtime command surface with local SQLite-backed CRUD store (`gaia memory add/get/list/update/delete`) for lane `#75`
+- Memory retrieval command surface with deterministic ranking pipeline (`gaia memory retrieve`) for lane `#76`
+- Memory retrieval benchmark fixture set + threshold gate (`assistant/memory-retrieval-fixtures.json`, `tools/memory-benchmark.py`, `make memory-benchmark`)
+- Deterministic smoke/UAT coverage for retrieval ranking and benchmark threshold enforcement (`assistant/feature-catalog.json`, `assistant/uat-scenarios.json`, `tools/smoke-test.sh`)
+- UAT change record for memory retrieval/ranking coverage governance (`docs/uat-changes/2026-02-13-memory-retrieval-surface.md`)
 - Memory UAT/smoke coverage and governance change record (`assistant/feature-catalog.json`, `assistant/uat-scenarios.json`, `tools/smoke-test.sh`, `docs/uat-changes/2026-02-13-memory-surface.md`)
 - Versioned skill metadata contract publication (`infrastructure/skill-contract-v1.md`)
 - Versioned sandbox contract publication (`infrastructure/sandbox-contract-v1.md`)
@@ -74,6 +78,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Assistant architecture/docs now include Phase 2 audit+trace delta details with normalized metadata and correlation filtering (`infrastructure/architecture.md`, `assistant/README.md`)
 - Assistant architecture/docs now include Phase 2 quality matrix delta details, compatibility baseline, and benchmark methodology updates (`infrastructure/architecture.md`, `assistant/README.md`, `assistant/benchmarking.md`)
 - Assistant architecture/docs now include memory runtime SQLite adapter contract, persistence path, and trace semantics (`infrastructure/architecture.md`, `assistant/README.md`)
+- Assistant architecture/docs now include memory retrieval stage/ranking contract and benchmark enforcement details (`infrastructure/architecture.md`, `assistant/README.md`, `assistant/benchmarking.md`)
 - Refreshed roadmap and sprint status priorities to remove closed-item drift and reference reassessment issue `#46`
 - Synced latest release references to `@gaia-minds/assistant-cli@0.2.0` across top-level and assistant contributor docs
 - Added contributor guidance to use the roadmap/backlog review issue template for reassessment work

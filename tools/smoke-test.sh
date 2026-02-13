@@ -100,6 +100,22 @@ run_smoke_suite() {
     [[ \"\$gone\" == *\"Memory not found\"* ]]
   "
 
+  run_test "memory_retrieve_ranking_and_benchmark" bash -lc "
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory add --memory-id smoke_pref_concise --type user_long --subject user:smoke --content 'User prefers concise updates with bullet points.' --summary 'concise preference' --consent-scope user --retention-ttl P30D >/dev/null &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory add --memory-id smoke_policy_keys --type safety_audit --subject system:policy --content 'Never store API keys in plaintext memory.' --summary 'api key policy' --consent-scope audit --retention-ttl P365D >/dev/null &&
+    retrieved=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory retrieve --query 'concise updates' --subject user:smoke --limit 1) &&
+    [[ \"\$retrieved\" == *\"id=smoke_pref_concise\"* ]] &&
+    [[ \"\$retrieved\" == *\"stage=\"* ]] &&
+    python3 \"${ROOT_DIR}/tools/memory-benchmark.py\" \
+      --fixtures \"${ROOT_DIR}/assistant/memory-retrieval-fixtures.json\" \
+      --assistant-home \"\$GAIA_ASSISTANT_HOME/memory-benchmark-smoke\" \
+      --json-out \"\$GAIA_ASSISTANT_HOME/memory-benchmark-smoke.json\" \
+      --check >/tmp/memory-benchmark-smoke.out 2>&1 &&
+    bench_out=\$(cat /tmp/memory-benchmark-smoke.out) &&
+    [[ \"\$bench_out\" == *'\"status\": \"pass\"'* ]] &&
+    [[ -f \"\$GAIA_ASSISTANT_HOME/memory-benchmark-smoke.json\" ]]
+  "
+
   run_test "autopilot_dry_run" bash -lc "
     out=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" autopilot run --profile safe-daily --dry-run 2>&1) &&
     [[ \"\$out\" == *\"Dry-run autopilot plan\"* ]]
