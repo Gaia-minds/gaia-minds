@@ -1,0 +1,71 @@
+name: reliability-drift
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  reliability-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate checkpoint and enforce no-drift path
+        run: |
+          make reliability-checkpoint
+          make reliability-drift-check
+
+      - name: Validate deterministic drift-breach path
+        run: |
+          set +e
+          make reliability-drift-simulate
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            echo "Expected reliability-drift-simulate to fail, but it passed."
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = Path("/tmp/gaia-reliability-checkpoints/latest/reliability-drift-report.json")
+          if not report.exists():
+              raise SystemExit(f"missing drift report: {report}")
+
+          payload = json.loads(report.read_text(encoding="utf-8"))
+          if payload.get("status") != "fail":
+              raise SystemExit(f"expected status=fail, got {payload.get('status')!r}")
+          if payload.get("simulated_drift_metric") != "uat_pass_rate":
+              raise SystemExit(
+                  "expected simulated_drift_metric='uat_pass_rate', "
+                  f"got {payload.get('simulated_drift_metric')!r}"
+              )
+          breaches = payload.get("breaches", [])
+          if not isinstance(breaches, list) or not breaches:
+              raise SystemExit("expected at least one breach entry in simulated drift report")
+
+          if not any(item.get("metric_id") == "uat_pass_rate" for item in breaches if isinstance(item, dict)):
+              raise SystemExit("expected a uat_pass_rate breach in simulated drift report")
+
+          print("simulated drift fixture validated")
+          PY
+
+      - name: Upload reliability drift artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reliability-drift-artifacts
+          path: /tmp/gaia-reliability-checkpoints/latest/
