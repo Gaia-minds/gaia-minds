@@ -52,6 +52,12 @@
       "command": "node ./bin/gaia.js note --task 'UAT task capture' >/dev/null && listed=$(node ./bin/gaia.js tasks --status all) && [[ \"$listed\" == *\"UAT task capture\"* ]]"
     },
     {
+      "id": "memory_crud_and_filters",
+      "description": "Memory SQLite store supports deterministic add/get/list/update/delete flows",
+      "expect_exit": 0,
+      "command": "node ./bin/gaia.js memory add --type user_long --subject uat-user --content 'UAT memory content' --summary 'UAT memory summary' --consent-scope user --retention-ttl P30D >/tmp/memory-add-uat.out && memory_id=$(awk 'NR==1 {print $1}' /tmp/memory-add-uat.out) && [[ -n \"$memory_id\" ]] && get_json=$(node ./bin/gaia.js memory get \"$memory_id\" --json) && [[ \"$get_json\" == *\"\\\"memory_id\\\": \\\"$memory_id\\\"\"* ]] && node ./bin/gaia.js memory update \"$memory_id\" --summary 'UAT memory summary updated' --importance 0.9 >/dev/null && listed=$(node ./bin/gaia.js memory list --subject uat-user --q updated) && [[ \"$listed\" == *\"$memory_id\"* ]] && node ./bin/gaia.js memory delete \"$memory_id\" >/dev/null && set +e; node ./bin/gaia.js memory get \"$memory_id\" >/tmp/memory-get-after-delete-uat.out 2>&1; rc=$?; set -e; [[ $rc -ne 0 ]] && gone=$(cat /tmp/memory-get-after-delete-uat.out) && [[ \"$gone\" == *\"Memory not found\"* ]]"
+    },
+    {
       "id": "summarize_and_summaries",
       "description": "Summarize and summaries commands work with local fixture",
       "expect_exit": 0,

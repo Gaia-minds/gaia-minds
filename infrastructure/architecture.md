@@ -491,6 +491,43 @@ Lane: `P2-H Quality` (`#58`)
   - policy assertion/allowlist guardrails
   - compatibility matrix reproducibility
 
+## Phase 2 Delta: Memory Runtime SQLite Adapter (2026-02-13)
+
+Lane: `Memory Runtime Contract + SQLite Adapter` (`#75`)
+
+### Runtime changes
+
+- Added a first-class memory command surface in assistant launcher:
+  `gaia memory add/get/list/update/delete`.
+- Added `MemoryStore` contract with SQLite-backed implementation as the default
+  local memory backend.
+- Added deterministic memory schema (`memory.v1`) with explicit fields for
+  type, subject, content/summary, provenance, confidence/importance, retention,
+  consent scope, and lifecycle timestamps.
+
+### Persistence changes
+
+- Added local SQLite memory store:
+  `~/.gaia-assistant/data/memory.db`.
+- Added schema version marker in `memory_meta`:
+  `memory_store_schema_version=1`.
+- Added soft-delete semantics (`deleted_at`) so records can be hidden from
+  default reads while preserving auditability.
+
+### Policy and trace changes
+
+- Added memory capability classes for permission gating:
+  - `memory_read`
+  - `memory_write`
+  - `memory_delete`
+- Added dedicated trace events for memory lifecycle actions:
+  - `memory_capture`
+  - `memory_retrieve`
+  - `memory_update`
+  - `memory_delete`
+- Memory traces include `memory_id`/`memory_type`/`subject_id` metadata and
+  retrieval diagnostics (`retrieval_mode`, candidate/selected counts).
+
 ---
 
 ## Open Technical Questions

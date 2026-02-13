@@ -17,6 +17,7 @@ import os
 import re
 import shlex
 import shutil
+import sqlite3
 import subprocess
 import sys
 import time
@@ -73,6 +74,9 @@ POLICY_DEFAULT_SCOPE = "standard"
 DEFAULT_CAPABILITY_LEVELS = {
     "file_read": "safe",
     "file_write": "safe",
+    "memory_read": "safe",
+    "memory_write": "safe",
+    "memory_delete": "safe",
     "network_request": "safe",
     "shell_exec": "confirm",
     "delete_files": "confirm",
@@ -109,6 +113,12 @@ PROFILE_KEY_MAP = {
     "provider": ("profile", "default_provider"),
     "default_provider": ("profile", "default_provider"),
 }
+
+MEMORY_STORE_SCHEMA_VERSION = 1
+MEMORY_TYPE_CHOICES = ("session_short", "user_long", "project", "safety_audit")
+MEMORY_CONSENT_SCOPE_CHOICES = ("session", "user", "project", "audit")
+MEMORY_LIST_DEFAULT_LIMIT = 20
+MEMORY_LIST_MAX_LIMIT = 200
 
 
 DEFAULT_CONFIG: Dict[str, Any] = {
@@ -183,6 +193,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "tool_risk": {
             "file_read": "low",
             "file_write": "medium",
+            "memory_read": "low",
+            "memory_write": "medium",
+            "memory_delete": "high",
             "network_request": "high",
             "shell_exec": "high",
             "delete_files": "critical",
@@ -860,6 +873,349 @@ def _read_jsonl_records(path: Path) -> List[Dict[str, Any]]:
         if isinstance(payload, dict):
             records.append(payload)
     return records
+
+
+def _memory_db_path(storage_dir: Path) -> Path:
+    return storage_dir / "memory.db"
+
+
+def _normalize_memory_type(raw: str) -> str:
+    value = str(raw).strip().lower()
+    if value not in MEMORY_TYPE_CHOICES:
+        raise ValueError(
+            f"Invalid memory type '{raw}'. "
+            f"Expected one of: {', '.join(MEMORY_TYPE_CHOICES)}."
+        )
+    return value
+
+
+def _normalize_memory_consent_scope(raw: str) -> str:
+    value = str(raw).strip().lower()
+    if value not in MEMORY_CONSENT_SCOPE_CHOICES:
+        raise ValueError(
+            f"Invalid consent scope '{raw}'. "
+            f"Expected one of: {', '.join(MEMORY_CONSENT_SCOPE_CHOICES)}."
+        )
+    return value
+
+
+def _parse_memory_score(raw: Optional[Any], field_name: str, default_value: float) -> float:
+    if raw is None:
+        return default_value
+    try:
+        value = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field_name} must be a number between 0 and 1.") from exc
+    if value < 0.0 or value > 1.0:
+        raise ValueError(f"{field_name} must be between 0 and 1.")
+    return round(value, 6)
+
+
+class MemoryStore:
+    """Abstract memory store contract (memory.v1)."""
+
+    def create(self, record: Dict[str, Any]) -> Dict[str, Any]:
+        raise NotImplementedError
+
+    def get(self, memory_id: str, include_deleted: bool = False, touch_access: bool = False) -> Optional[Dict[str, Any]]:
+        raise NotImplementedError
+
+    def list(
+        self,
+        *,
+        memory_type: Optional[str],
+        subject_id: Optional[str],
+        query: Optional[str],
+        limit: int,
+        include_deleted: bool = False,
+    ) -> List[Dict[str, Any]]:
+        raise NotImplementedError
+
+    def update(self, memory_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        raise NotImplementedError
+
+    def delete(self, memory_id: str) -> bool:
+        raise NotImplementedError
+
+
+class SQLiteMemoryStore(MemoryStore):
+    """SQLite-backed memory.v1 store."""
+
+    def __init__(self, db_path: Path):
+        self.db_path = db_path
+        self._ensure_schema()
+
+    def _connect(self) -> sqlite3.Connection:
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(self.db_path))
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def _ensure_schema(self) -> None:
+        with self._connect() as conn:
+            conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS memory_meta (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS memory_records (
+                    memory_id TEXT PRIMARY KEY,
+                    memory_type TEXT NOT NULL,
+                    subject_id TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    summary TEXT NOT NULL DEFAULT '',
+                    source_trace_id TEXT NOT NULL DEFAULT '',
+                    confidence REAL NOT NULL DEFAULT 0.5,
+                    importance REAL NOT NULL DEFAULT 0.5,
+                    retention_ttl TEXT NOT NULL DEFAULT '',
+                    consent_scope TEXT NOT NULL DEFAULT 'session',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    deleted_at TEXT,
+                    last_accessed_at TEXT
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_memory_subject_created
+                    ON memory_records(subject_id, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_memory_type_created
+                    ON memory_records(memory_type, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_memory_deleted
+                    ON memory_records(deleted_at);
+                """
+            )
+            conn.execute(
+                "INSERT OR REPLACE INTO memory_meta(key, value) VALUES (?, ?)",
+                ("memory_store_schema_version", str(MEMORY_STORE_SCHEMA_VERSION)),
+            )
+            conn.commit()
+
+    @staticmethod
+    def _row_to_record(row: sqlite3.Row) -> Dict[str, Any]:
+        return {
+            "memory_id": str(row["memory_id"]),
+            "memory_type": str(row["memory_type"]),
+            "subject_id": str(row["subject_id"]),
+            "content": str(row["content"]),
+            "summary": str(row["summary"]),
+            "source_trace_id": str(row["source_trace_id"]),
+            "confidence": float(row["confidence"]),
+            "importance": float(row["importance"]),
+            "retention_ttl": str(row["retention_ttl"]),
+            "consent_scope": str(row["consent_scope"]),
+            "created_at": str(row["created_at"]),
+            "updated_at": str(row["updated_at"]),
+            "deleted_at": row["deleted_at"],
+            "last_accessed_at": row["last_accessed_at"],
+        }
+
+    def create(self, record: Dict[str, Any]) -> Dict[str, Any]:
+        now = datetime.now(timezone.utc).isoformat()
+        payload = {
+            "memory_id": str(record.get("memory_id") or _new_record_id("m")),
+            "memory_type": _normalize_memory_type(str(record.get("memory_type", ""))),
+            "subject_id": str(record.get("subject_id", "")).strip(),
+            "content": str(record.get("content", "")).strip(),
+            "summary": str(record.get("summary", "")).strip(),
+            "source_trace_id": str(record.get("source_trace_id", "")).strip(),
+            "confidence": _parse_memory_score(record.get("confidence"), "confidence", 0.5),
+            "importance": _parse_memory_score(record.get("importance"), "importance", 0.5),
+            "retention_ttl": str(record.get("retention_ttl", "")).strip(),
+            "consent_scope": _normalize_memory_consent_scope(str(record.get("consent_scope", "session"))),
+            "created_at": now,
+            "updated_at": now,
+            "deleted_at": None,
+            "last_accessed_at": None,
+        }
+        if not payload["subject_id"]:
+            raise ValueError("subject_id cannot be empty.")
+        if not payload["content"]:
+            raise ValueError("content cannot be empty.")
+
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO memory_records(
+                    memory_id, memory_type, subject_id, content, summary,
+                    source_trace_id, confidence, importance, retention_ttl,
+                    consent_scope, created_at, updated_at, deleted_at, last_accessed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    payload["memory_id"],
+                    payload["memory_type"],
+                    payload["subject_id"],
+                    payload["content"],
+                    payload["summary"],
+                    payload["source_trace_id"],
+                    payload["confidence"],
+                    payload["importance"],
+                    payload["retention_ttl"],
+                    payload["consent_scope"],
+                    payload["created_at"],
+                    payload["updated_at"],
+                    payload["deleted_at"],
+                    payload["last_accessed_at"],
+                ),
+            )
+            conn.commit()
+        return payload
+
+    def get(self, memory_id: str, include_deleted: bool = False, touch_access: bool = False) -> Optional[Dict[str, Any]]:
+        memory_id = str(memory_id).strip()
+        if not memory_id:
+            return None
+        where_deleted = "" if include_deleted else "AND deleted_at IS NULL"
+        with self._connect() as conn:
+            row = conn.execute(
+                f"""
+                SELECT * FROM memory_records
+                WHERE memory_id = ? {where_deleted}
+                LIMIT 1
+                """,
+                (memory_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            if touch_access:
+                now = datetime.now(timezone.utc).isoformat()
+                conn.execute(
+                    "UPDATE memory_records SET last_accessed_at = ?, updated_at = ? WHERE memory_id = ?",
+                    (now, now, memory_id),
+                )
+                conn.commit()
+                row = conn.execute(
+                    "SELECT * FROM memory_records WHERE memory_id = ? LIMIT 1",
+                    (memory_id,),
+                ).fetchone()
+            if row is None:
+                return None
+            return self._row_to_record(row)
+
+    def list(
+        self,
+        *,
+        memory_type: Optional[str],
+        subject_id: Optional[str],
+        query: Optional[str],
+        limit: int,
+        include_deleted: bool = False,
+    ) -> List[Dict[str, Any]]:
+        clauses: List[str] = []
+        params: List[Any] = []
+        if not include_deleted:
+            clauses.append("deleted_at IS NULL")
+        if memory_type:
+            clauses.append("memory_type = ?")
+            params.append(_normalize_memory_type(memory_type))
+        if subject_id:
+            clauses.append("subject_id = ?")
+            params.append(str(subject_id).strip())
+        if query:
+            clauses.append("(content LIKE ? OR summary LIKE ?)")
+            like_value = f"%{str(query).strip()}%"
+            params.extend([like_value, like_value])
+
+        if limit <= 0:
+            limit = MEMORY_LIST_DEFAULT_LIMIT
+        limit = min(limit, MEMORY_LIST_MAX_LIMIT)
+        where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM memory_records
+                {where_sql}
+                ORDER BY created_at DESC, memory_id DESC
+                LIMIT ?
+                """,
+                (*params, limit),
+            ).fetchall()
+        return [self._row_to_record(row) for row in rows]
+
+    def update(self, memory_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        memory_id = str(memory_id).strip()
+        if not memory_id:
+            return None
+        allowed_fields = {
+            "memory_type",
+            "subject_id",
+            "content",
+            "summary",
+            "source_trace_id",
+            "confidence",
+            "importance",
+            "retention_ttl",
+            "consent_scope",
+        }
+        set_clauses: List[str] = []
+        params: List[Any] = []
+
+        for field in sorted(allowed_fields):
+            if field not in updates or updates[field] is None:
+                continue
+            value: Any = updates[field]
+            if field == "memory_type":
+                value = _normalize_memory_type(str(value))
+            elif field == "consent_scope":
+                value = _normalize_memory_consent_scope(str(value))
+            elif field in ("confidence", "importance"):
+                value = _parse_memory_score(value, field, 0.5)
+            else:
+                value = str(value).strip()
+                if field in ("subject_id", "content") and not value:
+                    raise ValueError(f"{field} cannot be empty.")
+            set_clauses.append(f"{field} = ?")
+            params.append(value)
+
+        if not set_clauses:
+            return self.get(memory_id, include_deleted=True, touch_access=False)
+
+        now = datetime.now(timezone.utc).isoformat()
+        set_clauses.append("updated_at = ?")
+        params.append(now)
+
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT memory_id FROM memory_records WHERE memory_id = ? LIMIT 1",
+                (memory_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            conn.execute(
+                f"UPDATE memory_records SET {', '.join(set_clauses)} WHERE memory_id = ?",
+                (*params, memory_id),
+            )
+            conn.commit()
+        return self.get(memory_id, include_deleted=True, touch_access=False)
+
+    def delete(self, memory_id: str) -> bool:
+        memory_id = str(memory_id).strip()
+        if not memory_id:
+            return False
+        now = datetime.now(timezone.utc).isoformat()
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT memory_id FROM memory_records WHERE memory_id = ? LIMIT 1",
+                (memory_id,),
+            ).fetchone()
+            if row is None:
+                return False
+            conn.execute(
+                """
+                UPDATE memory_records
+                SET deleted_at = COALESCE(deleted_at, ?), updated_at = ?
+                WHERE memory_id = ?
+                """,
+                (now, now, memory_id),
+            )
+            conn.commit()
+        return True
+
+
+def _memory_store(storage_dir: Path) -> MemoryStore:
+    return SQLiteMemoryStore(_memory_db_path(storage_dir))
 
 
 def _skills_local_root(cfg: Dict[str, Any]) -> Path:
@@ -4384,6 +4740,434 @@ def cmd_tasks(args: argparse.Namespace) -> int:
     return 0
 
 
+def _memory_trace_metadata(
+    *,
+    memory_id: Optional[str] = None,
+    memory_type: Optional[str] = None,
+    subject_id: Optional[str] = None,
+    retrieval_mode: Optional[str] = None,
+    candidate_count: Optional[int] = None,
+    selected_count: Optional[int] = None,
+) -> Dict[str, Any]:
+    metadata: Dict[str, Any] = {}
+    if memory_id:
+        metadata["memory_id"] = memory_id
+    if memory_type:
+        metadata["memory_type"] = memory_type
+    if subject_id:
+        metadata["subject_id"] = subject_id
+    if retrieval_mode:
+        metadata["retrieval_mode"] = retrieval_mode
+    if candidate_count is not None:
+        metadata["candidate_count"] = int(candidate_count)
+    if selected_count is not None:
+        metadata["selected_count"] = int(selected_count)
+    return _with_trace_metadata(metadata=metadata)
+
+
+def cmd_memory_add(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="memory_write",
+        input_summary=f"memory add type={args.memory_type} subject={args.subject_id}",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_capture",
+            input_summary="memory add",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    store = _memory_store(storage_dir)
+    try:
+        record = store.create(
+            {
+                "memory_type": args.memory_type,
+                "subject_id": args.subject_id,
+                "content": args.content,
+                "summary": args.summary,
+                "source_trace_id": args.source_trace_id,
+                "confidence": args.confidence,
+                "importance": args.importance,
+                "retention_ttl": args.retention_ttl,
+                "consent_scope": args.consent_scope,
+            }
+        )
+    except (ValueError, sqlite3.Error) as exc:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_capture",
+            input_summary=f"type={args.memory_type} subject={args.subject_id}",
+            output_summary=str(exc),
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="memory_capture",
+        input_summary=f"type={record['memory_type']} subject={record['subject_id']}",
+        output_summary=f"saved {record['memory_id']}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata=_memory_trace_metadata(
+            memory_id=record["memory_id"],
+            memory_type=record["memory_type"],
+            subject_id=record["subject_id"],
+        ),
+    )
+    if args.as_json:
+        print(json.dumps(record, indent=2))
+    else:
+        print(
+            f"{record['memory_id']} {record['memory_type']} {record['subject_id']} "
+            f"consent={record['consent_scope']} ttl={record['retention_ttl'] or '-'}"
+        )
+    return 0
+
+
+def cmd_memory_get(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="memory_read",
+        input_summary=f"memory get id={args.memory_id}",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_retrieve",
+            input_summary=f"id={args.memory_id}",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    store = _memory_store(storage_dir)
+    record = store.get(
+        args.memory_id,
+        include_deleted=bool(args.include_deleted),
+        touch_access=True,
+    )
+    if record is None:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_retrieve",
+            input_summary=f"id={args.memory_id}",
+            output_summary="memory not found",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(f"Memory not found: {args.memory_id}", file=sys.stderr)
+        return 1
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="memory_retrieve",
+        input_summary=f"id={args.memory_id}",
+        output_summary=f"retrieved {record['memory_id']}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata=_memory_trace_metadata(
+            memory_id=record["memory_id"],
+            memory_type=record["memory_type"],
+            subject_id=record["subject_id"],
+            retrieval_mode="get",
+            candidate_count=1,
+            selected_count=1,
+        ),
+    )
+    if args.as_json:
+        print(json.dumps(record, indent=2))
+    else:
+        print(f"memory_id: {record['memory_id']}")
+        print(f"memory_type: {record['memory_type']}")
+        print(f"subject_id: {record['subject_id']}")
+        print(f"consent_scope: {record['consent_scope']}")
+        print(f"retention_ttl: {record['retention_ttl'] or '-'}")
+        print(f"confidence: {record['confidence']:.3f}")
+        print(f"importance: {record['importance']:.3f}")
+        print(f"source_trace_id: {record['source_trace_id'] or '-'}")
+        print(f"created_at: {record['created_at']}")
+        print(f"updated_at: {record['updated_at']}")
+        print(f"deleted_at: {record['deleted_at'] or '-'}")
+        print(f"last_accessed_at: {record['last_accessed_at'] or '-'}")
+        print(f"summary: {record['summary']}")
+        print("content:")
+        print(record["content"])
+    return 0
+
+
+def cmd_memory_list(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="memory_read",
+        input_summary="memory list",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_retrieve",
+            input_summary="memory list",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    store = _memory_store(storage_dir)
+    try:
+        records = store.list(
+            memory_type=args.memory_type,
+            subject_id=args.subject_id,
+            query=args.q,
+            limit=int(args.limit),
+            include_deleted=bool(args.include_deleted),
+        )
+    except ValueError as exc:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_retrieve",
+            input_summary="memory list",
+            output_summary=str(exc),
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="memory_retrieve",
+        input_summary=f"type={args.memory_type or '-'} subject={args.subject_id or '-'} q={args.q or '-'}",
+        output_summary=f"{len(records)} records",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata=_memory_trace_metadata(
+            memory_type=args.memory_type,
+            subject_id=args.subject_id,
+            retrieval_mode="list",
+            candidate_count=len(records),
+            selected_count=len(records),
+        ),
+    )
+
+    if args.as_json:
+        print(json.dumps(records, indent=2))
+        return 0
+
+    if not records:
+        print("No memory records found.")
+        return 0
+
+    for record in records:
+        summary = _summarize_text(record.get("summary") or record.get("content", ""), max_chars=80)
+        print(
+            f"{record['memory_id']} {record['memory_type']} {record['subject_id']} "
+            f"{record['updated_at']} {summary}"
+        )
+    return 0
+
+
+def cmd_memory_update(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="memory_write",
+        input_summary=f"memory update id={args.memory_id}",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_update",
+            input_summary=f"id={args.memory_id}",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    updates: Dict[str, Any] = {
+        "memory_type": args.memory_type,
+        "subject_id": args.subject_id,
+        "content": args.content,
+        "summary": args.summary,
+        "source_trace_id": args.source_trace_id,
+        "confidence": args.confidence,
+        "importance": args.importance,
+        "retention_ttl": args.retention_ttl,
+        "consent_scope": args.consent_scope,
+    }
+    non_empty_updates = {key: value for key, value in updates.items() if value is not None}
+    if not non_empty_updates:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_update",
+            input_summary=f"id={args.memory_id}",
+            output_summary="no update fields provided",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print("No updates provided.", file=sys.stderr)
+        return 1
+
+    store = _memory_store(storage_dir)
+    try:
+        record = store.update(args.memory_id, non_empty_updates)
+    except (ValueError, sqlite3.Error) as exc:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_update",
+            input_summary=f"id={args.memory_id}",
+            output_summary=str(exc),
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(str(exc), file=sys.stderr)
+        return 1
+    if record is None:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_update",
+            input_summary=f"id={args.memory_id}",
+            output_summary="memory not found",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(f"Memory not found: {args.memory_id}", file=sys.stderr)
+        return 1
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="memory_update",
+        input_summary=f"id={args.memory_id}",
+        output_summary=f"updated {record['memory_id']}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata=_memory_trace_metadata(
+            memory_id=record["memory_id"],
+            memory_type=record["memory_type"],
+            subject_id=record["subject_id"],
+        ),
+    )
+    if args.as_json:
+        print(json.dumps(record, indent=2))
+    else:
+        print(f"{record['memory_id']} updated")
+    return 0
+
+
+def cmd_memory_delete(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="memory_delete",
+        input_summary=f"memory delete id={args.memory_id}",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_delete",
+            input_summary=f"id={args.memory_id}",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    store = _memory_store(storage_dir)
+    removed = store.delete(args.memory_id)
+    if not removed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_delete",
+            input_summary=f"id={args.memory_id}",
+            output_summary="memory not found",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(f"Memory not found: {args.memory_id}", file=sys.stderr)
+        return 1
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="memory_delete",
+        input_summary=f"id={args.memory_id}",
+        output_summary=f"deleted {args.memory_id}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata=_memory_trace_metadata(memory_id=args.memory_id),
+    )
+    print(f"{args.memory_id} deleted")
+    return 0
+
+
 def cmd_summarize(args: argparse.Namespace) -> int:
     cfg_path = Path(args.config).expanduser()
     cfg = _ensure_config_exists(cfg_path)
@@ -7821,6 +8605,86 @@ def build_parser() -> argparse.ArgumentParser:
     tasks.add_argument("--since", default=None, help="Filter tasks created since YYYY-MM-DD")
     tasks.add_argument("--status", choices=["open", "done", "all"], default="open", help="Filter by task status")
     tasks.set_defaults(func=cmd_tasks)
+
+    memory = sub.add_parser("memory", help="Manage structured long-term memory records")
+    memory_sub = memory.add_subparsers(dest="memory_command", required=True)
+
+    memory_add = memory_sub.add_parser("add", help="Create a memory record")
+    memory_add.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    memory_add.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    memory_add.add_argument("--trace-dir", default=None, help="Trace directory override")
+    memory_add.add_argument(
+        "--type",
+        dest="memory_type",
+        choices=list(MEMORY_TYPE_CHOICES),
+        required=True,
+        help="Memory type",
+    )
+    memory_add.add_argument("--subject", dest="subject_id", required=True, help="Memory subject id")
+    memory_add.add_argument("--content", required=True, help="Memory content text")
+    memory_add.add_argument("--summary", default="", help="Optional summary text")
+    memory_add.add_argument("--source-trace-id", default="", help="Optional source trace id")
+    memory_add.add_argument("--confidence", type=float, default=0.5, help="Confidence score (0-1)")
+    memory_add.add_argument("--importance", type=float, default=0.5, help="Importance score (0-1)")
+    memory_add.add_argument("--retention-ttl", default="", help="Retention hint (for example: P30D)")
+    memory_add.add_argument(
+        "--consent-scope",
+        choices=list(MEMORY_CONSENT_SCOPE_CHOICES),
+        default="session",
+        help="Consent scope class",
+    )
+    memory_add.add_argument("--json", dest="as_json", action="store_true", help="Emit memory record JSON")
+    memory_add.set_defaults(func=cmd_memory_add)
+
+    memory_get = memory_sub.add_parser("get", help="Get a memory record by id")
+    memory_get.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    memory_get.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    memory_get.add_argument("--trace-dir", default=None, help="Trace directory override")
+    memory_get.add_argument("--include-deleted", action="store_true", help="Include soft-deleted records")
+    memory_get.add_argument("--json", dest="as_json", action="store_true", help="Emit memory record JSON")
+    memory_get.add_argument("memory_id", help="Memory record id")
+    memory_get.set_defaults(func=cmd_memory_get)
+
+    memory_list = memory_sub.add_parser("list", help="List memory records")
+    memory_list.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    memory_list.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    memory_list.add_argument("--trace-dir", default=None, help="Trace directory override")
+    memory_list.add_argument("--type", dest="memory_type", choices=list(MEMORY_TYPE_CHOICES), default=None)
+    memory_list.add_argument("--subject", dest="subject_id", default=None, help="Filter by subject id")
+    memory_list.add_argument("--q", default=None, help="Filter by content/summary keyword")
+    memory_list.add_argument("--limit", type=int, default=MEMORY_LIST_DEFAULT_LIMIT, help="Max rows to return")
+    memory_list.add_argument("--include-deleted", action="store_true", help="Include soft-deleted records")
+    memory_list.add_argument("--json", dest="as_json", action="store_true", help="Emit memory list JSON")
+    memory_list.set_defaults(func=cmd_memory_list)
+
+    memory_update = memory_sub.add_parser("update", help="Update one memory record")
+    memory_update.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    memory_update.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    memory_update.add_argument("--trace-dir", default=None, help="Trace directory override")
+    memory_update.add_argument("--type", dest="memory_type", choices=list(MEMORY_TYPE_CHOICES), default=None)
+    memory_update.add_argument("--subject", dest="subject_id", default=None, help="Updated subject id")
+    memory_update.add_argument("--content", default=None, help="Updated content text")
+    memory_update.add_argument("--summary", default=None, help="Updated summary text")
+    memory_update.add_argument("--source-trace-id", default=None, help="Updated source trace id")
+    memory_update.add_argument("--confidence", type=float, default=None, help="Updated confidence score (0-1)")
+    memory_update.add_argument("--importance", type=float, default=None, help="Updated importance score (0-1)")
+    memory_update.add_argument("--retention-ttl", default=None, help="Updated retention hint")
+    memory_update.add_argument(
+        "--consent-scope",
+        choices=list(MEMORY_CONSENT_SCOPE_CHOICES),
+        default=None,
+        help="Updated consent scope",
+    )
+    memory_update.add_argument("--json", dest="as_json", action="store_true", help="Emit updated memory JSON")
+    memory_update.add_argument("memory_id", help="Memory record id")
+    memory_update.set_defaults(func=cmd_memory_update)
+
+    memory_delete = memory_sub.add_parser("delete", help="Soft-delete one memory record")
+    memory_delete.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    memory_delete.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    memory_delete.add_argument("--trace-dir", default=None, help="Trace directory override")
+    memory_delete.add_argument("memory_id", help="Memory record id")
+    memory_delete.set_defaults(func=cmd_memory_delete)
 
     summarize = sub.add_parser("summarize", help="Fetch and summarize one or more URLs")
     summarize.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
