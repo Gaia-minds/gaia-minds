@@ -31,6 +31,7 @@ See `ROADMAP.md` for full phase details and exit criteria.
 - `P2-I Memory Research` - memory architecture options/tradeoffs, recommendation, and benchmark plan (`#60`)
 - `Memory Runtime Contract + SQLite Adapter` - SQLite-backed `gaia memory` CRUD runtime with policy/trace integration (`#75`)
 - `Memory Retrieval + Ranking Pipeline` - deterministic `gaia memory retrieve` stages, reranking, and benchmark thresholds (`#76`)
+- `Memory Policy + Privacy Controls` - consent/retention policy enforcement, export capability gating, and delete/export evidence artifacts (`#77`)
 
 ## In Progress
 
@@ -44,8 +45,7 @@ architecture deltas) per `infrastructure/phase2-lane-implementation-plans.md`.
 Cross-cutting requirement: run a docs freshness sweep with
 `skills/gaia-technical-writer/SKILL.md` after merge batches.
 
-1. `Memory Policy + Privacy Controls` (`#77`)
-2. `Memory QA and Red-Team Harness` (`#78`)
+1. `Memory QA and Red-Team Harness` (`#78`)
 
 ## Blocked
 
