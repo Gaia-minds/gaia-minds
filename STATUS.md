@@ -23,10 +23,11 @@ See `ROADMAP.md` for full phase details and exit criteria.
 - `P2-A Scheduler` - recurring/scheduled execution runtime and persistence (`#51`, PR #67)
 - `P2-B Reminders` - proactive reminder workflows and cadence controls (`#52`, PR #68)
 - `P2-C Skills Runtime` - `gaia skills list/inspect` and loading/indexing (`#53`, PR #69)
+- `P2-D Skill Validation` - `gaia skills validate` onboarding security gate (`#54`, PR #70)
 
 ## In Progress
 
-- `P2-D Skill Validation` - `gaia skills validate` and onboarding security checks (`#54`) - owner: `codex-gpt5`
+_Nothing currently in progress._
 
 ## Next Up (Parallel Lanes)
 
