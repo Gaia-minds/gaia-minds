@@ -372,6 +372,54 @@ Lane: `P2-E Sandbox` (`#55`)
 - Shell/network capability policy levels still apply; forbidden levels remain
   hard-blocked.
 
+## Phase 2 Delta: P2-F Policy Engine (2026-02-13)
+
+Lane: `P2-F Policy Engine` (`#56`)
+
+### Runtime changes
+
+- Added policy command surface in assistant launcher:
+  - `gaia policy evaluate`
+  - `gaia policy allowlist set/list/clear`
+- Added centralized policy evaluation in `gaia sandbox run` before command
+  execution, including:
+  - source-aware decisions (`project`, `local`, `path`, `unknown`)
+  - user scope gating (`standard`, `restricted`, `admin`)
+  - per-skill tool allowlist enforcement
+
+### Config schema changes
+
+- Added `policy` config section in launcher config:
+  - `default_scope`
+  - `source_effect`
+  - `tool_risk`
+  - `scope_max_risk`
+  - `skill_tool_allowlists`
+- Config normalization enforces allowed enum values and deterministic map
+  defaults for missing/invalid entries.
+
+### Trace and enforcement changes
+
+- Added `policy_decision` trace event emitted for every `sandbox run` command
+  before escalation and execution.
+- Added policy command traces:
+  - `policy_evaluate`
+  - `policy_allowlist_set`
+  - `policy_allowlist_clear`
+  - `policy_allowlist_list`
+- Added policy execution context exports for sandboxed commands:
+  - `GAIA_POLICY_DECISION`
+  - `GAIA_POLICY_ID`
+
+### Determinism and safety
+
+- Policy `deny` decisions hard-block command execution before sandbox escalation.
+- Policy `confirm` decisions require explicit approval (`--approve-policy`) or
+  interactive confirmation.
+- `sandbox run --tool` now acts as a strict tool assertion; mismatches against
+  inferred command behavior are blocked to prevent policy bypass by manual tool
+  relabeling.
+
 ---
 
 ## Open Technical Questions

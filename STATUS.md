@@ -24,10 +24,12 @@ See `ROADMAP.md` for full phase details and exit criteria.
 - `P2-B Reminders` - proactive reminder workflows and cadence controls (`#52`, PR #68)
 - `P2-C Skills Runtime` - `gaia skills list/inspect` and loading/indexing (`#53`, PR #69)
 - `P2-D Skill Validation` - `gaia skills validate` onboarding security gate (`#54`, PR #70)
+- `P2-E Sandbox` - sandbox profiles and escalation approvals (`#55`, PR #71)
+- `P2-F Policy Engine` - per-skill tool allowlists and risk/source/scope gating (`#56`, PR #72)
 
 ## In Progress
 
-- `P2-E Sandbox` - execution profiles and escalation approvals (`#55`) - owner: `codex-gpt5`
+_Nothing currently in progress._
 
 ## Next Up (Parallel Lanes)
 
@@ -37,10 +39,9 @@ architecture deltas) per `infrastructure/phase2-lane-implementation-plans.md`.
 Cross-cutting requirement: run a docs freshness sweep with
 `skills/gaia-technical-writer/SKILL.md` after merge batches.
 
-1. `P2-F Policy Engine` - per-skill tool allowlists and risk/source/scope gating (`#56`)
-2. `P2-G Audit & Traces` - skill/sandbox trace schema and incident linkage (`#57`)
-3. `P2-H Quality` - malicious fixtures, UAT/benchmark expansion, compatibility matrix (`#58`)
-4. `P2-I Memory Research` - memory architecture options/tradeoffs and recommendation (`#60`)
+1. `P2-G Audit & Traces` - skill/sandbox trace schema and incident linkage (`#57`)
+2. `P2-H Quality` - malicious fixtures, UAT/benchmark expansion, compatibility matrix (`#58`)
+3. `P2-I Memory Research` - memory architecture options/tradeoffs and recommendation (`#60`)
 
 ## Blocked
 
