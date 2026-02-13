@@ -270,6 +270,37 @@ Lane: `P2-B Reminders` (`#52`)
 - Reminder execution remains in local bounded runtime (no external notification
   transport in this slice), preserving least-privilege defaults.
 
+## Phase 2 Delta: P2-C Skills Runtime (2026-02-13)
+
+Lane: `P2-C Skills Runtime` (`#53`)
+
+### Runtime changes
+
+- Added skills discovery command surface in assistant launcher:
+  `gaia skills list` and `gaia skills inspect`.
+- Added deterministic skill registry loading from approved source roots:
+  - `project`: repository `skills/`
+  - `local`: `~/.gaia-assistant/skills` (or configured override)
+- Added frontmatter-driven metadata extraction (`name`, `description`,
+  optional `capabilities`) with lazy instruction loading (entrypoint metadata
+  indexed without executing skill scripts).
+
+### Contract and provenance
+
+- Added versioned skill contract output (`schema_version=1`) for downstream
+  lanes.
+- Added provenance fields per skill (`entrypoint`, `source`, `sha256`,
+  `last_modified_at`) to support traceability and policy integration.
+- Published contract reference:
+  `infrastructure/skill-contract-v1.md`.
+
+### Determinism and safety
+
+- Registry output is sorted and stable across runs for unchanged sources.
+- Skill discovery/inspection is gated by file-read capability checks.
+- Skills command traces are emitted (`skills_list`, `skills_inspect`) with
+  scanned roots and selected identifiers in metadata.
+
 ---
 
 ## Open Technical Questions

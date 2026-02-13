@@ -120,6 +120,16 @@ run_smoke_suite() {
     \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" reminder dismiss \"\$reminder_id\" >/dev/null
   "
 
+  run_test "skills_runtime_list_and_inspect" bash -lc "
+    listed=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" skills list --source project) &&
+    [[ \"\$listed\" == *\"project:gaia-contributor\"* ]] &&
+    skill_id=\$(printf '%s' \"\$listed\" | awk 'NR==1 {print \$1}') &&
+    [[ -n \"\$skill_id\" ]] &&
+    inspected=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" skills inspect \"\$skill_id\") &&
+    [[ \"\$inspected\" == *'\"schema_version\": 1'* ]] &&
+    [[ \"\$inspected\" == *'\"source\": \"project\"'* ]]
+  "
+
   run_test "provider_fallback" bash -lc "
     out=\$(printf 'provider fallback check\\n/exit\\n' | \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" chat 2>&1) &&
     [[ \"\$out\" == *\"[local-\"* ]]

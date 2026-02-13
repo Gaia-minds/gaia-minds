@@ -253,6 +253,37 @@ Reminder lifecycle traces are recorded in `actions.jsonl` with
 `reminder_pause`, `reminder_resume`, `reminder_snooze`, `reminder_dismiss`,
 and `reminder_fail`.
 
+## Skills Runtime
+
+Skills runtime commands provide deterministic discovery and inspection of
+approved skill entrypoints.
+
+```bash
+# list skills from project + local approved roots
+gaia skills list
+
+# list only project skills
+gaia skills list --source project
+
+# inspect one skill by id (preferred) or unique name
+gaia skills inspect project:gaia-contributor
+gaia skills inspect gaia-contributor
+```
+
+Approved source roots:
+
+- `project`: `<repo>/skills`
+- `local`: `~/.gaia-assistant/skills` (or `config.skills.local_dir`)
+
+Contract reference:
+
+- `infrastructure/skill-contract-v1.md`
+
+Skills runtime traces:
+
+- `skills_list`
+- `skills_inspect`
+
 ## Budget Policy
 
 Default budget split:

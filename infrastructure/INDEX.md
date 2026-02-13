@@ -22,3 +22,4 @@ Technical foundations and operational guidance.
 - [Research Task Template](research-task-template.md) — Updated: February 8, 2026
 - [Security Guidelines](security.md) — This document outlines security practices for the Gaia Minds project.
 - [Security Review Template](security-review-template.md) — Updated: February 8, 2026
+- [Skill Contract v1](skill-contract-v1.md) — Updated: February 13, 2026

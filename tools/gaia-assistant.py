@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import base64
 import getpass
+import hashlib
 import html
 import json
 import os
@@ -53,6 +54,8 @@ SCHEDULE_MUTABLE_STATUS_CHOICES = ("active", "paused", "canceled")
 SCHEDULE_DEFAULT_WINDOW_MINUTES = 10
 REMINDER_DEFAULT_CADENCE_MINUTES = 24 * 60
 REMINDER_DEFAULT_WINDOW_MINUTES = 30
+SKILL_CONTRACT_SCHEMA_VERSION = 1
+SKILL_SOURCE_CHOICES = ("project", "local", "all")
 DEFAULT_CAPABILITY_LEVELS = {
     "file_read": "safe",
     "file_write": "safe",
@@ -146,6 +149,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "storage": {
         "dir": str(DEFAULT_DATA_DIR),
+    },
+    "skills": {
+        "local_dir": str(DEFAULT_HOME / "skills"),
     },
 }
 
@@ -242,6 +248,11 @@ def _normalize_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     storage_dir = str(storage.get("dir", "")).strip()
     if not storage_dir:
         storage["dir"] = str(DEFAULT_DATA_DIR)
+
+    skills = cfg.setdefault("skills", {})
+    local_skills_dir = str(skills.get("local_dir", "")).strip()
+    if not local_skills_dir:
+        skills["local_dir"] = str(DEFAULT_HOME / "skills")
 
     return cfg
 
@@ -646,6 +657,246 @@ def _read_jsonl_records(path: Path) -> List[Dict[str, Any]]:
         if isinstance(payload, dict):
             records.append(payload)
     return records
+
+
+def _skills_local_root(cfg: Dict[str, Any]) -> Path:
+    skills_cfg = cfg.get("skills", {})
+    if isinstance(skills_cfg, dict):
+        configured = str(skills_cfg.get("local_dir", "")).strip()
+        if configured:
+            return Path(configured).expanduser()
+    return DEFAULT_HOME / "skills"
+
+
+def _approved_skill_roots(cfg: Dict[str, Any], source_filter: str) -> List[Tuple[str, Path]]:
+    want = source_filter.strip().lower()
+    if want not in SKILL_SOURCE_CHOICES:
+        want = "all"
+
+    roots: List[Tuple[str, Path]] = []
+    if want in ("project", "all"):
+        roots.append(("project", REPO_ROOT / "skills"))
+    if want in ("local", "all"):
+        roots.append(("local", _skills_local_root(cfg)))
+    return roots
+
+
+def _parse_skill_frontmatter(text: str) -> Tuple[Dict[str, Any], str]:
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}, text
+
+    end_index: Optional[int] = None
+    for idx in range(1, len(lines)):
+        if lines[idx].strip() == "---":
+            end_index = idx
+            break
+    if end_index is None:
+        return {}, text
+
+    frontmatter: Dict[str, Any] = {}
+    fm_lines = lines[1:end_index]
+    i = 0
+    while i < len(fm_lines):
+        raw = fm_lines[i]
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
+            i += 1
+            continue
+        if ":" not in stripped:
+            i += 1
+            continue
+
+        key_raw, value_raw = stripped.split(":", 1)
+        key = key_raw.strip().lower()
+        value = value_raw.strip()
+
+        if key == "capabilities":
+            if not value:
+                items: List[str] = []
+                j = i + 1
+                while j < len(fm_lines):
+                    item_raw = fm_lines[j].strip()
+                    if not item_raw:
+                        j += 1
+                        continue
+                    if item_raw.startswith("- "):
+                        items.append(item_raw[2:].strip().strip("'\""))
+                        j += 1
+                        continue
+                    break
+                frontmatter[key] = items
+                i = j
+                continue
+            if value.startswith("[") and value.endswith("]"):
+                inner = value[1:-1].strip()
+                items = [item.strip().strip("'\"") for item in inner.split(",") if item.strip()]
+                frontmatter[key] = items
+            else:
+                items = [item.strip().strip("'\"") for item in value.split(",") if item.strip()]
+                frontmatter[key] = items
+            i += 1
+            continue
+
+        frontmatter[key] = value.strip().strip("'\"")
+        i += 1
+
+    body = "\n".join(lines[end_index + 1 :])
+    return frontmatter, body
+
+
+def _normalize_skill_capabilities(raw: Any) -> List[str]:
+    values: List[str] = []
+    if isinstance(raw, str):
+        values = [item.strip() for item in raw.split(",") if item.strip()]
+    elif isinstance(raw, list):
+        values = [str(item).strip() for item in raw if str(item).strip()]
+
+    normalized: List[str] = []
+    seen: set[str] = set()
+    for item in values:
+        capability = item.lower()
+        if capability in seen:
+            continue
+        seen.add(capability)
+        normalized.append(capability)
+    return normalized
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(1024 * 128)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _display_skill_path(source: str, path: Path) -> str:
+    if source == "project":
+        try:
+            return str(path.relative_to(REPO_ROOT))
+        except ValueError:
+            return str(path)
+    return str(path)
+
+
+def _skill_slug_for_entry(source_root: Path, skill_path: Path, fallback_name: str) -> str:
+    try:
+        relative_dir = skill_path.parent.relative_to(source_root).as_posix()
+    except ValueError:
+        relative_dir = skill_path.parent.name
+    slug = relative_dir if relative_dir and relative_dir != "." else fallback_name
+    return slug.strip()
+
+
+def _build_skill_contract(
+    skill_path: Path,
+    *,
+    source: str,
+    source_root: Path,
+    cfg: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    try:
+        text = skill_path.read_text(encoding="utf-8")
+        stat = skill_path.stat()
+    except OSError:
+        return None
+
+    frontmatter, _ = _parse_skill_frontmatter(text)
+    declared_name = str(frontmatter.get("name", "")).strip() or skill_path.parent.name
+    if not declared_name:
+        return None
+    description = str(frontmatter.get("description", "")).strip()
+    capabilities = _normalize_skill_capabilities(frontmatter.get("capabilities"))
+    skill_slug = _skill_slug_for_entry(source_root, skill_path, declared_name)
+    skill_id = f"{source}:{skill_slug}"
+    capability_policy = _capability_registry(cfg)
+
+    return {
+        "schema_version": SKILL_CONTRACT_SCHEMA_VERSION,
+        "skill_id": skill_id,
+        "slug": skill_slug,
+        "name": declared_name,
+        "description": description,
+        "source": source,
+        "source_root": _display_skill_path(source, source_root),
+        "entrypoint": _display_skill_path(source, skill_path),
+        "capabilities": capabilities,
+        "capability_policy": [
+            {
+                "capability": capability,
+                "policy_level": capability_policy.get(capability, "unmapped"),
+            }
+            for capability in capabilities
+        ],
+        "provenance": {
+            "sha256": _sha256_file(skill_path),
+            "last_modified_at": _isoformat_utc(datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)),
+        },
+        "frontmatter": {
+            "keys": sorted(frontmatter.keys()),
+            "declares_capabilities": bool(capabilities),
+        },
+    }
+
+
+def _load_skill_contracts(
+    cfg: Dict[str, Any],
+    *,
+    source_filter: str = "all",
+) -> Tuple[List[Dict[str, Any]], List[str]]:
+    contracts: List[Dict[str, Any]] = []
+    scanned_roots: List[str] = []
+
+    for source, source_root in _approved_skill_roots(cfg, source_filter):
+        scanned_roots.append(f"{source}:{source_root}")
+        if not source_root.exists() or not source_root.is_dir():
+            continue
+        for skill_path in sorted(source_root.rglob("SKILL.md")):
+            if not skill_path.is_file():
+                continue
+            contract = _build_skill_contract(
+                skill_path,
+                source=source,
+                source_root=source_root,
+                cfg=cfg,
+            )
+            if contract is not None:
+                contracts.append(contract)
+
+    contracts.sort(
+        key=lambda item: (
+            str(item.get("source", "")),
+            str(item.get("name", "")),
+            str(item.get("entrypoint", "")),
+        )
+    )
+    return contracts, scanned_roots
+
+
+def _resolve_skill_contract(
+    contracts: List[Dict[str, Any]],
+    reference: str,
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    ref = reference.strip()
+    if not ref:
+        return None, "skill reference cannot be empty"
+
+    by_id = [item for item in contracts if str(item.get("skill_id", "")).strip() == ref]
+    if len(by_id) == 1:
+        return by_id[0], None
+
+    by_name = [item for item in contracts if str(item.get("name", "")).strip() == ref]
+    if len(by_name) == 1:
+        return by_name[0], None
+    if len(by_name) > 1:
+        options = ", ".join(sorted(str(item.get("skill_id", "")) for item in by_name))
+        return None, f"ambiguous skill name '{ref}'. Use one of: {options}"
+
+    return None, f"skill not found: {ref}"
 
 
 def _load_schedule_run_keys(storage_dir: Path) -> Dict[str, Dict[str, Any]]:
@@ -3088,6 +3339,126 @@ def cmd_plans(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_skills_list(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_read",
+        input_summary="skills list",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="skills_list",
+            input_summary=f"source={args.source}",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    contracts, scanned_roots = _load_skill_contracts(cfg, source_filter=str(args.source))
+    if args.as_json:
+        print(json.dumps(contracts, indent=2))
+    elif not contracts:
+        print("No skills found.")
+    else:
+        for item in contracts:
+            skill_id = str(item.get("skill_id", "?"))
+            source = str(item.get("source", "?"))
+            name = str(item.get("name", "?"))
+            entrypoint = str(item.get("entrypoint", "?"))
+            capability_count = len(item.get("capabilities", [])) if isinstance(item.get("capabilities"), list) else 0
+            description = _summarize_text(item.get("description", ""), max_chars=80)
+            print(
+                f"{skill_id} {source:<7} caps={capability_count:<2} "
+                f"name={name} path={entrypoint} desc={description}"
+            )
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="skills_list",
+        input_summary=f"source={args.source}",
+        output_summary=f"{len(contracts)} skills",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata={
+            "source": str(args.source),
+            "skill_count": len(contracts),
+            "scanned_roots": scanned_roots,
+        },
+    )
+    return 0
+
+
+def cmd_skills_inspect(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_read",
+        input_summary=f"skills inspect {args.skill_id}",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="skills_inspect",
+            input_summary=f"skill_id={args.skill_id}",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    contracts, scanned_roots = _load_skill_contracts(cfg, source_filter=str(args.source))
+    target, error_message = _resolve_skill_contract(contracts, str(args.skill_id))
+    if target is None:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="skills_inspect",
+            input_summary=f"skill_id={args.skill_id}",
+            output_summary=error_message or "skill not found",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+            metadata={"source": str(args.source), "scanned_roots": scanned_roots},
+        )
+        print(error_message or "Skill not found.", file=sys.stderr)
+        return 1
+
+    print(json.dumps(target, indent=2))
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="skills_inspect",
+        input_summary=f"skill_id={args.skill_id}",
+        output_summary=f"loaded {target.get('skill_id', '?')}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata={
+            "source": str(args.source),
+            "skill_id": target.get("skill_id"),
+            "entrypoint": target.get("entrypoint"),
+            "scanned_roots": scanned_roots,
+        },
+    )
+    return 0
+
+
 def _find_schedule(schedules: List[Dict[str, Any]], schedule_id: str) -> Optional[Dict[str, Any]]:
     for item in schedules:
         if str(item.get("id", "")).strip() == schedule_id:
@@ -5175,6 +5546,33 @@ def build_parser() -> argparse.ArgumentParser:
     plans.add_argument("--trace-dir", default=None, help="Trace directory override")
     plans.add_argument("--last", type=int, default=20, help="Number of entries to show")
     plans.set_defaults(func=cmd_plans)
+
+    skills = sub.add_parser("skills", help="List and inspect approved skill entrypoints")
+    skills_sub = skills.add_subparsers(dest="skills_command", required=True)
+
+    skills_list = skills_sub.add_parser("list", help="List discovered skills")
+    skills_list.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    skills_list.add_argument("--trace-dir", default=None, help="Trace directory override")
+    skills_list.add_argument(
+        "--source",
+        choices=list(SKILL_SOURCE_CHOICES),
+        default="all",
+        help="Source filter for skill discovery",
+    )
+    skills_list.add_argument("--json", dest="as_json", action="store_true", help="Emit full JSON payload")
+    skills_list.set_defaults(func=cmd_skills_list)
+
+    skills_inspect = skills_sub.add_parser("inspect", help="Inspect one skill contract")
+    skills_inspect.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    skills_inspect.add_argument("--trace-dir", default=None, help="Trace directory override")
+    skills_inspect.add_argument(
+        "--source",
+        choices=list(SKILL_SOURCE_CHOICES),
+        default="all",
+        help="Source filter for skill lookup",
+    )
+    skills_inspect.add_argument("skill_id", help="Qualified skill id or unique skill name")
+    skills_inspect.set_defaults(func=cmd_skills_inspect)
 
     schedule = sub.add_parser("schedule", help="Manage recurring and one-shot schedules")
     schedule_sub = schedule.add_subparsers(dest="schedule_command", required=True)
