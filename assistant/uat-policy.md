@@ -36,6 +36,8 @@ has an explicit mapping to scenario IDs.
 
 - `uat-tests` workflow (`make test-uat`)
 - `uat-policy` workflow (coverage + governance enforcement)
+- `quality-matrix` workflow (`make quality-matrix`) for malicious fixtures and
+  compatibility-matrix reproducibility
 
 ## Failure Diagnostics Bundle
 
@@ -74,6 +76,9 @@ make test-uat
 
 # Validate feature/UAT policy
 make uat-policy
+
+# Run quality matrix directly
+make quality-matrix
 
 # Re-run one scenario
 python3 tools/uat-runner.py --run provider_twin_openai

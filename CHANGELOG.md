@@ -25,6 +25,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Policy engine command surface with decision evaluation and per-skill allowlists (`gaia policy evaluate`, `gaia policy allowlist set/list/clear`) for lane `P2-F` (`#56`)
 - Policy decision traces for sandbox execution gating (`policy_decision`)
 - Unified trace metadata envelope with correlation ids across skills/policy/sandbox actions for lane `P2-G` (`#57`)
+- Quality matrix harness for malicious fixtures + runtime guardrails (`make quality-matrix`, `tools/quality-matrix.py`) for lane `P2-H` (`#58`)
+- Compatibility matrix baseline + reproducible renderer/checker against `vercel-labs/agent-skills` (`assistant/compatibility-matrix-baseline.json`, `assistant/compatibility-matrix.md`, `tools/compatibility-matrix.py`)
 - Versioned skill metadata contract publication (`infrastructure/skill-contract-v1.md`)
 - Versioned sandbox contract publication (`infrastructure/sandbox-contract-v1.md`)
 - Deterministic UAT + smoke coverage for the new scheduler command paths (`assistant/feature-catalog.json`, `assistant/uat-scenarios.json`, `tools/smoke-test.sh`)
@@ -34,6 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Deterministic UAT + smoke coverage for sandbox profile/escalation command paths (`assistant/feature-catalog.json`, `assistant/uat-scenarios.json`, `tools/smoke-test.sh`)
 - Deterministic UAT + smoke coverage for policy decision/allowlist command paths and sandbox bypass checks (`assistant/feature-catalog.json`, `assistant/uat-scenarios.json`, `tools/smoke-test.sh`)
 - Deterministic UAT + smoke coverage for trace filtering and correlation-id audit flows (`assistant/feature-catalog.json`, `assistant/uat-scenarios.json`, `tools/smoke-test.sh`)
+- Deterministic UAT + smoke coverage for quality-matrix guardrails (`assistant/feature-catalog.json`, `assistant/uat-scenarios.json`, `tools/smoke-test.sh`)
 - UAT change record for scheduler CLI coverage governance (`docs/uat-changes/2026-02-08-scheduler-surface.md`)
 - UAT change record for reminder CLI coverage governance (`docs/uat-changes/2026-02-13-reminder-surface.md`)
 - UAT change record for skills runtime CLI coverage governance (`docs/uat-changes/2026-02-13-skills-runtime-surface.md`)
@@ -41,10 +44,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - UAT change record for sandbox CLI coverage governance (`docs/uat-changes/2026-02-13-sandbox-surface.md`)
 - UAT change record for policy engine CLI coverage governance (`docs/uat-changes/2026-02-13-policy-surface.md`)
 - UAT change record for trace schema/filter coverage governance (`docs/uat-changes/2026-02-13-traces-surface.md`)
+- UAT change record for quality-matrix guardrail coverage governance (`docs/uat-changes/2026-02-13-quality-matrix-surface.md`)
 - Roadmap/backlog reassessment issue template (`.github/ISSUE_TEMPLATE/roadmap-backlog-review.yml`)
 - Research synthesis playbook for backlog realism reviews (`research/synthesis/2026-02-roadmap-backlog-research-playbook.md`)
 - Incident/postmortem docs and reusable template (`docs/incidents/README.md`, `docs/incidents/postmortem-template.md`)
 - Nightly benchmark trend workflow (`.github/workflows/benchmark-nightly.yml`) with history/summary updates
+- Dedicated quality-matrix CI workflow (`.github/workflows/quality-matrix.yml`) for malicious-fixture regressions
 - Benchmark trend tool and local command (`tools/benchmark-trend.py`, `make benchmark-trend`)
 - Skills + sandbox enablement synthesis from Agent Skills, Claude Code, and Codex docs (`research/synthesis/2026-02-skills-and-sandbox-enablement.md`)
 - Skill onboarding security validation synthesis with anti-malicious checks (`research/synthesis/2026-02-skill-onboarding-security-validation.md`)
@@ -63,6 +68,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Assistant architecture/docs now include Phase 2 sandbox profile/escalation delta details and contract reference (`infrastructure/architecture.md`, `assistant/README.md`)
 - Assistant architecture/docs now include Phase 2 policy engine delta details, command usage, and trace semantics (`infrastructure/architecture.md`, `assistant/README.md`)
 - Assistant architecture/docs now include Phase 2 audit+trace delta details with normalized metadata and correlation filtering (`infrastructure/architecture.md`, `assistant/README.md`)
+- Assistant architecture/docs now include Phase 2 quality matrix delta details, compatibility baseline, and benchmark methodology updates (`infrastructure/architecture.md`, `assistant/README.md`, `assistant/benchmarking.md`)
 - Refreshed roadmap and sprint status priorities to remove closed-item drift and reference reassessment issue `#46`
 - Synced latest release references to `@gaia-minds/assistant-cli@0.2.0` across top-level and assistant contributor docs
 - Added contributor guidance to use the roadmap/backlog review issue template for reassessment work

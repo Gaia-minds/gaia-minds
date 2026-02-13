@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "suite": "gaia-agent-skills-compatibility",
+  "source": {
+    "repository": "https://github.com/vercel-labs/agent-skills",
+    "default_branch": "main",
+    "reference": "e23951b8cad2f4b1e7e176c5731127c1263fe86f",
+    "checked_at": "2026-02-13T21:05:00Z"
+  },
+  "rows": [
+    {
+      "id": "entrypoint_skill_md",
+      "dimension": "SKILL.md entrypoint layout",
+      "upstream_expectation": "Each skill package is anchored by a SKILL.md entrypoint.",
+      "gaia_status": "supported",
+      "rationale": "Gaia resolves only SKILL.md entrypoints from approved project/local roots and emits stable contract metadata.",
+      "evidence": [
+        {"type": "path", "value": "tools/gaia-assistant.py"},
+        {"type": "path", "value": "infrastructure/skill-contract-v1.md"},
+        {"type": "command", "value": "node ./bin/gaia.js skills list --source project"}
+      ]
+    },
+    {
+      "id": "frontmatter_contract",
+      "dimension": "Frontmatter metadata contract",
+      "upstream_expectation": "Skill frontmatter includes name/description and optional metadata fields.",
+      "gaia_status": "supported",
+      "rationale": "Gaia parses frontmatter, validates required fields, and preserves optional metadata without execution.",
+      "evidence": [
+        {"type": "path", "value": "tools/gaia-assistant.py"},
+        {"type": "path", "value": "assistant/fixtures/skills/safe-control/SKILL.md"},
+        {"type": "command", "value": "node ./bin/gaia.js skills inspect project:gaia-contributor"}
+      ]
+    },
+    {
+      "id": "scripts_references_package",
+      "dimension": "Co-located scripts/references layout",
+      "upstream_expectation": "Skill packages may include scripts/ and references/ directories alongside SKILL.md.",
+      "gaia_status": "supported",
+      "rationale": "Gaia static validation scans bounded file sets under the skill root, including scripts and references files.",
+      "evidence": [
+        {"type": "path", "value": "tools/gaia-assistant.py"},
+        {"type": "path", "value": "assistant/README.md"},
+        {"type": "command", "value": "node ./bin/gaia.js skills validate project:gaia-contributor"}
+      ]
+    },
+    {
+      "id": "malicious_fixture_gate",
+      "dimension": "Malicious fixture blocking",
+      "upstream_expectation": "Unsafe instructions/scripts should be detected before skill execution.",
+      "gaia_status": "supported",
+      "rationale": "Gaia quality matrix enforces deterministic fail-on-malicious fixtures covering prompt injection, unsafe scripts, exfiltration, and reverse shell patterns.",
+      "evidence": [
+        {"type": "path", "value": "assistant/fixtures/skills/manifest.json"},
+        {"type": "path", "value": "tools/quality-matrix.py"},
+        {"type": "command", "value": "python3 tools/quality-matrix.py --json-out assistant/quality-matrix-results.json"}
+      ]
+    },
+    {
+      "id": "sandbox_policy_gating",
+      "dimension": "Sandbox + policy runtime gates",
+      "upstream_expectation": "Skill execution should enforce runtime guardrails and approvals.",
+      "gaia_status": "supported",
+      "rationale": "Gaia sandbox profiles, escalation approvals, and per-skill policy decisions are validated as blocking guardrails in quality/UAT scenarios.",
+      "evidence": [
+        {"type": "path", "value": "infrastructure/sandbox-contract-v1.md"},
+        {"type": "path", "value": "assistant/uat-scenarios.json"},
+        {"type": "command", "value": "node ./bin/gaia.js sandbox profiles"}
+      ]
+    },
+    {
+      "id": "trace_auditability",
+      "dimension": "Cross-lane audit trace metadata",
+      "upstream_expectation": "Skill operations should be traceable for debugging and incident triage.",
+      "gaia_status": "supported",
+      "rationale": "Gaia emits correlated trace metadata across skills/policy/sandbox flows and exposes deterministic filters for forensic triage.",
+      "evidence": [
+        {"type": "path", "value": "assistant/README.md"},
+        {"type": "path", "value": "tools/gaia-assistant.py"},
+        {"type": "command", "value": "node ./bin/gaia.js traces --type policy_decision --last 1 --json"}
+      ]
+    },
+    {
+      "id": "npx_install_parity",
+      "dimension": "Upstream npx install workflow parity",
+      "upstream_expectation": "Agent skills can be installed directly with npx tooling from upstream registries/repos.",
+      "gaia_status": "gap",
+      "rationale": "Gaia currently supports project/local skill roots and path validation, but does not yet provide a native remote install command equivalent to upstream npx installation flow.",
+      "evidence": [
+        {"type": "path", "value": "assistant/README.md"},
+        {"type": "path", "value": "tools/gaia-assistant.py"},
+        {"type": "note", "value": "Tracked as future enhancement after Phase 2 lane completion."}
+      ]
+    }
+  ]
+}

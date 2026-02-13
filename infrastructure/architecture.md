@@ -450,9 +450,46 @@ Lane: `P2-G Audit & Traces` (`#57`)
 
 - Trace filters are additive and backward-compatible with existing action-type
   queries.
-- Correlation IDs enable deterministic audit reconstruction of policy decision
-  + sandbox approval + sandbox execution chains.
+- Correlation IDs enable deterministic audit reconstruction of policy decision,
+  sandbox approval, and sandbox execution chains.
 - Unified metadata fields reduce schema drift risk across lane boundaries.
+
+## Phase 2 Delta: P2-H Quality Matrix (2026-02-13)
+
+Lane: `P2-H Quality` (`#58`)
+
+### Quality gate changes
+
+- Added deterministic malicious fixture suite for skill validation under:
+  `assistant/fixtures/skills/`.
+- Added quality matrix runner:
+  `tools/quality-matrix.py`.
+- Added compatibility matrix renderer/checker:
+  `tools/compatibility-matrix.py`.
+- Added pinned compatibility baseline against
+  `vercel-labs/agent-skills`:
+  - `assistant/compatibility-matrix-baseline.json`
+  - `assistant/compatibility-matrix.md`
+
+### CI and benchmark changes
+
+- Added `make quality-matrix` and CI workflow:
+  `.github/workflows/quality-matrix.yml`.
+- Expanded deterministic smoke/UAT coverage with
+  `quality_matrix_guardrails`.
+- Extended benchmark runner to include quality-matrix pass/fail checks in
+  baseline drift detection.
+
+### Determinism and safety
+
+- Skills validation now blocks additional malicious classes:
+  - prompt-injection directives
+  - sensitive-path exfiltration patterns
+- Quality matrix enforces fail-on-regression behavior for:
+  - malicious fixtures
+  - sandbox escalation gates
+  - policy assertion/allowlist guardrails
+  - compatibility matrix reproducibility
 
 ---
 

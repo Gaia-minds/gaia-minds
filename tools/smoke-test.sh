@@ -208,6 +208,19 @@ run_smoke_suite() {
     [[ \"\$traces\" == *\"policy_decision\"* ]]
   "
 
+  run_test "quality_matrix_guardrails" bash -lc "
+    python3 \"${ROOT_DIR}/tools/quality-matrix.py\" \
+      --manifest \"${ROOT_DIR}/assistant/fixtures/skills/manifest.json\" \
+      --fixtures-root \"${ROOT_DIR}/assistant/fixtures/skills\" \
+      --assistant-home \"\$GAIA_ASSISTANT_HOME\" \
+      --compatibility-baseline \"${ROOT_DIR}/assistant/compatibility-matrix-baseline.json\" \
+      --compatibility-matrix-out \"${ROOT_DIR}/assistant/compatibility-matrix.md\" \
+      --json-out \"\$GAIA_ASSISTANT_HOME/quality-matrix-smoke.json\" >/tmp/quality-matrix-smoke.out 2>&1 &&
+    quality_out=\$(cat /tmp/quality-matrix-smoke.out) &&
+    [[ \"\$quality_out\" == *'\"suite\": \"gaia-quality-matrix\"'* ]] &&
+    [[ -f \"\$GAIA_ASSISTANT_HOME/quality-matrix-smoke.json\" ]]
+  "
+
   run_test "traces_filtering_and_correlation" bash -lc "
     \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" sandbox run --profile read-only --approve-escalation --skill project:gaia-contributor -- sh -lc 'echo trace-filter > \"\$GAIA_ASSISTANT_HOME/trace-filter.txt\"' >/dev/null &&
     policy_json=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" traces --type policy_decision --skill-id project:gaia-contributor --policy-decision allow --sandbox-profile read-only --last 1 --json) &&

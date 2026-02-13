@@ -9,7 +9,9 @@ exclude = [
   # OpenAI docs block automated link checkers with 403
   "https://platform.openai.com/docs/pricing",
   "https://openai.com/api/pricing/",
-  "https://help.openai.com/en/articles/8264778-what-is-prepaid-billing"
+  "https://help.openai.com/en/articles/8264778-what-is-prepaid-billing",
+  # OWASP GenAI endpoint rate-limits CI from shared runners
+  "https://genai.owasp.org/llmrisk/llm05-supply-chain-vulnerabilities/"
 ]
 max_concurrency = 16
 timeout = 20

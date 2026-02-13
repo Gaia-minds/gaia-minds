@@ -30,6 +30,9 @@ npm run gaia -- run --mode single --dry-run
 # Deterministic benchmark run
 make benchmark
 
+# Deterministic quality matrix run
+make quality-matrix
+
 # Deterministic terminal UAT run
 make test-uat
 
@@ -154,18 +157,26 @@ gaia capability set send_email confirm
 
 ## Benchmarking
 
-Benchmark the 20 canonical Phase 1 tasks:
+Benchmark the 20 canonical Phase 1 tasks plus quality-matrix guardrails:
 
 ```bash
 make benchmark
+make quality-matrix
 make benchmark-trend
 ```
 
 - Methodology and update process: `assistant/benchmarking.md`
 - Baseline artifact: `assistant/benchmark-baseline.json`
+- Quality matrix artifact: `assistant/quality-matrix-results.json`
 - Trend history: `assistant/benchmark-trend-history.json`
 - Trend summary: `assistant/benchmark-trend-summary.md`
 - Incident postmortem template: `docs/incidents/postmortem-template.md`
+
+Compatibility matrix baseline (agent-skills parity snapshot):
+
+- Baseline JSON: `assistant/compatibility-matrix-baseline.json`
+- Generated matrix: `assistant/compatibility-matrix.md`
+- Repro command: `make compatibility-matrix`
 
 ## Terminal UAT
 
@@ -181,6 +192,7 @@ make uat-policy
 - Policy details: `assistant/uat-policy.md`
 - Results: `assistant/uat-results.json`
 - Failure bundle: `assistant/uat-artifacts/<run-id>/`
+- Quality matrix scenario: `quality_matrix_guardrails`
 
 ## Autopilot
 
