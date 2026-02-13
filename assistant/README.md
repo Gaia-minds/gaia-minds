@@ -312,6 +312,9 @@ gaia memory retrieve --query "concise updates" --subject user:default --limit 5
 gaia memory update <memory-id> --summary "concise style preference" --importance 0.9
 gaia memory delete <memory-id>
 
+# export scoped memory records (requires memory_export capability)
+gaia memory export --subject user:default --path ./memory-export.json --json
+
 # run deterministic retrieval benchmark thresholds
 make memory-benchmark
 ```
@@ -331,12 +334,26 @@ Retrieval pipeline:
 - ranking components: stage match score + importance + recency decay
 - retrieval diagnostics in JSON output: stage, score breakdown, rank
 
+Consent + retention policy matrix:
+
+- `session_short`: `consent_scope=session`, retention defaults to `P7D` (max `P30D`)
+- `user_long`: `consent_scope=user`, retention defaults to `P180D` (max `P730D`)
+- `project`: `consent_scope=project`, retention defaults to `P365D` (max `P1095D`)
+- `safety_audit`: `consent_scope=audit`, retention defaults to `P365D` (max `P3650D`)
+
+Delete/export evidence artifacts:
+
+- Delete tombstones: `~/.gaia-assistant/data/memory-tombstones.jsonl`
+- Export event ledger: `~/.gaia-assistant/data/memory-export-events.jsonl`
+- Export payload files: `~/.gaia-assistant/data/memory-exports/`
+
 Memory traces:
 
 - `memory_capture`
 - `memory_retrieve`
 - `memory_update`
 - `memory_delete`
+- `memory_export`
 
 ## Skills Runtime
 

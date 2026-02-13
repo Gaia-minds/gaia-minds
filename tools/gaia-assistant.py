@@ -77,6 +77,7 @@ DEFAULT_CAPABILITY_LEVELS = {
     "memory_read": "safe",
     "memory_write": "safe",
     "memory_delete": "safe",
+    "memory_export": "confirm",
     "network_request": "safe",
     "shell_exec": "confirm",
     "delete_files": "confirm",
@@ -119,6 +120,29 @@ MEMORY_TYPE_CHOICES = ("session_short", "user_long", "project", "safety_audit")
 MEMORY_CONSENT_SCOPE_CHOICES = ("session", "user", "project", "audit")
 MEMORY_LIST_DEFAULT_LIMIT = 20
 MEMORY_LIST_MAX_LIMIT = 200
+MEMORY_RETENTION_TTL_RE = re.compile(r"^P([0-9]{1,4})D$")
+MEMORY_POLICY_RULES: Dict[str, Dict[str, int | str]] = {
+    "session_short": {
+        "consent_scope": "session",
+        "default_retention_days": 7,
+        "max_retention_days": 30,
+    },
+    "user_long": {
+        "consent_scope": "user",
+        "default_retention_days": 180,
+        "max_retention_days": 730,
+    },
+    "project": {
+        "consent_scope": "project",
+        "default_retention_days": 365,
+        "max_retention_days": 1095,
+    },
+    "safety_audit": {
+        "consent_scope": "audit",
+        "default_retention_days": 365,
+        "max_retention_days": 3650,
+    },
+}
 
 
 DEFAULT_CONFIG: Dict[str, Any] = {
@@ -196,6 +220,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             "memory_read": "low",
             "memory_write": "medium",
             "memory_delete": "high",
+            "memory_export": "high",
             "network_request": "high",
             "shell_exec": "high",
             "delete_files": "critical",
@@ -710,6 +735,14 @@ def _reminder_events_path(storage_dir: Path) -> Path:
     return storage_dir / "reminder-events.jsonl"
 
 
+def _memory_tombstones_path(storage_dir: Path) -> Path:
+    return storage_dir / "memory-tombstones.jsonl"
+
+
+def _memory_export_events_path(storage_dir: Path) -> Path:
+    return storage_dir / "memory-export-events.jsonl"
+
+
 def _autopilot_runs_path(trace_dir: Path) -> Path:
     return trace_dir / "autopilot-runs.jsonl"
 
@@ -911,6 +944,68 @@ def _parse_memory_score(raw: Optional[Any], field_name: str, default_value: floa
     return round(value, 6)
 
 
+def _parse_retention_ttl_days(raw: str) -> Optional[int]:
+    value = str(raw).strip().upper()
+    if not value:
+        return None
+    match = MEMORY_RETENTION_TTL_RE.fullmatch(value)
+    if match is None:
+        raise ValueError("retention_ttl must use ISO-8601 day format PnD (example: P30D).")
+    days = int(match.group(1))
+    if days <= 0:
+        raise ValueError("retention_ttl day count must be greater than zero.")
+    return days
+
+
+def _format_retention_ttl_days(days: int) -> str:
+    return f"P{int(days)}D"
+
+
+def _memory_policy_rule(memory_type: str) -> Dict[str, int | str]:
+    normalized = _normalize_memory_type(memory_type)
+    rule = MEMORY_POLICY_RULES.get(normalized, {})
+    if not isinstance(rule, dict) or not rule:
+        raise ValueError(f"Missing memory policy rule for memory_type '{memory_type}'.")
+    return rule
+
+
+def _enforce_memory_policy_contract(
+    *,
+    memory_type: str,
+    consent_scope: str,
+    retention_ttl: str,
+) -> Dict[str, Any]:
+    normalized_type = _normalize_memory_type(memory_type)
+    normalized_scope = _normalize_memory_consent_scope(consent_scope)
+    rule = _memory_policy_rule(normalized_type)
+
+    required_scope = str(rule.get("consent_scope", "")).strip()
+    if normalized_scope != required_scope:
+        raise ValueError(
+            f"consent_scope '{normalized_scope}' is not allowed for memory_type "
+            f"'{normalized_type}'. Expected '{required_scope}'."
+        )
+
+    parsed_days = _parse_retention_ttl_days(retention_ttl)
+    default_days = int(rule.get("default_retention_days", 30))
+    max_days = int(rule.get("max_retention_days", default_days))
+    if parsed_days is None:
+        parsed_days = default_days
+    if parsed_days > max_days:
+        raise ValueError(
+            f"retention_ttl '{retention_ttl or _format_retention_ttl_days(parsed_days)}' exceeds "
+            f"max {max_days} days for memory_type '{normalized_type}'."
+        )
+
+    return {
+        "memory_type": normalized_type,
+        "consent_scope": required_scope,
+        "retention_ttl": _format_retention_ttl_days(parsed_days),
+        "retention_days": parsed_days,
+        "max_retention_days": max_days,
+    }
+
+
 class MemoryStore:
     """Abstract memory store contract (memory.v1)."""
 
@@ -1032,6 +1127,14 @@ class SQLiteMemoryStore(MemoryStore):
             raise ValueError("subject_id cannot be empty.")
         if not payload["content"]:
             raise ValueError("content cannot be empty.")
+        policy_contract = _enforce_memory_policy_contract(
+            memory_type=payload["memory_type"],
+            consent_scope=payload["consent_scope"],
+            retention_ttl=payload["retention_ttl"],
+        )
+        payload["memory_type"] = str(policy_contract["memory_type"])
+        payload["consent_scope"] = str(policy_contract["consent_scope"])
+        payload["retention_ttl"] = str(policy_contract["retention_ttl"])
 
         with self._connect() as conn:
             conn.execute(
@@ -1149,40 +1252,55 @@ class SQLiteMemoryStore(MemoryStore):
             "retention_ttl",
             "consent_scope",
         }
-        set_clauses: List[str] = []
-        params: List[Any] = []
-
-        for field in sorted(allowed_fields):
-            if field not in updates or updates[field] is None:
-                continue
-            value: Any = updates[field]
-            if field == "memory_type":
-                value = _normalize_memory_type(str(value))
-            elif field == "consent_scope":
-                value = _normalize_memory_consent_scope(str(value))
-            elif field in ("confidence", "importance"):
-                value = _parse_memory_score(value, field, 0.5)
-            else:
-                value = str(value).strip()
-                if field in ("subject_id", "content") and not value:
-                    raise ValueError(f"{field} cannot be empty.")
-            set_clauses.append(f"{field} = ?")
-            params.append(value)
-
-        if not set_clauses:
-            return self.get(memory_id, include_deleted=True, touch_access=False)
-
-        now = datetime.now(timezone.utc).isoformat()
-        set_clauses.append("updated_at = ?")
-        params.append(now)
-
         with self._connect() as conn:
-            row = conn.execute(
-                "SELECT memory_id FROM memory_records WHERE memory_id = ? LIMIT 1",
+            existing_row = conn.execute(
+                "SELECT * FROM memory_records WHERE memory_id = ? LIMIT 1",
                 (memory_id,),
             ).fetchone()
-            if row is None:
+            if existing_row is None:
                 return None
+            existing = self._row_to_record(existing_row)
+
+            merged: Dict[str, Any] = dict(existing)
+            for field in sorted(allowed_fields):
+                if field not in updates or updates[field] is None:
+                    continue
+                value: Any = updates[field]
+                if field == "memory_type":
+                    value = _normalize_memory_type(str(value))
+                elif field == "consent_scope":
+                    value = _normalize_memory_consent_scope(str(value))
+                elif field in ("confidence", "importance"):
+                    value = _parse_memory_score(value, field, 0.5)
+                else:
+                    value = str(value).strip()
+                    if field in ("subject_id", "content") and not value:
+                        raise ValueError(f"{field} cannot be empty.")
+                merged[field] = value
+
+            policy_contract = _enforce_memory_policy_contract(
+                memory_type=str(merged.get("memory_type", existing.get("memory_type", ""))),
+                consent_scope=str(merged.get("consent_scope", existing.get("consent_scope", ""))),
+                retention_ttl=str(merged.get("retention_ttl", existing.get("retention_ttl", ""))),
+            )
+            merged["memory_type"] = str(policy_contract["memory_type"])
+            merged["consent_scope"] = str(policy_contract["consent_scope"])
+            merged["retention_ttl"] = str(policy_contract["retention_ttl"])
+
+            set_clauses: List[str] = []
+            params: List[Any] = []
+            for field in sorted(allowed_fields):
+                if merged.get(field) == existing.get(field):
+                    continue
+                set_clauses.append(f"{field} = ?")
+                params.append(merged.get(field))
+
+            if not set_clauses:
+                return existing
+
+            now = datetime.now(timezone.utc).isoformat()
+            set_clauses.append("updated_at = ?")
+            params.append(now)
             conn.execute(
                 f"UPDATE memory_records SET {', '.join(set_clauses)} WHERE memory_id = ?",
                 (*params, memory_id),
@@ -4745,9 +4863,16 @@ def _memory_trace_metadata(
     memory_id: Optional[str] = None,
     memory_type: Optional[str] = None,
     subject_id: Optional[str] = None,
+    consent_scope: Optional[str] = None,
+    retention_ttl: Optional[str] = None,
+    policy_decision: Optional[str] = None,
+    policy_reason: Optional[str] = None,
     retrieval_mode: Optional[str] = None,
     candidate_count: Optional[int] = None,
     selected_count: Optional[int] = None,
+    tombstone_id: Optional[str] = None,
+    export_id: Optional[str] = None,
+    evidence_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     metadata: Dict[str, Any] = {}
     if memory_id:
@@ -4756,12 +4881,26 @@ def _memory_trace_metadata(
         metadata["memory_type"] = memory_type
     if subject_id:
         metadata["subject_id"] = subject_id
+    if consent_scope:
+        metadata["consent_scope"] = consent_scope
+    if retention_ttl:
+        metadata["retention_ttl"] = retention_ttl
+    if policy_decision:
+        metadata["memory_policy_decision"] = policy_decision
+    if policy_reason:
+        metadata["memory_policy_reason"] = _summarize_text(policy_reason, max_chars=180)
     if retrieval_mode:
         metadata["retrieval_mode"] = retrieval_mode
     if candidate_count is not None:
         metadata["candidate_count"] = int(candidate_count)
     if selected_count is not None:
         metadata["selected_count"] = int(selected_count)
+    if tombstone_id:
+        metadata["tombstone_id"] = tombstone_id
+    if export_id:
+        metadata["export_id"] = export_id
+    if evidence_path:
+        metadata["evidence_path"] = evidence_path
     return _with_trace_metadata(metadata=metadata)
 
 
@@ -4941,6 +5080,14 @@ def cmd_memory_add(args: argparse.Namespace) -> int:
             duration_ms=(time.perf_counter() - start) * 1000,
             permission_level=permission_level,
             status="error",
+            metadata=_memory_trace_metadata(
+                memory_type=args.memory_type,
+                subject_id=args.subject_id,
+                consent_scope=args.consent_scope,
+                retention_ttl=args.retention_ttl,
+                policy_decision="deny",
+                policy_reason=str(exc),
+            ),
         )
         print(str(exc), file=sys.stderr)
         return 1
@@ -4956,6 +5103,10 @@ def cmd_memory_add(args: argparse.Namespace) -> int:
             memory_id=record["memory_id"],
             memory_type=record["memory_type"],
             subject_id=record["subject_id"],
+            consent_scope=record["consent_scope"],
+            retention_ttl=record["retention_ttl"],
+            policy_decision="allow",
+            policy_reason="memory policy contract satisfied",
         ),
     )
     if args.as_json:
@@ -5303,6 +5454,15 @@ def cmd_memory_update(args: argparse.Namespace) -> int:
             duration_ms=(time.perf_counter() - start) * 1000,
             permission_level=permission_level,
             status="error",
+            metadata=_memory_trace_metadata(
+                memory_id=args.memory_id,
+                memory_type=args.memory_type,
+                subject_id=args.subject_id,
+                consent_scope=args.consent_scope,
+                retention_ttl=args.retention_ttl,
+                policy_decision="deny",
+                policy_reason=str(exc),
+            ),
         )
         print(str(exc), file=sys.stderr)
         return 1
@@ -5330,6 +5490,10 @@ def cmd_memory_update(args: argparse.Namespace) -> int:
             memory_id=record["memory_id"],
             memory_type=record["memory_type"],
             subject_id=record["subject_id"],
+            consent_scope=record["consent_scope"],
+            retention_ttl=record["retention_ttl"],
+            policy_decision="allow",
+            policy_reason="memory policy contract satisfied",
         ),
     )
     if args.as_json:
@@ -5368,6 +5532,20 @@ def cmd_memory_delete(args: argparse.Namespace) -> int:
         return 1
 
     store = _memory_store(storage_dir)
+    existing = store.get(args.memory_id, include_deleted=True, touch_access=False)
+    if existing is None:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_delete",
+            input_summary=f"id={args.memory_id}",
+            output_summary="memory not found",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+        )
+        print(f"Memory not found: {args.memory_id}", file=sys.stderr)
+        return 1
+
     removed = store.delete(args.memory_id)
     if not removed:
         _write_action_trace(
@@ -5382,16 +5560,171 @@ def cmd_memory_delete(args: argparse.Namespace) -> int:
         print(f"Memory not found: {args.memory_id}", file=sys.stderr)
         return 1
 
+    deleted = store.get(args.memory_id, include_deleted=True, touch_access=False) or existing
+    tombstone_id = _new_record_id("mt")
+    deleted_at = str(deleted.get("deleted_at", "")).strip() or datetime.now(timezone.utc).isoformat()
+    tombstone_path = _memory_tombstones_path(storage_dir)
+    tombstone = {
+        "schema_version": 1,
+        "tombstone_id": tombstone_id,
+        "memory_id": str(deleted.get("memory_id", args.memory_id)),
+        "memory_type": str(deleted.get("memory_type", "")),
+        "subject_id": str(deleted.get("subject_id", "")),
+        "consent_scope": str(deleted.get("consent_scope", "")),
+        "retention_ttl": str(deleted.get("retention_ttl", "")),
+        "deleted_at": deleted_at,
+        "record_status": "soft_deleted",
+        "evidence": "sqlite_index_tombstone",
+    }
+    _append_jsonl(tombstone_path, tombstone)
+
     _write_action_trace(
         trace_dir=trace_dir,
         action_type="memory_delete",
         input_summary=f"id={args.memory_id}",
-        output_summary=f"deleted {args.memory_id}",
+        output_summary=f"deleted {args.memory_id} with tombstone {tombstone_id}",
         duration_ms=(time.perf_counter() - start) * 1000,
         permission_level=permission_level,
-        metadata=_memory_trace_metadata(memory_id=args.memory_id),
+        metadata=_memory_trace_metadata(
+            memory_id=str(deleted.get("memory_id", args.memory_id)),
+            memory_type=str(deleted.get("memory_type", "")),
+            subject_id=str(deleted.get("subject_id", "")),
+            consent_scope=str(deleted.get("consent_scope", "")),
+            retention_ttl=str(deleted.get("retention_ttl", "")),
+            policy_decision="allow",
+            policy_reason="delete allowed; tombstone evidence written",
+            tombstone_id=tombstone_id,
+            evidence_path=str(tombstone_path),
+        ),
     )
-    print(f"{args.memory_id} deleted")
+    print(f"{args.memory_id} deleted tombstone={tombstone_id}")
+    return 0
+
+
+def cmd_memory_export(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="memory_export",
+        input_summary="memory export",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_export",
+            input_summary="memory export",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+            metadata=_memory_trace_metadata(
+                memory_type=args.memory_type,
+                subject_id=args.subject_id,
+                policy_decision="deny",
+                policy_reason="blocked by capability policy",
+            ),
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    store = _memory_store(storage_dir)
+    try:
+        records = store.list(
+            memory_type=args.memory_type,
+            subject_id=args.subject_id,
+            query=args.q,
+            limit=int(args.limit),
+            include_deleted=bool(args.include_deleted),
+        )
+    except ValueError as exc:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_export",
+            input_summary="memory export",
+            output_summary=str(exc),
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+            metadata=_memory_trace_metadata(
+                memory_type=args.memory_type,
+                subject_id=args.subject_id,
+                policy_decision="deny",
+                policy_reason=str(exc),
+            ),
+        )
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    export_id = _new_record_id("mx")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    output_path = Path(args.path).expanduser() if args.path else (
+        storage_dir / "memory-exports" / f"memory-export-{timestamp}.json"
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    payload = {
+        "schema_version": 1,
+        "export_id": export_id,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "filters": {
+            "memory_type": args.memory_type,
+            "subject_id": args.subject_id,
+            "query": args.q,
+            "include_deleted": bool(args.include_deleted),
+            "limit": int(args.limit),
+        },
+        "record_count": len(records),
+        "records": records,
+    }
+    text = json.dumps(payload, indent=2)
+    output_path.write_text(text + "\n", encoding="utf-8")
+
+    export_event = {
+        "schema_version": 1,
+        "export_id": export_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "output_path": str(output_path),
+        "record_count": len(records),
+        "memory_type": args.memory_type,
+        "subject_id": args.subject_id,
+        "include_deleted": bool(args.include_deleted),
+        "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+    }
+    export_events_path = _memory_export_events_path(storage_dir)
+    _append_jsonl(export_events_path, export_event)
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="memory_export",
+        input_summary=f"type={args.memory_type or '-'} subject={args.subject_id or '-'} q={args.q or '-'}",
+        output_summary=f"exported {len(records)} records to {output_path}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata=_memory_trace_metadata(
+            memory_type=args.memory_type,
+            subject_id=args.subject_id,
+            retrieval_mode="export",
+            candidate_count=len(records),
+            selected_count=len(records),
+            policy_decision="allow",
+            policy_reason="memory export allowed; evidence artifact written",
+            export_id=export_id,
+            evidence_path=str(output_path),
+        ),
+    )
+
+    if args.as_json:
+        print(json.dumps(payload, indent=2))
+    else:
+        print(f"{export_id} records={len(records)} path={output_path}")
     return 0
 
 
@@ -8907,6 +9240,19 @@ def build_parser() -> argparse.ArgumentParser:
     memory_retrieve.add_argument("--json", dest="as_json", action="store_true", help="Emit retrieval result JSON")
     memory_retrieve.add_argument("--query", required=True, help="Retrieval query")
     memory_retrieve.set_defaults(func=cmd_memory_retrieve)
+
+    memory_export = memory_sub.add_parser("export", help="Export memory records with audit evidence")
+    memory_export.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    memory_export.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    memory_export.add_argument("--trace-dir", default=None, help="Trace directory override")
+    memory_export.add_argument("--type", dest="memory_type", choices=list(MEMORY_TYPE_CHOICES), default=None)
+    memory_export.add_argument("--subject", dest="subject_id", default=None, help="Filter by subject id")
+    memory_export.add_argument("--q", default=None, help="Filter by content/summary keyword")
+    memory_export.add_argument("--limit", type=int, default=MEMORY_LIST_MAX_LIMIT, help="Max rows to export")
+    memory_export.add_argument("--include-deleted", action="store_true", help="Include soft-deleted records")
+    memory_export.add_argument("--path", default=None, help="Export file path (JSON)")
+    memory_export.add_argument("--json", dest="as_json", action="store_true", help="Emit export payload JSON")
+    memory_export.set_defaults(func=cmd_memory_export)
 
     memory_update = memory_sub.add_parser("update", help="Update one memory record")
     memory_update.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")

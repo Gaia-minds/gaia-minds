@@ -116,6 +116,53 @@ run_smoke_suite() {
     [[ -f \"\$GAIA_ASSISTANT_HOME/memory-benchmark-smoke.json\" ]]
   "
 
+  run_test "memory_policy_privacy_controls" bash -lc "
+    confirm=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" policy evaluate --tool memory_export --source local --scope standard) &&
+    [[ \"\$confirm\" == *\"decision=confirm\"* ]] &&
+    set +e
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" policy evaluate --tool memory_export --source project --scope restricted >/tmp/memory-policy-deny-smoke.out 2>&1
+    deny_rc=\$?
+    set -e
+    [[ \$deny_rc -ne 0 ]] &&
+    deny_out=\$(cat /tmp/memory-policy-deny-smoke.out) &&
+    [[ \"\$deny_out\" == *\"decision=deny\"* ]] &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" capability set memory_export forbidden >/dev/null &&
+    set +e
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory export --subject user:policy --path \"\$GAIA_ASSISTANT_HOME/export-denied.json\" >/tmp/memory-export-denied-smoke.out 2>&1
+    blocked_rc=\$?
+    set -e
+    [[ \$blocked_rc -ne 0 ]] &&
+    blocked_out=\$(cat /tmp/memory-export-denied-smoke.out) &&
+    [[ \"\$blocked_out\" == *\"Action blocked by capability policy.\"* ]] &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" capability set memory_export safe >/dev/null &&
+    set +e
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory add --memory-id smoke_policy_bad --type user_long --subject user:policy --content 'bad consent case' --summary 'bad' --consent-scope session --retention-ttl P30D >/tmp/memory-policy-consent-smoke.out 2>&1
+    bad_rc=\$?
+    set -e
+    [[ \$bad_rc -ne 0 ]] &&
+    bad_out=\$(cat /tmp/memory-policy-consent-smoke.out) &&
+    [[ \"\$bad_out\" == *\"consent_scope\"* ]] &&
+    set +e
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory add --memory-id smoke_policy_ttl_bad --type session_short --subject user:policy --content 'ttl exceeds matrix' --summary 'ttl bad' --consent-scope session --retention-ttl P45D >/tmp/memory-policy-ttl-smoke.out 2>&1
+    ttl_rc=\$?
+    set -e
+    [[ \$ttl_rc -ne 0 ]] &&
+    ttl_out=\$(cat /tmp/memory-policy-ttl-smoke.out) &&
+    [[ \"\$ttl_out\" == *\"exceeds max\"* ]] &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory add --memory-id smoke_policy_ok --type user_long --subject user:policy --content 'User requested export controls.' --summary 'policy memory' --consent-scope user --retention-ttl P90D >/dev/null &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory export --subject user:policy --path \"\$GAIA_ASSISTANT_HOME/memory-policy-export.json\" --json >/tmp/memory-export-smoke.out &&
+    export_out=\$(cat /tmp/memory-export-smoke.out) &&
+    [[ \"\$export_out\" == *\"\\\"record_count\\\": 1\"* ]] &&
+    [[ -f \"\$GAIA_ASSISTANT_HOME/memory-policy-export.json\" ]] &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory delete smoke_policy_ok >/dev/null &&
+    tombstones=\$(cat \"\$GAIA_ASSISTANT_HOME/data/memory-tombstones.jsonl\") &&
+    [[ \"\$tombstones\" == *\"smoke_policy_ok\"* ]] &&
+    exports=\$(cat \"\$GAIA_ASSISTANT_HOME/data/memory-export-events.jsonl\") &&
+    [[ \"\$exports\" == *\"memory-policy-export.json\"* ]] &&
+    trace_json=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" traces --type memory_export --last 1 --json) &&
+    [[ \"\$trace_json\" == *\"memory-policy-export.json\"* ]]
+  "
+
   run_test "autopilot_dry_run" bash -lc "
     out=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" autopilot run --profile safe-daily --dry-run 2>&1) &&
     [[ \"\$out\" == *\"Dry-run autopilot plan\"* ]]

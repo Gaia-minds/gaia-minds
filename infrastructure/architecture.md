@@ -573,6 +573,46 @@ Lane: `Memory Retrieval + Ranking Pipeline` (`#76`)
 - Added UAT feature governance mapping for `gaia memory retrieve`:
   `assistant/feature-catalog.json`.
 
+## Phase 2 Delta: Memory Policy + Privacy Controls (2026-02-13)
+
+Lane: `Memory Policy + Privacy Controls` (`#77`)
+
+### Runtime and policy changes
+
+- Added explicit memory policy capability:
+  - `memory_export` (default permission: `confirm`)
+- Extended policy tool risk model with memory export risk classification:
+  - `memory_export`: `high`
+- Added memory command surface for deterministic export with capability gate:
+  - `gaia memory export`
+- Added consent/retention policy contract enforcement by memory class:
+  - `session_short`: consent `session`, default TTL `P7D`, max `P30D`
+  - `user_long`: consent `user`, default TTL `P180D`, max `P730D`
+  - `project`: consent `project`, default TTL `P365D`, max `P1095D`
+  - `safety_audit`: consent `audit`, default TTL `P365D`, max `P3650D`
+- Create/update operations now enforce the policy contract before persistence.
+
+### Deletion/export guarantees and evidence
+
+- Added deterministic delete tombstone evidence log:
+  `~/.gaia-assistant/data/memory-tombstones.jsonl`.
+- Added deterministic export event ledger:
+  `~/.gaia-assistant/data/memory-export-events.jsonl`.
+- Added export payload artifacts (JSON):
+  `~/.gaia-assistant/data/memory-exports/`.
+- Memory delete/export traces include evidence metadata:
+  `tombstone_id`, `export_id`, `evidence_path`, and policy-decision context.
+
+### CI/local enforcement changes
+
+- Expanded smoke suite with memory policy/privacy controls:
+  `tools/smoke-test.sh` (`memory_policy_privacy_controls`).
+- Expanded deterministic UAT suite with memory policy/privacy controls:
+  `assistant/uat-scenarios.json` (`memory_policy_privacy_controls`).
+- Added UAT feature governance mapping for:
+  - `gaia memory export`
+  - memory policy control coverage through command map updates
+
 ---
 
 ## Open Technical Questions
