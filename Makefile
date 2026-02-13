@@ -1,6 +1,7 @@
-.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy quality-matrix compatibility-matrix benchmark memory-benchmark memory-quality benchmark-trend hypothesis-validate hypothesis-run hypothesis-dry-run hypothesis-failure-fixture hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
+.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy quality-matrix compatibility-matrix benchmark memory-benchmark memory-quality benchmark-trend hypothesis-validate hypothesis-run hypothesis-dry-run hypothesis-failure-fixture reliability-checkpoint reliability-checkpoint-check reliability-checkpoint-simulate-breach hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
 
 HYPOTHESIS_OUTPUT_ROOT ?= /tmp/gaia-hypothesis-evals
+RELIABILITY_CHECKPOINT_ROOT ?= /tmp/gaia-reliability-checkpoints
 
 docs-check:
 	./tools/validate-docs.sh
@@ -56,6 +57,15 @@ hypothesis-dry-run:
 
 hypothesis-failure-fixture:
 	python3 ./tools/hypothesis-pipeline.py run --hypothesis ./assistant/hypotheses/phase3-hypothesis-pipeline-v1-failure-fixture.json --output-root "$(HYPOTHESIS_OUTPUT_ROOT)" --run-id failure-fixture --dry-run
+
+reliability-checkpoint:
+	python3 ./tools/reliability-checkpoint.py --baseline-config ./assistant/reliability-baseline-phase3.json --output-root "$(RELIABILITY_CHECKPOINT_ROOT)" --run-id latest
+
+reliability-checkpoint-check:
+	python3 ./tools/reliability-checkpoint.py --baseline-config ./assistant/reliability-baseline-phase3.json --output-root "$(RELIABILITY_CHECKPOINT_ROOT)" --run-id latest --check
+
+reliability-checkpoint-simulate-breach:
+	python3 ./tools/reliability-checkpoint.py --baseline-config ./assistant/reliability-baseline-phase3.json --output-root "$(RELIABILITY_CHECKPOINT_ROOT)" --run-id simulated-breach --simulate-breach uat_pass_rate --check
 
 hardening-phase1:
 	python3 ./tools/phase1-hardening.py

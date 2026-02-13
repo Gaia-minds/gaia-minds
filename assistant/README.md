@@ -216,6 +216,37 @@ Artifacts:
 `make hypothesis-*` commands write to `/tmp/gaia-hypothesis-evals` by default.
 Override with `HYPOTHESIS_OUTPUT_ROOT=<path>` if you want repo-local artifacts.
 
+## Reliability Checkpoint (Phase 3)
+
+Generate reproducible reliability checkpoint artifacts tied to benchmark, UAT,
+and memory-quality gates:
+
+```bash
+# generate checkpoint report artifacts
+make reliability-checkpoint
+
+# enforce SLO-style thresholds (non-zero on breach)
+make reliability-checkpoint-check
+
+# simulate a threshold breach to validate triage routing
+make reliability-checkpoint-simulate-breach
+```
+
+Baseline + thresholds:
+
+- `assistant/reliability-baseline-phase3.json`
+- `assistant/reliability-baseline-phase3.md`
+
+Default checkpoint output:
+
+- `/tmp/gaia-reliability-checkpoints/latest/reliability-checkpoint.json`
+- `/tmp/gaia-reliability-checkpoints/latest/reliability-checkpoint.md`
+
+Triage workflow:
+
+- `infrastructure/reliability-triage-workflow.md`
+- `docs/incidents/README.md`
+
 ## Terminal UAT
 
 Gaia enforces deterministic terminal UAT coverage for feature surfaces.

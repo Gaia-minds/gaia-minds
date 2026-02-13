@@ -264,10 +264,9 @@ Framework KPIs:
 
 ## Immediate 14-Day Priorities
 
-1. Execute hypothesis pipeline v1 (proposal -> eval -> evidence) using rubric contracts (`#86`).
-2. Publish reliability baseline checkpoint and SLO-style thresholds for Phase 3 work (`#87`).
-3. Re-run planning review on February 16, 2026 with updated queue/metrics evidence.
-4. Keep Phase 3 governance docs/state aligned as `#86` and `#87` land.
+1. Publish reliability baseline checkpoint and SLO-style thresholds for Phase 3 work (`#87`).
+2. Re-run planning review on February 16, 2026 with updated queue/metrics evidence.
+3. Keep Phase 3 governance docs/state aligned as `#87` lands.
 
 ## Milestones Log
 
@@ -288,5 +287,6 @@ Framework KPIs:
 | 2026-02-13 | Post-Phase-2 reassessment started | Issue #84 + planning round artifact |
 | 2026-02-13 | Phase 3 kickoff issue set opened | Issues #85, #86, #87 |
 | 2026-02-13 | Phase 3 evidence rubric merged | Issue #85 via PR #89 |
+| 2026-02-13 | Phase 3 hypothesis pipeline v1 merged | Issue #86 via PR #90 |
 
 This roadmap is a living document and should be updated at least weekly.

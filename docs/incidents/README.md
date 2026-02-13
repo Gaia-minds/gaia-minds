@@ -34,5 +34,6 @@ Example:
 - benchmark artifacts (`assistant/benchmark-results.json`)
 - benchmark trend summary (`assistant/benchmark-trend-summary.md`)
 - benchmark trend history (`assistant/benchmark-trend-history.json`)
+- reliability checkpoint artifacts (`/tmp/gaia-reliability-checkpoints/<run-id>/reliability-checkpoint.{json,md}`)
 - relevant CI workflow run URLs
 - traces/logs tied to the incident

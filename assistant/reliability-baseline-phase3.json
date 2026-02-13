@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "baseline_date_utc": "2026-02-13",
+  "baseline_commit": "15b82d3057acdb85fdee8e76e59ed65301fc9510",
+  "thresholds": {
+    "benchmark_pass_rate_min": 1.0,
+    "benchmark_failure_rate_max": 0.0,
+    "uat_pass_rate_min": 1.0,
+    "uat_failure_rate_max": 0.0,
+    "memory_quality_pass_rate_min": 1.0,
+    "memory_quality_p95_latency_ms_max": 500.0,
+    "consolidated_failure_rate_max": 0.0,
+    "mttr_proxy_hours_max": 24.0
+  },
+  "triage": {
+    "severity_by_metric": {
+      "benchmark_pass_rate": "sev1",
+      "benchmark_failure_rate": "sev1",
+      "uat_pass_rate": "sev1",
+      "uat_failure_rate": "sev1",
+      "memory_quality_pass_rate": "sev2",
+      "memory_quality_p95_latency_ms": "sev2",
+      "consolidated_failure_rate": "sev1",
+      "mttr_proxy_hours": "sev2"
+    },
+    "owner_by_severity": {
+      "sev1": "gaia-incident-responder",
+      "sev2": "gaia-qa-evaluator",
+      "sev3": "gaia-technical-writer"
+    }
+  }
+}
