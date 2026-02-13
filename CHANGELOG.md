@@ -34,11 +34,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Memory policy/privacy command surface with deterministic export and capability gating (`gaia memory export`, `memory_export`) for lane `#77`
 - Memory consent/retention contract enforcement matrix by memory class (`session_short`, `user_long`, `project`, `safety_audit`) for lane `#77`
 - Memory delete/export evidence artifacts (`memory-tombstones.jsonl`, `memory-export-events.jsonl`, `memory-exports/*.json`) for lane `#77`
+- Memory QA/red-team harness with deterministic poisoning/leakage fixture suite and threshold gate (`assistant/memory-quality-fixtures.json`, `tools/memory-quality-matrix.py`, `make memory-quality`) for lane `#78`
 - Memory retrieval benchmark fixture set + threshold gate (`assistant/memory-retrieval-fixtures.json`, `tools/memory-benchmark.py`, `make memory-benchmark`)
 - Deterministic smoke/UAT coverage for retrieval ranking and benchmark threshold enforcement (`assistant/feature-catalog.json`, `assistant/uat-scenarios.json`, `tools/smoke-test.sh`)
 - UAT change record for memory retrieval/ranking coverage governance (`docs/uat-changes/2026-02-13-memory-retrieval-surface.md`)
 - Deterministic smoke/UAT coverage for memory policy/privacy controls and export/delete evidence guarantees (`assistant/feature-catalog.json`, `assistant/uat-scenarios.json`, `tools/smoke-test.sh`)
 - UAT change record for memory policy/privacy surface governance (`docs/uat-changes/2026-02-13-memory-policy-privacy-surface.md`)
+- Deterministic smoke/UAT coverage for memory QA/red-team harness regressions (`assistant/feature-catalog.json`, `assistant/uat-scenarios.json`, `tools/smoke-test.sh`)
+- UAT change record for memory QA/red-team harness governance (`docs/uat-changes/2026-02-13-memory-qa-redteam-harness.md`)
 - Memory UAT/smoke coverage and governance change record (`assistant/feature-catalog.json`, `assistant/uat-scenarios.json`, `tools/smoke-test.sh`, `docs/uat-changes/2026-02-13-memory-surface.md`)
 - Versioned skill metadata contract publication (`infrastructure/skill-contract-v1.md`)
 - Versioned sandbox contract publication (`infrastructure/sandbox-contract-v1.md`)
@@ -85,6 +88,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Assistant architecture/docs now include memory runtime SQLite adapter contract, persistence path, and trace semantics (`infrastructure/architecture.md`, `assistant/README.md`)
 - Assistant architecture/docs now include memory retrieval stage/ranking contract and benchmark enforcement details (`infrastructure/architecture.md`, `assistant/README.md`, `assistant/benchmarking.md`)
 - Assistant architecture/docs now include memory policy/privacy capability model, consent/retention matrix, and delete/export evidence paths (`infrastructure/architecture.md`, `assistant/README.md`)
+- Assistant architecture/docs now include memory QA/red-team harness metrics, triage workflow, and failure-gate guidance (`infrastructure/architecture.md`, `assistant/README.md`, `assistant/benchmarking.md`, `assistant/uat-policy.md`)
 - Refreshed roadmap and sprint status priorities to remove closed-item drift and reference reassessment issue `#46`
 - Synced latest release references to `@gaia-minds/assistant-cli@0.2.0` across top-level and assistant contributor docs
 - Added contributor guidance to use the roadmap/backlog review issue template for reassessment work

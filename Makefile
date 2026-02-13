@@ -1,4 +1,4 @@
-.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy quality-matrix compatibility-matrix benchmark memory-benchmark benchmark-trend hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
+.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy quality-matrix compatibility-matrix benchmark memory-benchmark memory-quality benchmark-trend hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
 
 docs-check:
 	./tools/validate-docs.sh
@@ -36,6 +36,9 @@ benchmark:
 
 memory-benchmark:
 	python3 ./tools/memory-benchmark.py --check --json-out ./assistant/memory-retrieval-benchmark-results.json
+
+memory-quality:
+	python3 ./tools/memory-quality-matrix.py --check --json-out ./assistant/memory-quality-results.json
 
 benchmark-trend:
 	python3 ./tools/benchmark-trend.py --results ./assistant/benchmark-results.json --history ./assistant/benchmark-trend-history.json --summary ./assistant/benchmark-trend-summary.md

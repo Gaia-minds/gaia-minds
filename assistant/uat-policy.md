@@ -38,6 +38,8 @@ has an explicit mapping to scenario IDs.
 - `uat-policy` workflow (coverage + governance enforcement)
 - `quality-matrix` workflow (`make quality-matrix`) for malicious fixtures and
   compatibility-matrix reproducibility
+- memory QA/red-team gate (`make memory-quality`) for poisoning/leakage
+  regression checks
 
 ## Failure Diagnostics Bundle
 
@@ -79,6 +81,9 @@ make uat-policy
 
 # Run quality matrix directly
 make quality-matrix
+
+# Run memory QA/red-team gate
+make memory-quality
 
 # Re-run one scenario
 python3 tools/uat-runner.py --run provider_twin_openai
