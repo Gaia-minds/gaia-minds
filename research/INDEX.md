@@ -13,6 +13,7 @@ Short, curated entry points for research content.
 
 ### Synthesis
 
+- [Gaia Memory Strategy and Tradeoffs (P2-I)](synthesis/2026-02-gaia-memory-strategy-and-tradeoffs.md) (2026-02) — Date: 2026-02-13 Issue: #60 Main role: contributor Sub-roles: gaia-researcher, gaia-privacy-memory-steward, gaia-qa-evaluator
 - [Roadmap and Backlog Research Playbook (2026-02)](synthesis/2026-02-roadmap-backlog-research-playbook.md) (2026-02) — Summary
 - [Skill Onboarding Security Validation (Phase 2 Input)](synthesis/2026-02-skill-onboarding-security-validation.md) (2026-02) — Summary
 - [Skills and Sandbox Enablement Research (Phase 2 Input)](synthesis/2026-02-skills-and-sandbox-enablement.md) (2026-02) — Summary
