@@ -159,6 +159,24 @@ run_smoke_suite() {
     [[ \"\$traces\" == *\"skills_validate\"* ]]
   "
 
+  run_test "sandbox_profile_and_escalation" bash -lc "
+    profiles=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" sandbox profiles) &&
+    [[ \"\$profiles\" == *\"read-only\"* ]] &&
+    run_out=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" sandbox run --profile workspace-write -- printf 'sandbox-ok\\n') &&
+    [[ \"\$run_out\" == *\"sandbox-ok\"* ]] &&
+    set +e
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" sandbox run --profile read-only -- sh -lc 'echo blocked > \"\$GAIA_ASSISTANT_HOME/blocked.txt\"' >/tmp/sandbox-denied-smoke.out 2>&1
+    denied_rc=\$?
+    set -e
+    [[ \$denied_rc -ne 0 ]] &&
+    denied_out=\$(cat /tmp/sandbox-denied-smoke.out) &&
+    [[ \"\$denied_out\" == *\"Escalation required\"* ]] &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" sandbox run --profile read-only --approve-escalation -- sh -lc 'echo approved > \"\$GAIA_ASSISTANT_HOME/approved.txt\"' >/dev/null &&
+    [[ -f \"\$GAIA_ASSISTANT_HOME/approved.txt\" ]] &&
+    approvals=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" traces --type sandbox_approval --last 1) &&
+    [[ \"\$approvals\" == *\"sandbox_approval\"* ]]
+  "
+
   run_test "provider_fallback" bash -lc "
     out=\$(printf 'provider fallback check\\n/exit\\n' | \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" chat 2>&1) &&
     [[ \"\$out\" == *\"[local-\"* ]]

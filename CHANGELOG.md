@@ -20,15 +20,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Skills runtime command surface for deterministic discovery/inspection (`gaia skills list`, `gaia skills inspect`) for lane `P2-C` (`#53`)
 - Skills validation security gate command surface (`gaia skills validate`) with severity-ranked findings and blocking behavior for lane `P2-D` (`#54`)
 - Skill validation report artifacts (`~/.gaia-assistant/traces/skill-validation-reports/*.json`) with schema `gaia.skill-validation.v1`
+- Sandbox command surface with profile contract and escalation approvals (`gaia sandbox profiles/run`) for lane `P2-E` (`#55`)
+- Sandbox approval event log (`~/.gaia-assistant/traces/sandbox-approvals.jsonl`)
 - Versioned skill metadata contract publication (`infrastructure/skill-contract-v1.md`)
+- Versioned sandbox contract publication (`infrastructure/sandbox-contract-v1.md`)
 - Deterministic UAT + smoke coverage for the new scheduler command paths (`assistant/feature-catalog.json`, `assistant/uat-scenarios.json`, `tools/smoke-test.sh`)
 - Deterministic UAT + smoke coverage for reminder lifecycle controls (`assistant/feature-catalog.json`, `assistant/uat-scenarios.json`, `tools/smoke-test.sh`)
 - Deterministic UAT + smoke coverage for skills runtime list/inspect command paths (`assistant/feature-catalog.json`, `assistant/uat-scenarios.json`, `tools/smoke-test.sh`)
 - Deterministic UAT + smoke coverage for skills validation pass/block flows (`assistant/feature-catalog.json`, `assistant/uat-scenarios.json`, `tools/smoke-test.sh`)
+- Deterministic UAT + smoke coverage for sandbox profile/escalation command paths (`assistant/feature-catalog.json`, `assistant/uat-scenarios.json`, `tools/smoke-test.sh`)
 - UAT change record for scheduler CLI coverage governance (`docs/uat-changes/2026-02-08-scheduler-surface.md`)
 - UAT change record for reminder CLI coverage governance (`docs/uat-changes/2026-02-13-reminder-surface.md`)
 - UAT change record for skills runtime CLI coverage governance (`docs/uat-changes/2026-02-13-skills-runtime-surface.md`)
 - UAT change record for skills validation CLI coverage governance (`docs/uat-changes/2026-02-13-skills-validation-surface.md`)
+- UAT change record for sandbox CLI coverage governance (`docs/uat-changes/2026-02-13-sandbox-surface.md`)
 - Roadmap/backlog reassessment issue template (`.github/ISSUE_TEMPLATE/roadmap-backlog-review.yml`)
 - Research synthesis playbook for backlog realism reviews (`research/synthesis/2026-02-roadmap-backlog-research-playbook.md`)
 - Incident/postmortem docs and reusable template (`docs/incidents/README.md`, `docs/incidents/postmortem-template.md`)
@@ -48,6 +53,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Assistant architecture/docs now include Phase 2 reminder delta details and CLI usage (`infrastructure/architecture.md`, `assistant/README.md`)
 - Assistant architecture/docs now include Phase 2 skills runtime delta details and contract reference (`infrastructure/architecture.md`, `assistant/README.md`)
 - Assistant architecture/docs now include Phase 2 skill validation delta details, artifact paths, and blocking semantics (`infrastructure/architecture.md`, `assistant/README.md`)
+- Assistant architecture/docs now include Phase 2 sandbox profile/escalation delta details and contract reference (`infrastructure/architecture.md`, `assistant/README.md`)
 - Refreshed roadmap and sprint status priorities to remove closed-item drift and reference reassessment issue `#46`
 - Synced latest release references to `@gaia-minds/assistant-cli@0.2.0` across top-level and assistant contributor docs
 - Added contributor guidance to use the roadmap/backlog review issue template for reassessment work

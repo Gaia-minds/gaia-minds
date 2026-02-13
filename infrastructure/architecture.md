@@ -336,6 +336,42 @@ Lane: `P2-D Skill Validation` (`#54`)
 - Provenance metadata includes entrypoint hash and scanned file hashes for
   auditability.
 
+## Phase 2 Delta: P2-E Sandbox (2026-02-13)
+
+Lane: `P2-E Sandbox` (`#55`)
+
+### Runtime changes
+
+- Added sandbox command surface in assistant launcher:
+  - `gaia sandbox profiles`
+  - `gaia sandbox run`
+- Added profile model with explicit default and override support:
+  - `read-only`
+  - `workspace-write`
+- Added escalation decision gate for:
+  - filesystem writes under `read-only`
+  - network access when network mode is denied (default)
+  - high-risk command pattern matches
+
+### Contract and trace changes
+
+- Published sandbox contract reference:
+  `infrastructure/sandbox-contract-v1.md`.
+- Added sandbox approval event log:
+  `~/.gaia-assistant/traces/sandbox-approvals.jsonl`.
+- Added trace actions:
+  - `sandbox_profiles`
+  - `sandbox_approval`
+  - `sandbox_run`
+
+### Determinism and safety
+
+- Network remains deny-by-default unless explicitly requested.
+- Escalation approvals are explicit, recorded, and required before blocked
+  command classes can execute.
+- Shell/network capability policy levels still apply; forbidden levels remain
+  hard-blocked.
+
 ---
 
 ## Open Technical Questions

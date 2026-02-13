@@ -298,6 +298,31 @@ Validation report artifacts:
 - report schema: `gaia.skill-validation.v1`
 - blocking severities: `high`, `critical`
 
+## Sandbox
+
+Sandbox commands provide explicit execution profiles and escalation approval
+events for shell command execution paths.
+
+```bash
+# inspect profile contract
+gaia sandbox profiles
+
+# run command in default profile (from config, default read-only)
+gaia sandbox run -- echo "hello sandbox"
+
+# run write command in read-only profile with explicit escalation approval
+gaia sandbox run --profile read-only --approve-escalation -- sh -lc 'echo test > "$GAIA_ASSISTANT_HOME/sandbox-test.txt"'
+
+# request network mode explicitly (still policy-gated)
+gaia sandbox run --profile workspace-write --allow-network --approve-escalation -- curl https://example.com
+```
+
+Sandbox artifacts:
+
+- approval events: `~/.gaia-assistant/traces/sandbox-approvals.jsonl`
+- action traces: `sandbox_profiles`, `sandbox_approval`, `sandbox_run`
+- contract reference: `infrastructure/sandbox-contract-v1.md`
+
 ## Budget Policy
 
 Default budget split:
