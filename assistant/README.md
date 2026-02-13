@@ -190,6 +190,32 @@ Compatibility matrix baseline (agent-skills parity snapshot):
 - Generated matrix: `assistant/compatibility-matrix.md`
 - Repro command: `make compatibility-matrix`
 
+## Hypothesis Pipeline v1
+
+Phase 3 framework self-evolution changes use a deterministic proposal -> eval ->
+evidence path:
+
+```bash
+# validate hypothesis contract
+make hypothesis-validate
+
+# run deterministic packaging dry-run
+make hypothesis-dry-run
+
+# run failure fixture (expected non-zero, includes rollback recommendation)
+make hypothesis-failure-fixture
+```
+
+Artifacts:
+
+- Proposal contracts: `assistant/hypotheses/*.json`
+- Pipeline tool: `tools/hypothesis-pipeline.py`
+- Evidence output: `assistant/hypothesis-evals/<hypothesis-id>/<run-id>/`
+- Contract docs: `infrastructure/hypothesis-pipeline-v1.md`
+
+`make hypothesis-*` commands write to `/tmp/gaia-hypothesis-evals` by default.
+Override with `HYPOTHESIS_OUTPUT_ROOT=<path>` if you want repo-local artifacts.
+
 ## Terminal UAT
 
 Gaia enforces deterministic terminal UAT coverage for feature surfaces.

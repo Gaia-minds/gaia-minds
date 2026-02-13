@@ -16,6 +16,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Self-evolution PR evidence rubric contract with required fields (`baseline`, `delta`, `thresholds/guardrails`, `rollback/fallback`, `risk notes`) and applicability rules (`infrastructure/self-evolution-evidence-rubric.md`, `#85`)
 - Deterministic self-evolution PR evidence enforcement in CI (`tools/check-self-evolution-evidence.py`, `.github/workflows/self-evolution-evidence.yml`)
 - UAT governance change record for self-evolution PR evidence rubric enforcement (`docs/uat-changes/2026-02-13-self-evolution-evidence-rubric.md`)
+- Hypothesis pipeline v1 deterministic tooling (`tools/hypothesis-pipeline.py`) with proposal validation, eval execution, and PR-ready evidence bundle generation (`#86`)
+- Hypothesis artifact contract documentation and reference proposal/failure fixtures (`infrastructure/hypothesis-pipeline-v1.md`, `assistant/hypotheses/*.json`, `assistant/hypotheses/README.md`)
+- Hypothesis pipeline CI workflow for pass-path packaging and rollback-required failure-fixture checks (`.github/workflows/hypothesis-pipeline.yml`)
 - Scheduler core command surface with durable schedule persistence and due-run execution (`gaia schedule create/list/update/cancel/run-due`) for lane `P2-A` (`#51`)
 - Scheduler run ledger for idempotent execution keys (`~/.gaia-assistant/data/schedule-runs.jsonl`)
 - Reminder command surface with cadence controls and lifecycle actions (`gaia reminder create/list/update/pause/resume/snooze/dismiss`) for lane `P2-B` (`#52`)
@@ -84,6 +87,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Changed
 - PR template now includes explicit self-evolution applicability gating and required evidence fields (`.github/pull_request_template.md`)
 - Planning/release/contributor/protocol workflow docs now reference the self-evolution evidence rubric gate (`infrastructure/planning-round-template.md`, `infrastructure/release-readiness-template.md`, `infrastructure/contributor-playbook.md`, `infrastructure/agent-execution-protocol.md`)
+- Assistant docs now include Phase 3 hypothesis pipeline usage and artifact paths (`assistant/README.md`)
+- Roadmap/status priorities now reflect `#85` shipped and `#86` in progress (`ROADMAP.md`, `STATUS.md`)
 - Assistant architecture docs now include Phase 2 scheduler delta details (`infrastructure/architecture.md`)
 - Assistant architecture/docs now include Phase 2 reminder delta details and CLI usage (`infrastructure/architecture.md`, `assistant/README.md`)
 - Assistant architecture/docs now include Phase 2 skills runtime delta details and contract reference (`infrastructure/architecture.md`, `assistant/README.md`)

@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "hypothesis_id": "phase3-hypothesis-pipeline-v1-failure-fixture",
+  "title": "Hypothesis pipeline v1 failure fixture",
+  "summary": "Deterministic fixture to validate failure handling and rollback recommendation output.",
+  "owner": "framework-track",
+  "risk_level": "high",
+  "rollback_criteria": {
+    "reason_on_failure": "Fixture intentionally fails metric thresholds.",
+    "recommended_action": "Keep previous baseline and do not advance rollout until thresholds are realistic.",
+    "commands": [
+      "git revert <merge-commit-sha>",
+      "make benchmark"
+    ]
+  },
+  "evaluation": {
+    "commands": [
+      {
+        "id": "compatibility-check",
+        "description": "Fast deterministic command used during fixture evaluation.",
+        "run": "python3 ./tools/compatibility-matrix.py --baseline ./assistant/compatibility-matrix-baseline.json --matrix-out ./assistant/compatibility-matrix.md --check",
+        "required": true
+      }
+    ],
+    "required_artifacts": [
+      "assistant/benchmark-baseline.json",
+      "assistant/benchmark-results.json"
+    ]
+  },
+  "expected_metric_movement": [
+    {
+      "id": "benchmark-score-positive-jump",
+      "name": "benchmark.score_pct",
+      "description": "Intentional impossible delta to force rollback output.",
+      "baseline": {
+        "path": "assistant/benchmark-baseline.json",
+        "json_path": "score_pct"
+      },
+      "current": {
+        "path": "assistant/benchmark-results.json",
+        "json_path": "score_pct"
+      },
+      "comparator": ">=",
+      "target_delta": 5.0,
+      "required": true
+    }
+  ],
+  "pr_package": {
+    "required_sections": [
+      "proposal",
+      "command execution",
+      "metric movement",
+      "rollback recommendation",
+      "evidence paths"
+    ]
+  }
+}

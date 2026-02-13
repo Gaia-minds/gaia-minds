@@ -1,0 +1,56 @@
+name: hypothesis-pipeline
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  hypothesis-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate hypothesis contract
+        run: make hypothesis-validate
+
+      - name: Run deterministic hypothesis dry-run
+        run: make hypothesis-dry-run
+
+      - name: Validate failure rollback recommendation
+        run: |
+          set +e
+          make hypothesis-failure-fixture
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            echo "Expected hypothesis failure fixture to fail, but it passed."
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = Path("/tmp/gaia-hypothesis-evals/phase3-hypothesis-pipeline-v1-failure-fixture/failure-fixture/evaluation-report.json")
+          if not report.exists():
+              raise SystemExit(f"missing report: {report}")
+          payload = json.loads(report.read_text(encoding="utf-8"))
+          rollback = payload.get("rollback_recommendation", {})
+          if not isinstance(rollback, dict) or not rollback.get("required", False):
+              raise SystemExit("rollback recommendation was not marked required for failing fixture")
+          if payload.get("status") != "fail":
+              raise SystemExit(f"expected status=fail, got {payload.get('status')!r}")
+          print("failure fixture validated: rollback recommendation required=true")
+          PY
+
+      - name: Upload hypothesis artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hypothesis-evals
+          path: /tmp/gaia-hypothesis-evals/
