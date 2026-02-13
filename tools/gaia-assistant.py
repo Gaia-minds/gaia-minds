@@ -56,6 +56,12 @@ REMINDER_DEFAULT_CADENCE_MINUTES = 24 * 60
 REMINDER_DEFAULT_WINDOW_MINUTES = 30
 SKILL_CONTRACT_SCHEMA_VERSION = 1
 SKILL_SOURCE_CHOICES = ("project", "local", "all")
+SKILL_VALIDATION_REPORT_SCHEMA_VERSION = 1
+SKILL_VALIDATION_SEVERITY_ORDER = ("info", "warn", "high", "critical")
+SKILL_VALIDATION_BLOCKING_SEVERITIES = {"high", "critical"}
+SKILL_VALIDATION_MAX_SCAN_FILES = 120
+SKILL_VALIDATION_MAX_SCAN_FILE_BYTES = 512 * 1024
+SKILL_VALIDATION_MAX_HITS_PER_RULE = 8
 DEFAULT_CAPABILITY_LEVELS = {
     "file_read": "safe",
     "file_write": "safe",
@@ -897,6 +903,372 @@ def _resolve_skill_contract(
         return None, f"ambiguous skill name '{ref}'. Use one of: {options}"
 
     return None, f"skill not found: {ref}"
+
+
+def _display_runtime_path(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(REPO_ROOT))
+    except (OSError, ValueError):
+        return str(path)
+
+
+def _skill_validation_reports_dir(trace_dir: Path) -> Path:
+    return trace_dir / "skill-validation-reports"
+
+
+def _validation_severity_rank(value: str) -> int:
+    try:
+        return SKILL_VALIDATION_SEVERITY_ORDER.index(value)
+    except ValueError:
+        return -1
+
+
+def _sorted_validation_findings(findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return sorted(
+        findings,
+        key=lambda item: (
+            _validation_severity_rank(str(item.get("severity", "")).strip().lower()),
+            str(item.get("stage", "")).strip(),
+            str(item.get("code", "")).strip(),
+            str(item.get("path", "")).strip(),
+            int(item.get("line", 0)) if isinstance(item.get("line"), int) else 0,
+        ),
+        reverse=True,
+    )
+
+
+def _add_skill_validation_finding(
+    findings: List[Dict[str, Any]],
+    *,
+    severity: str,
+    stage: str,
+    code: str,
+    message: str,
+    path: Optional[str] = None,
+    line: Optional[int] = None,
+    evidence: Optional[str] = None,
+    recommendation: Optional[str] = None,
+) -> None:
+    normalized = severity.strip().lower()
+    if normalized not in SKILL_VALIDATION_SEVERITY_ORDER:
+        normalized = "warn"
+    finding: Dict[str, Any] = {
+        "severity": normalized,
+        "stage": stage.strip().lower() or "unknown",
+        "code": code.strip().lower() or "unspecified",
+        "message": message.strip(),
+        "blocking": normalized in SKILL_VALIDATION_BLOCKING_SEVERITIES,
+    }
+    if path:
+        finding["path"] = path
+    if isinstance(line, int) and line > 0:
+        finding["line"] = line
+    if evidence:
+        finding["evidence"] = _summarize_text(evidence, max_chars=220)
+    if recommendation:
+        finding["recommendation"] = recommendation.strip()
+    findings.append(finding)
+
+
+def _resolve_skill_validation_target(
+    cfg: Dict[str, Any],
+    reference: str,
+    *,
+    source_filter: str,
+) -> Tuple[Optional[Dict[str, Any]], Optional[str], List[str]]:
+    ref = reference.strip()
+    if not ref:
+        return None, "target cannot be empty", []
+
+    path_candidate = Path(ref).expanduser()
+    if path_candidate.exists():
+        entrypoint = path_candidate
+        if path_candidate.is_dir():
+            entrypoint = path_candidate / "SKILL.md"
+        elif path_candidate.name != "SKILL.md":
+            return None, "path target must be a skill directory or SKILL.md file", []
+
+        if not entrypoint.exists() or not entrypoint.is_file():
+            return None, f"SKILL.md not found at path target: {entrypoint}", []
+
+        try:
+            entrypoint = entrypoint.resolve()
+        except OSError:
+            pass
+        source_root = entrypoint.parent
+        contract = _build_skill_contract(
+            entrypoint,
+            source="path",
+            source_root=source_root,
+            cfg=cfg,
+        )
+        if contract is None:
+            return None, f"unable to parse target at {entrypoint}", []
+        return (
+            {
+                "resolution": "path",
+                "reference": ref,
+                "entrypoint": entrypoint,
+                "source_root": source_root,
+                "contract": contract,
+            },
+            None,
+            [],
+        )
+
+    contracts, scanned_roots = _load_skill_contracts(cfg, source_filter=source_filter)
+    target, error_message = _resolve_skill_contract(contracts, ref)
+    if target is None:
+        return None, error_message or f"skill not found: {ref}", scanned_roots
+
+    source = str(target.get("source", "")).strip().lower()
+    entrypoint_raw = str(target.get("entrypoint", "")).strip()
+    if source == "project":
+        entrypoint = (REPO_ROOT / entrypoint_raw).expanduser()
+    else:
+        entrypoint = Path(entrypoint_raw).expanduser()
+
+    if not entrypoint.exists() or not entrypoint.is_file():
+        return (
+            None,
+            f"resolved skill entrypoint is missing: {entrypoint}",
+            scanned_roots,
+        )
+
+    try:
+        entrypoint = entrypoint.resolve()
+    except OSError:
+        pass
+    source_root = entrypoint.parent
+    return (
+        {
+            "resolution": "skill-ref",
+            "reference": ref,
+            "entrypoint": entrypoint,
+            "source_root": source_root,
+            "contract": target,
+        },
+        None,
+        scanned_roots,
+    )
+
+
+def _risk_pattern_rules() -> List[Dict[str, Any]]:
+    return [
+        {
+            "code": "critical_rm_root",
+            "severity": "critical",
+            "pattern": re.compile(r"\brm\s+-rf\s+/(?:\s|$)"),
+            "message": "Detected destructive root-deletion command pattern.",
+            "recommendation": "Remove root-level destructive shell commands.",
+        },
+        {
+            "code": "critical_rm_no_preserve_root",
+            "severity": "critical",
+            "pattern": re.compile(r"\brm\s+-rf\s+--no-preserve-root\b"),
+            "message": "Detected explicit no-preserve-root deletion command.",
+            "recommendation": "Remove no-preserve-root usage from skill assets.",
+        },
+        {
+            "code": "critical_fork_bomb",
+            "severity": "critical",
+            "pattern": re.compile(r":\(\)\s*\{\s*:\|:\s*&\s*;\s*\}\s*;"),
+            "message": "Detected fork-bomb style command pattern.",
+            "recommendation": "Remove process-fork bomb patterns from skill assets.",
+        },
+        {
+            "code": "critical_reverse_shell",
+            "severity": "critical",
+            "pattern": re.compile(r"\bnc\b[^\n]{0,200}\s-e\s+(/bin/)?(sh|bash)\b"),
+            "message": "Detected reverse-shell style command pattern.",
+            "recommendation": "Remove shell-spawning network command patterns.",
+        },
+        {
+            "code": "critical_disk_wipe",
+            "severity": "critical",
+            "pattern": re.compile(r"\bdd\b[^\n]{0,200}\bof=/dev/(sd[a-z]|nvme\d+n\d+|disk\d+)"),
+            "message": "Detected direct disk-write command pattern.",
+            "recommendation": "Avoid raw disk write patterns in skill assets.",
+        },
+        {
+            "code": "high_pipe_to_shell",
+            "severity": "high",
+            "pattern": re.compile(r"\b(curl|wget)\b[^\n|]{0,220}\|\s*(sh|bash|zsh)\b"),
+            "message": "Detected network download piped directly to a shell.",
+            "recommendation": "Use verified downloads and explicit script review instead of pipe-to-shell.",
+        },
+        {
+            "code": "high_sudo_usage",
+            "severity": "high",
+            "pattern": re.compile(r"\bsudo\b"),
+            "message": "Detected privileged command invocation.",
+            "recommendation": "Avoid privileged execution in reusable skill instructions/scripts.",
+        },
+        {
+            "code": "high_world_writable_permissions",
+            "severity": "high",
+            "pattern": re.compile(r"\bchmod\s+777\b"),
+            "message": "Detected world-writable permission pattern.",
+            "recommendation": "Use least-privilege file modes (for example 600/640/700).",
+        },
+    ]
+
+
+def _collect_skill_files(skill_dir: Path, entrypoint: Path) -> Tuple[List[Path], bool]:
+    discovered: List[Path] = []
+    truncated = False
+    for candidate in sorted(skill_dir.rglob("*")):
+        if len(discovered) >= SKILL_VALIDATION_MAX_SCAN_FILES:
+            truncated = True
+            break
+        if not candidate.is_file():
+            continue
+        if ".git" in candidate.parts:
+            continue
+        discovered.append(candidate)
+    if entrypoint not in discovered:
+        discovered.insert(0, entrypoint)
+    return discovered, truncated
+
+
+def _validate_skill_assets(
+    *,
+    entrypoint: Path,
+    skill_dir: Path,
+    findings: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    scanned_files, truncated = _collect_skill_files(skill_dir, entrypoint)
+    scanned_report: List[Dict[str, Any]] = []
+    if truncated:
+        _add_skill_validation_finding(
+            findings,
+            severity="warn",
+            stage="static",
+            code="scan_truncated",
+            message=(
+                f"Static validation scanned only the first {SKILL_VALIDATION_MAX_SCAN_FILES} files "
+                "to keep execution bounded."
+            ),
+            path=_display_runtime_path(skill_dir),
+            recommendation="Narrow skill package scope or validate additional files manually.",
+        )
+
+    rules = _risk_pattern_rules()
+    for file_path in scanned_files:
+        display_path = _display_runtime_path(file_path)
+        size_bytes: int = 0
+        try:
+            stat = file_path.stat()
+            size_bytes = int(stat.st_size)
+        except OSError:
+            _add_skill_validation_finding(
+                findings,
+                severity="warn",
+                stage="static",
+                code="file_stat_failed",
+                message="Unable to stat a file during validation.",
+                path=display_path,
+            )
+            scanned_report.append({"path": display_path, "scanned": False, "reason": "stat_failed"})
+            continue
+
+        if size_bytes > SKILL_VALIDATION_MAX_SCAN_FILE_BYTES:
+            _add_skill_validation_finding(
+                findings,
+                severity="warn",
+                stage="static",
+                code="file_skipped_too_large",
+                message=(
+                    f"Skipped file larger than {SKILL_VALIDATION_MAX_SCAN_FILE_BYTES} bytes "
+                    "during static validation."
+                ),
+                path=display_path,
+                recommendation="Split large files or run targeted manual review.",
+            )
+            scanned_report.append(
+                {
+                    "path": display_path,
+                    "size_bytes": size_bytes,
+                    "scanned": False,
+                    "reason": "too_large",
+                }
+            )
+            continue
+
+        try:
+            raw = file_path.read_bytes()
+        except OSError:
+            _add_skill_validation_finding(
+                findings,
+                severity="warn",
+                stage="static",
+                code="file_read_failed",
+                message="Unable to read a file during static validation.",
+                path=display_path,
+            )
+            scanned_report.append({"path": display_path, "size_bytes": size_bytes, "scanned": False, "reason": "read_failed"})
+            continue
+
+        if b"\x00" in raw:
+            scanned_report.append(
+                {
+                    "path": display_path,
+                    "size_bytes": size_bytes,
+                    "sha256": hashlib.sha256(raw).hexdigest(),
+                    "scanned": False,
+                    "reason": "binary",
+                }
+            )
+            continue
+
+        text = raw.decode("utf-8", errors="replace")
+        lines = text.splitlines()
+        for rule in rules:
+            pattern = rule["pattern"]
+            hits = 0
+            for idx, line in enumerate(lines, start=1):
+                if not pattern.search(line):
+                    continue
+                _add_skill_validation_finding(
+                    findings,
+                    severity=str(rule["severity"]),
+                    stage="static",
+                    code=str(rule["code"]),
+                    message=str(rule["message"]),
+                    path=display_path,
+                    line=idx,
+                    evidence=line.strip(),
+                    recommendation=str(rule["recommendation"]),
+                )
+                hits += 1
+                if hits >= SKILL_VALIDATION_MAX_HITS_PER_RULE:
+                    break
+
+        scanned_report.append(
+            {
+                "path": display_path,
+                "size_bytes": size_bytes,
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "scanned": True,
+            }
+        )
+    return scanned_report
+
+
+def _skill_validation_summary(findings: List[Dict[str, Any]]) -> Dict[str, Any]:
+    counts = {severity: 0 for severity in SKILL_VALIDATION_SEVERITY_ORDER}
+    blocking = 0
+    for finding in findings:
+        severity = str(finding.get("severity", "")).strip().lower()
+        if severity in counts:
+            counts[severity] += 1
+        if bool(finding.get("blocking")):
+            blocking += 1
+    return {
+        "finding_count": len(findings),
+        "blocking_count": blocking,
+        "by_severity": counts,
+    }
 
 
 def _load_schedule_run_keys(storage_dir: Path) -> Dict[str, Dict[str, Any]]:
@@ -3459,6 +3831,395 @@ def cmd_skills_inspect(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_skills_validate(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="file_read",
+        input_summary=f"skills validate {args.target}",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="skills_validate",
+            input_summary=f"target={args.target}",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    resolved, error_message, scanned_roots = _resolve_skill_validation_target(
+        cfg,
+        str(args.target),
+        source_filter=str(args.source),
+    )
+    if resolved is None:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="skills_validate",
+            input_summary=f"target={args.target}",
+            output_summary=error_message or "target resolution failed",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+            metadata={"source": str(args.source), "scanned_roots": scanned_roots},
+        )
+        print(error_message or "Unable to resolve target.", file=sys.stderr)
+        return 1
+
+    findings: List[Dict[str, Any]] = []
+    entrypoint = Path(resolved["entrypoint"])
+    source_root = Path(resolved["source_root"])
+    contract = resolved.get("contract", {})
+    contract = contract if isinstance(contract, dict) else {}
+
+    entrypoint_display = _display_runtime_path(entrypoint)
+    source_root_display = _display_runtime_path(source_root)
+
+    if entrypoint.name != "SKILL.md":
+        _add_skill_validation_finding(
+            findings,
+            severity="critical",
+            stage="structure",
+            code="invalid_entrypoint_name",
+            message="Entrypoint must be named SKILL.md.",
+            path=entrypoint_display,
+            recommendation="Use a SKILL.md file as the validation entrypoint.",
+        )
+
+    text = ""
+    try:
+        text = entrypoint.read_text(encoding="utf-8")
+    except OSError as exc:
+        _add_skill_validation_finding(
+            findings,
+            severity="critical",
+            stage="structure",
+            code="entrypoint_read_failed",
+            message=f"Unable to read SKILL.md: {exc}",
+            path=entrypoint_display,
+            recommendation="Fix file permissions and retry validation.",
+        )
+
+    frontmatter: Dict[str, Any] = {}
+    body = ""
+    declared_capabilities: List[str] = []
+    if text:
+        frontmatter, body = _parse_skill_frontmatter(text)
+        if not frontmatter:
+            _add_skill_validation_finding(
+                findings,
+                severity="high",
+                stage="schema",
+                code="missing_frontmatter",
+                message="SKILL.md is missing YAML frontmatter.",
+                path=entrypoint_display,
+                recommendation="Add frontmatter with name, description, and optional capabilities.",
+            )
+        else:
+            name = str(frontmatter.get("name", "")).strip()
+            description = str(frontmatter.get("description", "")).strip()
+            declared_capabilities = _normalize_skill_capabilities(frontmatter.get("capabilities"))
+
+            if not name:
+                _add_skill_validation_finding(
+                    findings,
+                    severity="high",
+                    stage="schema",
+                    code="missing_name",
+                    message="Frontmatter is missing required field: name.",
+                    path=entrypoint_display,
+                    recommendation="Set a stable lowercase kebab-case name in frontmatter.",
+                )
+            elif not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,63}", name):
+                _add_skill_validation_finding(
+                    findings,
+                    severity="warn",
+                    stage="schema",
+                    code="noncanonical_name",
+                    message="Skill name is not lowercase kebab-case.",
+                    path=entrypoint_display,
+                    recommendation="Prefer lowercase kebab-case for stable runtime ids.",
+                    evidence=name,
+                )
+
+            if not description:
+                _add_skill_validation_finding(
+                    findings,
+                    severity="high",
+                    stage="schema",
+                    code="missing_description",
+                    message="Frontmatter is missing required field: description.",
+                    path=entrypoint_display,
+                    recommendation="Add a short purpose description in frontmatter.",
+                )
+            elif len(description) < 16:
+                _add_skill_validation_finding(
+                    findings,
+                    severity="warn",
+                    stage="schema",
+                    code="short_description",
+                    message="Skill description is very short and may reduce operator clarity.",
+                    path=entrypoint_display,
+                    recommendation="Use a concise but descriptive sentence for intent and scope.",
+                )
+
+            if "capabilities" not in frontmatter:
+                _add_skill_validation_finding(
+                    findings,
+                    severity="warn",
+                    stage="schema",
+                    code="capabilities_not_declared",
+                    message="No capabilities declared in frontmatter.",
+                    path=entrypoint_display,
+                    recommendation="Declare capabilities explicitly to support policy gating.",
+                )
+            elif not declared_capabilities:
+                _add_skill_validation_finding(
+                    findings,
+                    severity="warn",
+                    stage="schema",
+                    code="capabilities_empty",
+                    message="Capabilities field is present but resolves to an empty list.",
+                    path=entrypoint_display,
+                    recommendation="Declare one or more meaningful capabilities or remove the field.",
+                )
+
+            if not body.strip():
+                _add_skill_validation_finding(
+                    findings,
+                    severity="warn",
+                    stage="structure",
+                    code="empty_body",
+                    message="SKILL.md body is empty after frontmatter.",
+                    path=entrypoint_display,
+                    recommendation="Add usage instructions and workflow steps in the skill body.",
+                )
+
+    contract_schema = contract.get("schema_version")
+    if contract_schema != SKILL_CONTRACT_SCHEMA_VERSION:
+        _add_skill_validation_finding(
+            findings,
+            severity="high",
+            stage="compatibility",
+            code="unsupported_contract_schema",
+            message=(
+                "Resolved skill contract schema is unsupported: "
+                f"{contract_schema} (expected {SKILL_CONTRACT_SCHEMA_VERSION})."
+            ),
+            path=entrypoint_display,
+            recommendation="Regenerate/align skill metadata with the current contract schema.",
+        )
+
+    policy_registry = _capability_registry(cfg)
+    capabilities = contract.get("capabilities")
+    if not isinstance(capabilities, list):
+        capabilities = []
+    normalized_caps = [str(item).strip().lower() for item in capabilities if str(item).strip()]
+    if not normalized_caps and declared_capabilities:
+        normalized_caps = list(declared_capabilities)
+
+    for capability in normalized_caps:
+        level = policy_registry.get(capability, "unmapped")
+        if level == "forbidden":
+            _add_skill_validation_finding(
+                findings,
+                severity="high",
+                stage="policy",
+                code="forbidden_capability",
+                message=f"Declared capability '{capability}' is forbidden by current policy.",
+                path=entrypoint_display,
+                recommendation="Remove the capability or lower policy level only with explicit review.",
+            )
+        elif level == "confirm":
+            _add_skill_validation_finding(
+                findings,
+                severity="warn",
+                stage="policy",
+                code="confirm_capability",
+                message=f"Declared capability '{capability}' requires confirmation.",
+                path=entrypoint_display,
+                recommendation="Document when and why this capability is needed.",
+            )
+        elif level == "safe":
+            _add_skill_validation_finding(
+                findings,
+                severity="info",
+                stage="policy",
+                code="safe_capability",
+                message=f"Declared capability '{capability}' maps to safe policy level.",
+                path=entrypoint_display,
+            )
+        else:
+            _add_skill_validation_finding(
+                findings,
+                severity="warn",
+                stage="policy",
+                code="unmapped_capability",
+                message=f"Declared capability '{capability}' has no configured policy mapping.",
+                path=entrypoint_display,
+                recommendation="Map the capability in local policy overrides before activation.",
+            )
+
+    scanned_files = _validate_skill_assets(
+        entrypoint=entrypoint,
+        skill_dir=source_root,
+        findings=findings,
+    )
+
+    sandbox_contract = REPO_ROOT / "infrastructure" / "sandbox-contract-v1.md"
+    if sandbox_contract.exists():
+        _add_skill_validation_finding(
+            findings,
+            severity="info",
+            stage="sandbox",
+            code="sandbox_contract_present",
+            message="Sandbox contract reference is present for downstream dry-run integration.",
+            path=_display_runtime_path(sandbox_contract),
+        )
+    else:
+        _add_skill_validation_finding(
+            findings,
+            severity="high" if bool(args.require_sandbox) else "warn",
+            stage="sandbox",
+            code="sandbox_contract_missing",
+            message="Sandbox contract is not available; dry-run integration is deferred.",
+            path="infrastructure/sandbox-contract-v1.md",
+            recommendation="Land P2-E sandbox contract and re-run validation with --require-sandbox.",
+        )
+
+    findings = _sorted_validation_findings(findings)
+    summary = _skill_validation_summary(findings)
+    status = "fail" if int(summary.get("blocking_count", 0)) > 0 else "pass"
+    report_id = _new_record_id("svr")
+    report_path = (
+        Path(args.report_path).expanduser()
+        if args.report_path
+        else (_skill_validation_reports_dir(trace_dir) / f"{report_id}.json")
+    )
+
+    entrypoint_stat = None
+    try:
+        entrypoint_stat = entrypoint.stat()
+    except OSError:
+        entrypoint_stat = None
+
+    report: Dict[str, Any] = {
+        "schema_version": SKILL_VALIDATION_REPORT_SCHEMA_VERSION,
+        "report_type": "gaia.skill-validation.v1",
+        "report_id": report_id,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "status": status,
+        "summary": summary,
+        "target": {
+            "reference": str(resolved.get("reference", "")),
+            "resolution": str(resolved.get("resolution", "")),
+            "skill_id": contract.get("skill_id"),
+            "name": contract.get("name"),
+            "source": contract.get("source"),
+            "entrypoint": entrypoint_display,
+            "source_root": source_root_display,
+            "scanned_roots": scanned_roots,
+        },
+        "contract": {
+            "schema_version": contract.get("schema_version"),
+            "capabilities": normalized_caps,
+            "frontmatter_keys": contract.get("frontmatter", {}).get("keys", []),
+        },
+        "provenance": {
+            "entrypoint_sha256": contract.get("provenance", {}).get("sha256")
+            or _sha256_file(entrypoint),
+            "entrypoint_last_modified_at": contract.get("provenance", {}).get("last_modified_at")
+            or (
+                _isoformat_utc(datetime.fromtimestamp(entrypoint_stat.st_mtime, tz=timezone.utc))
+                if entrypoint_stat is not None
+                else ""
+            ),
+            "scanned_files": scanned_files,
+        },
+        "findings": findings,
+    }
+
+    try:
+        _write_json(report_path, report)
+    except OSError as exc:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="skills_validate",
+            input_summary=f"target={args.target}",
+            output_summary=f"failed writing report: {exc}",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="error",
+            metadata={"status": status, "blocking_count": summary.get("blocking_count", 0)},
+        )
+        print(f"Failed to write validation report: {exc}", file=sys.stderr)
+        return 1
+
+    if args.as_json:
+        print(json.dumps(report, indent=2))
+    else:
+        target_label = str(contract.get("skill_id", "")).strip() or entrypoint_display
+        print(f"Validation status: {status.upper()}")
+        print(f"Target: {target_label}")
+        print(
+            f"Findings: {summary.get('finding_count', 0)} "
+            f"(blocking={summary.get('blocking_count', 0)})"
+        )
+        counts = summary.get("by_severity", {})
+        if isinstance(counts, dict):
+            print(
+                "Severity counts: "
+                + ", ".join(
+                    f"{sev}={int(counts.get(sev, 0))}"
+                    for sev in ("critical", "high", "warn", "info")
+                )
+            )
+        if findings:
+            print("Top findings:")
+            for finding in findings[:12]:
+                location = str(finding.get("path", ""))
+                line = finding.get("line")
+                if isinstance(line, int) and line > 0:
+                    location = f"{location}:{line}" if location else f"line {line}"
+                prefix = f"{str(finding.get('severity', 'warn')).upper()} [{finding.get('code', '?')}]"
+                if location:
+                    print(f"- {prefix} {finding.get('message', '')} ({location})")
+                else:
+                    print(f"- {prefix} {finding.get('message', '')}")
+        print(f"Report: {report_path}")
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="skills_validate",
+        input_summary=f"target={args.target}",
+        output_summary=f"{status} blocking={summary.get('blocking_count', 0)}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        status="ok" if status == "pass" else "error",
+        metadata={
+            "source": str(args.source),
+            "require_sandbox": bool(args.require_sandbox),
+            "target": str(resolved.get("reference", "")),
+            "skill_id": contract.get("skill_id"),
+            "report_path": str(report_path),
+            "status": status,
+            "summary": summary,
+        },
+    )
+
+    return 0 if status == "pass" else 1
+
+
 def _find_schedule(schedules: List[Dict[str, Any]], schedule_id: str) -> Optional[Dict[str, Any]]:
     for item in schedules:
         if str(item.get("id", "")).strip() == schedule_id:
@@ -5547,7 +6308,7 @@ def build_parser() -> argparse.ArgumentParser:
     plans.add_argument("--last", type=int, default=20, help="Number of entries to show")
     plans.set_defaults(func=cmd_plans)
 
-    skills = sub.add_parser("skills", help="List and inspect approved skill entrypoints")
+    skills = sub.add_parser("skills", help="Discover, inspect, and validate skill entrypoints")
     skills_sub = skills.add_subparsers(dest="skills_command", required=True)
 
     skills_list = skills_sub.add_parser("list", help="List discovered skills")
@@ -5573,6 +6334,35 @@ def build_parser() -> argparse.ArgumentParser:
     )
     skills_inspect.add_argument("skill_id", help="Qualified skill id or unique skill name")
     skills_inspect.set_defaults(func=cmd_skills_inspect)
+
+    skills_validate = skills_sub.add_parser(
+        "validate",
+        help="Validate skill structure, static risk patterns, and policy compatibility",
+    )
+    skills_validate.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    skills_validate.add_argument("--trace-dir", default=None, help="Trace directory override")
+    skills_validate.add_argument(
+        "--source",
+        choices=list(SKILL_SOURCE_CHOICES),
+        default="all",
+        help="Source filter when resolving skill id/name targets",
+    )
+    skills_validate.add_argument(
+        "--report-path",
+        default=None,
+        help="Optional validation report output path (JSON)",
+    )
+    skills_validate.add_argument(
+        "--require-sandbox",
+        action="store_true",
+        help="Treat missing sandbox contract integration as a blocking finding",
+    )
+    skills_validate.add_argument("--json", dest="as_json", action="store_true", help="Emit full JSON report")
+    skills_validate.add_argument(
+        "target",
+        help="Skill id, unique skill name, or local path to skill directory/SKILL.md",
+    )
+    skills_validate.set_defaults(func=cmd_skills_validate)
 
     schedule = sub.add_parser("schedule", help="Manage recurring and one-shot schedules")
     schedule_sub = schedule.add_subparsers(dest="schedule_command", required=True)

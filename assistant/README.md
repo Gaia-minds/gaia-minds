@@ -268,6 +268,13 @@ gaia skills list --source project
 # inspect one skill by id (preferred) or unique name
 gaia skills inspect project:gaia-contributor
 gaia skills inspect gaia-contributor
+
+# validate one skill by id/name/path
+gaia skills validate project:gaia-contributor
+gaia skills validate ./skills/gaia-contributor
+
+# strict mode for sandbox contract dependency
+gaia skills validate project:gaia-contributor --require-sandbox
 ```
 
 Approved source roots:
@@ -283,6 +290,13 @@ Skills runtime traces:
 
 - `skills_list`
 - `skills_inspect`
+- `skills_validate`
+
+Validation report artifacts:
+
+- default report dir: `~/.gaia-assistant/traces/skill-validation-reports/`
+- report schema: `gaia.skill-validation.v1`
+- blocking severities: `high`, `critical`
 
 ## Budget Policy
 

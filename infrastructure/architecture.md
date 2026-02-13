@@ -301,6 +301,41 @@ Lane: `P2-C Skills Runtime` (`#53`)
 - Skills command traces are emitted (`skills_list`, `skills_inspect`) with
   scanned roots and selected identifiers in metadata.
 
+## Phase 2 Delta: P2-D Skill Validation (2026-02-13)
+
+Lane: `P2-D Skill Validation` (`#54`)
+
+### Runtime changes
+
+- Added skills validation command surface in assistant launcher:
+  `gaia skills validate <skill-id|name|path>`.
+- Validation target resolution supports:
+  - approved runtime sources (`project`/`local`) via skill id or unique name
+  - explicit local path targets (`<dir>/SKILL.md` or skill directory path)
+- Added validation pipeline stages:
+  - structure + frontmatter schema checks
+  - capability policy compatibility checks
+  - static malicious-pattern scan across skill package files
+  - sandbox contract integration gate (`--require-sandbox` optional hard block)
+
+### Artifacts and traces
+
+- Added deterministic validation report artifacts:
+  `~/.gaia-assistant/traces/skill-validation-reports/<report-id>.json`
+  with report schema `gaia.skill-validation.v1`.
+- Each finding includes severity (`info`, `warn`, `high`, `critical`) and
+  explicit blocking marker.
+- Added `skills_validate` action traces with status, blocking counts, and
+  report path metadata.
+
+### Determinism and safety
+
+- Validation exits non-zero when any `high` or `critical` findings are present.
+- Static scan includes bounded file and size limits to keep execution
+  deterministic.
+- Provenance metadata includes entrypoint hash and scanned file hashes for
+  auditability.
+
 ---
 
 ## Open Technical Questions
