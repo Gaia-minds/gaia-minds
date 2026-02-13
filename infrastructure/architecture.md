@@ -242,6 +242,34 @@ Lane: `P2-A Scheduler` (`#51`)
 - Due-window evaluation and skip/fail behavior are traced with structured action
   events (`schedule_run`, `schedule_skip`, `schedule_fail`, etc.).
 
+## Phase 2 Delta: P2-B Reminders (2026-02-13)
+
+Lane: `P2-B Reminders` (`#52`)
+
+### Runtime changes
+
+- Added reminder command surface in assistant launcher:
+  `gaia reminder create/list/update/pause/resume/snooze/dismiss`.
+- Reminder execution reuses scheduler due-run processing through a new typed
+  schedule action (`reminder_emit`), so reminders follow the same deterministic
+  cadence/window/idempotency model as scheduler jobs.
+
+### Persistence changes
+
+- Reminder records are stored in the existing schedule registry:
+  `~/.gaia-assistant/data/schedules.json` (typed by `action=reminder_emit`).
+- Reminder delivery records are appended to:
+  `~/.gaia-assistant/data/reminder-events.jsonl`.
+
+### Determinism and safety
+
+- Reminder lifecycle controls (`pause`, `resume`, `snooze`, `dismiss`) update
+  durable state before execution.
+- Reminder actions emit structured traces (`reminder_create`, `reminder_run`,
+  `reminder_skip`, `reminder_fail`, etc.) to support auditability.
+- Reminder execution remains in local bounded runtime (no external notification
+  transport in this slice), preserving least-privilege defaults.
+
 ---
 
 ## Open Technical Questions
