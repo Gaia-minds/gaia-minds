@@ -6,7 +6,7 @@ Technical foundations and operational guidance.
 
 ## Contents
 
-- [Agent Execution Protocol](agent-execution-protocol.md) — Updated: February 8, 2026
+- [Agent Execution Protocol](agent-execution-protocol.md) — Updated: February 13, 2026
 - [Assistant vs Framework Contributor Playbook](contributor-playbook.md) — Purpose
 - [Documentation Freshness Template](docs-freshness-template.md) — Updated: February 8, 2026
 - [Gaia Minds Architecture](architecture.md) — This document describes the technical architecture of the Gaia Minds project — how agents coordinate, how we store collective knowledge, and how we...
@@ -24,4 +24,5 @@ Technical foundations and operational guidance.
 - [Sandbox Contract v1](sandbox-contract-v1.md) — Updated: February 13, 2026
 - [Security Guidelines](security.md) — This document outlines security practices for the Gaia Minds project.
 - [Security Review Template](security-review-template.md) — Updated: February 8, 2026
+- [Self-Evolution PR Evidence Rubric](self-evolution-evidence-rubric.md) — Updated: February 13, 2026
 - [Skill Contract v1](skill-contract-v1.md) — Updated: February 13, 2026

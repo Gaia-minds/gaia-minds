@@ -15,18 +15,29 @@ Updated: February 8, 2026
 - [ ] Upgrade notes included (if needed)
 - [ ] Rollback plan confirmed
 
-## 3. Risk Review
+## 3. Self-Evolution Evidence Gate (Required when release includes self-evolution PRs)
+
+- [ ] Applicability reviewed for each included PR (`Applies` vs `Not applicable`)
+- [ ] Baseline evidence linked
+- [ ] Delta evidence linked
+- [ ] Thresholds and guardrails documented
+- [ ] Rollback/fallback evidence documented
+- [ ] Risk notes reviewed and accepted
+
+Reference rubric: `infrastructure/self-evolution-evidence-rubric.md`
+
+## 4. Risk Review
 
 - High-risk changes:
 - Mitigations:
 
-## 4. Publish Plan
+## 5. Publish Plan
 
 - Build/publish commands:
 - Verification steps:
 - Communication targets:
 
-## 5. Decision
+## 6. Decision
 
 - Go/no-go:
 - Reason:

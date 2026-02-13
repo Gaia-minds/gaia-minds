@@ -13,6 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - `skills/gaia-assistant-builder/references/openclaw-boundary.md` boundary document
 
 ### Added
+- Self-evolution PR evidence rubric contract with required fields (`baseline`, `delta`, `thresholds/guardrails`, `rollback/fallback`, `risk notes`) and applicability rules (`infrastructure/self-evolution-evidence-rubric.md`, `#85`)
+- Deterministic self-evolution PR evidence enforcement in CI (`tools/check-self-evolution-evidence.py`, `.github/workflows/self-evolution-evidence.yml`)
 - Scheduler core command surface with durable schedule persistence and due-run execution (`gaia schedule create/list/update/cancel/run-due`) for lane `P2-A` (`#51`)
 - Scheduler run ledger for idempotent execution keys (`~/.gaia-assistant/data/schedule-runs.jsonl`)
 - Reminder command surface with cadence controls and lifecycle actions (`gaia reminder create/list/update/pause/resume/snooze/dismiss`) for lane `P2-B` (`#52`)
@@ -79,6 +81,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Phase 3 kickoff issue set for evidence rubric, hypothesis pipeline v1, and reliability baseline checkpoint (`#85`, `#86`, `#87`)
 
 ### Changed
+- PR template now includes explicit self-evolution applicability gating and required evidence fields (`.github/pull_request_template.md`)
+- Planning/release/contributor/protocol workflow docs now reference the self-evolution evidence rubric gate (`infrastructure/planning-round-template.md`, `infrastructure/release-readiness-template.md`, `infrastructure/contributor-playbook.md`, `infrastructure/agent-execution-protocol.md`)
 - Assistant architecture docs now include Phase 2 scheduler delta details (`infrastructure/architecture.md`)
 - Assistant architecture/docs now include Phase 2 reminder delta details and CLI usage (`infrastructure/architecture.md`, `assistant/README.md`)
 - Assistant architecture/docs now include Phase 2 skills runtime delta details and contract reference (`infrastructure/architecture.md`, `assistant/README.md`)
