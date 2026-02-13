@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "suite": "gaia-skill-fixtures",
+  "fixtures": [
+    {
+      "id": "safe_control",
+      "category": "safe-control",
+      "path": "safe-control/SKILL.md",
+      "expect_status": "pass",
+      "expect_codes": []
+    },
+    {
+      "id": "malicious_prompt_injection",
+      "category": "prompt-injection",
+      "path": "malicious-prompt-injection/SKILL.md",
+      "expect_status": "fail",
+      "expect_codes": ["high_prompt_injection_directive"]
+    },
+    {
+      "id": "malicious_unsafe_script",
+      "category": "unsafe-script",
+      "path": "malicious-unsafe-script/SKILL.md",
+      "expect_status": "fail",
+      "expect_codes": ["high_pipe_to_shell"]
+    },
+    {
+      "id": "malicious_exfiltration",
+      "category": "exfiltration",
+      "path": "malicious-exfiltration/SKILL.md",
+      "expect_status": "fail",
+      "expect_codes": ["high_sensitive_exfiltration"]
+    },
+    {
+      "id": "malicious_reverse_shell",
+      "category": "unsafe-script",
+      "path": "malicious-reverse-shell/SKILL.md",
+      "expect_status": "fail",
+      "expect_codes": ["critical_reverse_shell"]
+    }
+  ]
+}

@@ -100,6 +100,12 @@
       "command": "node ./bin/gaia.js policy evaluate --tool file_read --source project --scope standard >/dev/null && set +e; node ./bin/gaia.js policy evaluate --tool delete_files --source project --scope standard >/tmp/policy-eval-denied-uat.out 2>&1; deny_rc=$?; set -e; [[ $deny_rc -ne 0 ]] && deny_out=$(cat /tmp/policy-eval-denied-uat.out) && [[ \"$deny_out\" == *\"decision=deny\"* ]] && node ./bin/gaia.js policy allowlist set project:gaia-contributor --tools file_read >/dev/null && listed=$(node ./bin/gaia.js policy allowlist list --skill project:gaia-contributor) && [[ \"$listed\" == *\"project:gaia-contributor: file_read\"* ]] && set +e; node ./bin/gaia.js sandbox run --skill project:gaia-contributor -- sh -lc 'echo blocked > \"$GAIA_ASSISTANT_HOME/policy-blocked.txt\"' >/tmp/policy-sandbox-denied-uat.out 2>&1; policy_rc=$?; set -e; [[ $policy_rc -ne 0 ]] && policy_out=$(cat /tmp/policy-sandbox-denied-uat.out) && [[ \"$policy_out\" == *\"Policy denied\"* ]] && set +e; node ./bin/gaia.js sandbox run --tool file_read -- sh -lc 'echo mismatch > \"$GAIA_ASSISTANT_HOME/policy-mismatch.txt\"' >/tmp/policy-tool-mismatch-uat.out 2>&1; mismatch_rc=$?; set -e; [[ $mismatch_rc -ne 0 ]] && mismatch_out=$(cat /tmp/policy-tool-mismatch-uat.out) && [[ \"$mismatch_out\" == *\"Policy tool assertion mismatch\"* ]] && node ./bin/gaia.js policy allowlist clear project:gaia-contributor >/dev/null && trace=$(node ./bin/gaia.js traces --type policy_decision --last 1) && [[ \"$trace\" == *\"policy_decision\"* ]]"
     },
     {
+      "id": "quality_matrix_guardrails",
+      "description": "Quality matrix blocks malicious fixtures and verifies compatibility matrix reproducibility",
+      "expect_exit": 0,
+      "command": "python3 ./tools/quality-matrix.py --manifest ./assistant/fixtures/skills/manifest.json --fixtures-root ./assistant/fixtures/skills --assistant-home \"$GAIA_ASSISTANT_HOME\" --compatibility-baseline ./assistant/compatibility-matrix-baseline.json --compatibility-matrix-out ./assistant/compatibility-matrix.md --json-out \"$GAIA_ASSISTANT_HOME/quality-matrix-uat.json\" >/tmp/quality-matrix-uat.out 2>&1 && out=$(cat /tmp/quality-matrix-uat.out) && [[ \"$out\" == *'\"suite\": \"gaia-quality-matrix\"'* ]] && [[ -f \"$GAIA_ASSISTANT_HOME/quality-matrix-uat.json\" ]]"
+    },
+    {
       "id": "traces_filtering_and_correlation",
       "description": "Trace filters for skill/policy/sandbox dimensions and correlation ids are deterministic",
       "expect_exit": 0,

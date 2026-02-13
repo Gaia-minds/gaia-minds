@@ -1295,6 +1295,32 @@ def _risk_pattern_rules() -> List[Dict[str, Any]]:
             "recommendation": "Use verified downloads and explicit script review instead of pipe-to-shell.",
         },
         {
+            "code": "high_prompt_injection_directive",
+            "severity": "high",
+            "pattern": re.compile(
+                r"\b(ignore|disregard|bypass)\b[^\n]{0,120}\b(previous|prior|system|developer)\b"
+                r"[^\n]{0,120}\b(instruction|prompt|guardrail|policy)s?\b",
+                re.IGNORECASE,
+            ),
+            "message": "Detected prompt-injection style directive intended to bypass guardrails.",
+            "recommendation": "Remove prompt-injection directives and keep instructions policy-aligned.",
+        },
+        {
+            "code": "high_sensitive_exfiltration",
+            "severity": "high",
+            "pattern": re.compile(
+                r"\b(curl|wget|scp|sftp|nc)\b[^\n]{0,240}"
+                r"(/etc/passwd|~/.ssh/id_rsa|~/.gaia-assistant/(secrets|auth-profiles)\.json|"
+                r"\$GAIA_ASSISTANT_HOME/(secrets|auth-profiles)\.json)\b|"
+                r"(/etc/passwd|~/.ssh/id_rsa|~/.gaia-assistant/(secrets|auth-profiles)\.json|"
+                r"\$GAIA_ASSISTANT_HOME/(secrets|auth-profiles)\.json)\b[^\n]{0,240}"
+                r"\b(curl|wget|scp|sftp|nc)\b",
+                re.IGNORECASE,
+            ),
+            "message": "Detected potential sensitive data exfiltration command pattern.",
+            "recommendation": "Remove network transfer commands that reference sensitive credential paths.",
+        },
+        {
             "code": "high_sudo_usage",
             "severity": "high",
             "pattern": re.compile(r"\bsudo\b"),

@@ -1,4 +1,4 @@
-.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy benchmark benchmark-trend hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
+.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy quality-matrix compatibility-matrix benchmark benchmark-trend hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
 
 docs-check:
 	./tools/validate-docs.sh
@@ -12,7 +12,7 @@ generate-indexes:
 check-indexes:
 	python3 ./tools/generate-indexes.py --check
 
-check-all: docs-check check-indexes
+check-all: docs-check check-indexes compatibility-matrix
 	@echo ""
 	@echo "All checks passed."
 
@@ -24,6 +24,12 @@ test-uat:
 
 uat-policy:
 	python3 ./tools/check-uat-policy.py --base-ref origin/main
+
+quality-matrix:
+	python3 ./tools/quality-matrix.py --json-out ./assistant/quality-matrix-results.json
+
+compatibility-matrix:
+	python3 ./tools/compatibility-matrix.py --baseline ./assistant/compatibility-matrix-baseline.json --matrix-out ./assistant/compatibility-matrix.md --check
 
 benchmark:
 	python3 ./tools/benchmark.py
