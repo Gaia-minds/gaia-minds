@@ -450,8 +450,8 @@ Lane: `P2-G Audit & Traces` (`#57`)
 
 - Trace filters are additive and backward-compatible with existing action-type
   queries.
-- Correlation IDs enable deterministic audit reconstruction of policy decision
-  + sandbox approval + sandbox execution chains.
+- Correlation IDs enable deterministic audit reconstruction of policy decision,
+  sandbox approval, and sandbox execution chains.
 - Unified metadata fields reduce schema drift risk across lane boundaries.
 
 ## Phase 2 Delta: P2-H Quality Matrix (2026-02-13)
