@@ -1,4 +1,6 @@
-.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy quality-matrix compatibility-matrix benchmark memory-benchmark memory-quality benchmark-trend hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
+.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy quality-matrix compatibility-matrix benchmark memory-benchmark memory-quality benchmark-trend hypothesis-validate hypothesis-run hypothesis-dry-run hypothesis-failure-fixture hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
+
+HYPOTHESIS_OUTPUT_ROOT ?= /tmp/gaia-hypothesis-evals
 
 docs-check:
 	./tools/validate-docs.sh
@@ -42,6 +44,18 @@ memory-quality:
 
 benchmark-trend:
 	python3 ./tools/benchmark-trend.py --results ./assistant/benchmark-results.json --history ./assistant/benchmark-trend-history.json --summary ./assistant/benchmark-trend-summary.md
+
+hypothesis-validate:
+	python3 ./tools/hypothesis-pipeline.py validate --hypothesis ./assistant/hypotheses/phase3-hypothesis-pipeline-v1.json
+
+hypothesis-run:
+	python3 ./tools/hypothesis-pipeline.py run --hypothesis ./assistant/hypotheses/phase3-hypothesis-pipeline-v1.json --output-root "$(HYPOTHESIS_OUTPUT_ROOT)" --run-id local
+
+hypothesis-dry-run:
+	python3 ./tools/hypothesis-pipeline.py run --hypothesis ./assistant/hypotheses/phase3-hypothesis-pipeline-v1.json --output-root "$(HYPOTHESIS_OUTPUT_ROOT)" --run-id dry-run --dry-run
+
+hypothesis-failure-fixture:
+	python3 ./tools/hypothesis-pipeline.py run --hypothesis ./assistant/hypotheses/phase3-hypothesis-pipeline-v1-failure-fixture.json --output-root "$(HYPOTHESIS_OUTPUT_ROOT)" --run-id failure-fixture --dry-run
 
 hardening-phase1:
 	python3 ./tools/phase1-hardening.py

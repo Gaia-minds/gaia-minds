@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "hypothesis_id": "phase3-hypothesis-pipeline-v1",
+  "title": "Hypothesis pipeline v1 non-regression baseline",
+  "summary": "Introduce deterministic hypothesis evidence packaging while holding benchmark quality non-regression against the pinned baseline.",
+  "owner": "framework-track",
+  "risk_level": "high",
+  "rollback_criteria": {
+    "reason_on_failure": "Required command or metric gate failed, so rollout evidence is insufficient.",
+    "recommended_action": "Stop rollout, revert hypothesis pipeline changes, and rerun baseline validation before retry.",
+    "commands": [
+      "git revert <merge-commit-sha>",
+      "make benchmark",
+      "make test-uat"
+    ]
+  },
+  "evaluation": {
+    "commands": [
+      {
+        "id": "compatibility-check",
+        "description": "Ensure compatibility matrix contract is still reproducible before packaging evidence.",
+        "run": "python3 ./tools/compatibility-matrix.py --baseline ./assistant/compatibility-matrix-baseline.json --matrix-out ./assistant/compatibility-matrix.md --check",
+        "required": true
+      }
+    ],
+    "required_artifacts": [
+      "assistant/benchmark-baseline.json",
+      "assistant/benchmark-results.json"
+    ]
+  },
+  "expected_metric_movement": [
+    {
+      "id": "benchmark-score-nonregression",
+      "name": "benchmark.score_pct",
+      "description": "Benchmark score must not regress against baseline.",
+      "baseline": {
+        "path": "assistant/benchmark-baseline.json",
+        "json_path": "score_pct"
+      },
+      "current": {
+        "path": "assistant/benchmark-results.json",
+        "json_path": "score_pct"
+      },
+      "comparator": ">=",
+      "target_delta": 0.0,
+      "required": true
+    },
+    {
+      "id": "benchmark-failures-nonincrease",
+      "name": "benchmark.failed",
+      "description": "Total failed benchmark checks/tasks must not increase.",
+      "baseline": {
+        "path": "assistant/benchmark-baseline.json",
+        "json_path": "failed"
+      },
+      "current": {
+        "path": "assistant/benchmark-results.json",
+        "json_path": "failed"
+      },
+      "comparator": "<=",
+      "target_delta": 0.0,
+      "required": true
+    }
+  ],
+  "pr_package": {
+    "required_sections": [
+      "proposal",
+      "command execution",
+      "metric movement",
+      "rollback recommendation",
+      "evidence paths"
+    ]
+  }
+}

@@ -34,15 +34,15 @@ See `ROADMAP.md` for full phase details and exit criteria.
 - `Memory Policy + Privacy Controls` - consent/retention policy enforcement, export capability gating, and delete/export evidence artifacts (`#77`)
 - `Memory QA and Red-Team Harness` - deterministic poisoning/leakage QA fixtures with retrieval/safety/latency regression gates (`#78`)
 - `Post-Phase-2 Reassessment` - planning artifact + Phase 3 kickoff queue/state sync (`#84`, PR #88)
+- `Phase 3 Evidence Rubric` - self-evolution PR evidence contract + CI gate (`#85`, PR #89)
 
 ## In Progress
 
-- `Phase 3` - self-evolution PR evidence rubric (`#85`) - owner: `codex-gpt5`
+- `Phase 3` - hypothesis pipeline v1: proposal -> eval -> evidence (`#86`) - owner: `codex-gpt5`
 
 ## Next Up (Kickoff Queue)
 
-1. `Phase 3` - hypothesis pipeline v1: proposal -> eval -> evidence (`#86`)
-2. `Phase 3` - reliability baseline checkpoint + SLO thresholds (`#87`)
+1. `Phase 3` - reliability baseline checkpoint + SLO thresholds (`#87`)
 
 ## Blocked
 

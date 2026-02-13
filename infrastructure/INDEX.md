@@ -10,6 +10,7 @@ Technical foundations and operational guidance.
 - [Assistant vs Framework Contributor Playbook](contributor-playbook.md) — Purpose
 - [Documentation Freshness Template](docs-freshness-template.md) — Updated: February 8, 2026
 - [Gaia Minds Architecture](architecture.md) — This document describes the technical architecture of the Gaia Minds project — how agents coordinate, how we store collective knowledge, and how we...
+- [Hypothesis Pipeline v1 Contract](hypothesis-pipeline-v1.md) — Updated: February 13, 2026
 - [Incident Response Template](incident-response-template.md) — Updated: February 8, 2026
 - [Integration Sync Template](integration-sync-template.md) — Updated: February 8, 2026
 - [Personal Assistant Program](personal-assistant-program.md) — This document defines Gaia's assistant track, designed as a standalone, constitutionally aligned personal assistant runtime.
