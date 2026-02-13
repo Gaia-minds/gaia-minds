@@ -114,6 +114,9 @@ Use:
 ```bash
 gaia traces --last 5
 gaia traces --type file_read
+gaia traces --type policy_decision --policy-decision deny --last 5
+gaia traces --skill-id project:gaia-contributor --sandbox-profile read-only --last 10
+gaia traces --correlation-id <trace-correlation-id> --json
 ```
 
 Trace schema fields:
@@ -128,6 +131,19 @@ Trace schema fields:
 - `status` (`ok`, `error`, `blocked`)
 - `schema_version` (integer)
 - `metadata` (optional object for downstream tooling)
+
+Trace metadata now includes a normalized schema (`trace_schema_version=2`) for
+skills/policy/sandbox cross-lane auditability. Key fields:
+
+- `correlation_id` (links related traces from one command flow)
+- `skill_id`
+- `skill_source`
+- `policy_decision`
+- `policy_id`
+- `sandbox_profile`
+- `sandbox_network_mode`
+- `sandbox_escalated`
+- `sandbox_approved`
 
 Capability policy can be reviewed and overridden locally:
 

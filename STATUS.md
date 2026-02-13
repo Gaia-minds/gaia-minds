@@ -29,7 +29,7 @@ See `ROADMAP.md` for full phase details and exit criteria.
 
 ## In Progress
 
-_Nothing currently in progress._
+- `P2-G Audit & Traces` - unified skill/sandbox/policy trace schema and incident linkage (`#57`) - owner: `codex-gpt5`
 
 ## Next Up (Parallel Lanes)
 
@@ -39,9 +39,8 @@ architecture deltas) per `infrastructure/phase2-lane-implementation-plans.md`.
 Cross-cutting requirement: run a docs freshness sweep with
 `skills/gaia-technical-writer/SKILL.md` after merge batches.
 
-1. `P2-G Audit & Traces` - skill/sandbox trace schema and incident linkage (`#57`)
-2. `P2-H Quality` - malicious fixtures, UAT/benchmark expansion, compatibility matrix (`#58`)
-3. `P2-I Memory Research` - memory architecture options/tradeoffs and recommendation (`#60`)
+1. `P2-H Quality` - malicious fixtures, UAT/benchmark expansion, compatibility matrix (`#58`)
+2. `P2-I Memory Research` - memory architecture options/tradeoffs and recommendation (`#60`)
 
 ## Blocked
 

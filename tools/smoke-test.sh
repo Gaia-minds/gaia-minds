@@ -208,6 +208,18 @@ run_smoke_suite() {
     [[ \"\$traces\" == *\"policy_decision\"* ]]
   "
 
+  run_test "traces_filtering_and_correlation" bash -lc "
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" sandbox run --profile read-only --approve-escalation --skill project:gaia-contributor -- sh -lc 'echo trace-filter > \"\$GAIA_ASSISTANT_HOME/trace-filter.txt\"' >/dev/null &&
+    policy_json=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" traces --type policy_decision --skill-id project:gaia-contributor --policy-decision allow --sandbox-profile read-only --last 1 --json) &&
+    corr=\$(printf '%s' \"\$policy_json\" | python3 -c \"import json,sys; data=json.load(sys.stdin); print(data[-1].get('metadata', {}).get('correlation_id', '') if data else '')\") &&
+    [[ -n \"\$corr\" ]] &&
+    grouped=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" traces --correlation-id \"\$corr\" --last 10) &&
+    [[ \"\$grouped\" == *\"policy_decision\"* ]] &&
+    [[ \"\$grouped\" == *\"sandbox_run\"* ]] &&
+    grouped_json=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" traces --correlation-id \"\$corr\" --json) &&
+    [[ \"\$grouped_json\" == *\"correlation_id\"* ]]
+  "
+
   run_test "provider_fallback" bash -lc "
     out=\$(printf 'provider fallback check\\n/exit\\n' | \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" chat 2>&1) &&
     [[ \"\$out\" == *\"[local-\"* ]]

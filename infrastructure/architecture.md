@@ -420,6 +420,40 @@ Lane: `P2-F Policy Engine` (`#56`)
   inferred command behavior are blocked to prevent policy bypass by manual tool
   relabeling.
 
+## Phase 2 Delta: P2-G Audit and Traces (2026-02-13)
+
+Lane: `P2-G Audit & Traces` (`#57`)
+
+### Runtime changes
+
+- Extended trace metadata to a normalized cross-lane envelope
+  (`trace_schema_version=2`) for skills, policy, and sandbox events.
+- Added correlation identifiers (`correlation_id`) that link policy/sandbox
+  events emitted during one command flow.
+- Standardized metadata keys across affected traces:
+  - `skill_id`, `skill_source`
+  - `policy_decision`, `policy_id`
+  - `sandbox_profile`, `sandbox_network_mode`
+  - `sandbox_escalated`, `sandbox_approved`
+
+### CLI changes
+
+- Enhanced `gaia traces` filtering with metadata dimensions:
+  - `--skill-id`
+  - `--skill-source`
+  - `--policy-decision`
+  - `--sandbox-profile`
+  - `--correlation-id`
+  - `--json` (structured trace output)
+
+### Determinism and safety
+
+- Trace filters are additive and backward-compatible with existing action-type
+  queries.
+- Correlation IDs enable deterministic audit reconstruction of policy decision
+  + sandbox approval + sandbox execution chains.
+- Unified metadata fields reduce schema drift risk across lane boundaries.
+
 ---
 
 ## Open Technical Questions
