@@ -81,6 +81,25 @@ run_smoke_suite() {
     [[ \"\$listed\" == *\"Smoke task capture\"* ]]
   "
 
+  run_test "memory_crud_and_filters" bash -lc "
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory add --type user_long --subject smoke-user --content 'Smoke memory content' --summary 'Smoke memory summary' --consent-scope user --retention-ttl P30D >/tmp/memory-add-smoke.out &&
+    memory_id=\$(awk 'NR==1 {print \$1}' /tmp/memory-add-smoke.out) &&
+    [[ -n \"\$memory_id\" ]] &&
+    get_json=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory get \"\$memory_id\" --json) &&
+    [[ \"\$get_json\" == *\"\\\"memory_id\\\": \\\"\$memory_id\\\"\"* ]] &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory update \"\$memory_id\" --summary 'Smoke memory summary updated' --importance 0.9 >/dev/null &&
+    listed=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory list --subject smoke-user --q updated) &&
+    [[ \"\$listed\" == *\"\$memory_id\"* ]] &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory delete \"\$memory_id\" >/dev/null &&
+    set +e
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory get \"\$memory_id\" >/tmp/memory-get-after-delete-smoke.out 2>&1
+    rc=\$?
+    set -e
+    [[ \$rc -ne 0 ]] &&
+    gone=\$(cat /tmp/memory-get-after-delete-smoke.out) &&
+    [[ \"\$gone\" == *\"Memory not found\"* ]]
+  "
+
   run_test "autopilot_dry_run" bash -lc "
     out=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" autopilot run --profile safe-daily --dry-run 2>&1) &&
     [[ \"\$out\" == *\"Dry-run autopilot plan\"* ]]

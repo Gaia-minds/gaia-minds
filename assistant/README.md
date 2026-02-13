@@ -281,6 +281,45 @@ Reminder lifecycle traces are recorded in `actions.jsonl` with
 `reminder_pause`, `reminder_resume`, `reminder_snooze`, `reminder_dismiss`,
 and `reminder_fail`.
 
+## Memory Runtime
+
+Memory commands provide deterministic local SQLite CRUD flows for structured
+long-term memory records.
+
+```bash
+# add one memory record
+gaia memory add \
+  --type user_long \
+  --subject user:default \
+  --content "User prefers concise updates." \
+  --summary "concise preference" \
+  --consent-scope user \
+  --retention-ttl P30D
+
+# retrieve and filter
+gaia memory get <memory-id>
+gaia memory list --subject user:default --q concise --limit 20
+
+# update and soft-delete
+gaia memory update <memory-id> --summary "concise style preference" --importance 0.9
+gaia memory delete <memory-id>
+```
+
+Memory persistence:
+
+- Local SQLite store: `~/.gaia-assistant/data/memory.db`
+- Schema version: `memory_store_schema_version=1` in `memory_meta`
+- Record contract: `memory_id`, `memory_type`, `subject_id`, `content`,
+  `summary`, `source_trace_id`, `confidence`, `importance`, `retention_ttl`,
+  `consent_scope`, timestamps, and soft-delete marker
+
+Memory traces:
+
+- `memory_capture`
+- `memory_retrieve`
+- `memory_update`
+- `memory_delete`
+
 ## Skills Runtime
 
 Skills runtime commands provide deterministic discovery and inspection of
