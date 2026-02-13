@@ -1,6 +1,6 @@
 # Agent Execution Protocol
 
-Updated: February 8, 2026
+Updated: February 13, 2026
 
 ## Purpose
 
@@ -157,6 +157,10 @@ Before merge, enforce these gates:
 4. Incident fix PR:
    - `gaia-incident-responder` report/postmortem link
    - `gaia-qa-evaluator` regression verification
+5. Self-evolution behavior/governance PR:
+   - self-evolution applicability explicitly declared in PR template
+   - required rubric fields completed (`baseline`, `delta`, `thresholds/guardrails`, `rollback/fallback`, `risk notes`)
+   - deterministic CI check passes (`self-evolution-evidence` workflow / `tools/check-self-evolution-evidence.py`)
 
 ## Required Output Contract
 
@@ -213,6 +217,7 @@ PR notes must include:
 - validations run
 - risks/follow-ups
 - issue link
+- self-evolution rubric evidence when applicability is marked as `Applies`
 ```
 
 ## Role-Specific Prompt Add-on

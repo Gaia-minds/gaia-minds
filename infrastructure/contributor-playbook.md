@@ -33,6 +33,7 @@ other track.
 | --- | --- | --- | --- |
 | Assistant feature/runtime behavior | `assistant-track` | `make test-smoke`; relevant `gaia ...` command checks for changed surfaces | Include before/after behavior and capability policy impact |
 | Framework policy/process/docs | `framework-track` | `make check-all`; run file-specific checks when applicable (for example `python3 tools/verify-resources.py` for resources) | Include governance/process rationale and migration notes |
+| Self-evolution behavior/governance PR | `framework-track` or cross-track | `make check-all`; `self-evolution-evidence` workflow must pass | Include rubric evidence (`baseline`, `delta`, `thresholds`, `rollback`, `risk notes`) per `infrastructure/self-evolution-evidence-rubric.md` |
 | CI/tooling/release workflow | `framework-track` | `make check-all`; dry-run or targeted command proving workflow/tool behavior | Include rollback/fallback path if automation fails |
 | Cross-track change | `assistant-track` + `framework-track` | All relevant checks above in one PR, or split into two PRs | Explicitly call out coupling and merge order |
 
@@ -91,6 +92,7 @@ did not, say `No architecture delta` in PR notes.
 
 - Declare track: assistant/framework/cross-track.
 - Declare risk: low/medium/high.
+- Declare self-evolution applicability and complete rubric fields when required.
 - List validations run.
 - Confirm state-doc sync (`STATUS.md`, `ROADMAP.md`, `CHANGELOG.md`) or no-change reason.
 - Document follow-up items for the next contributor.

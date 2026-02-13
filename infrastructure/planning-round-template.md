@@ -13,6 +13,7 @@ Updated: February 8, 2026
 - `ROADMAP.md`:
 - `STATUS.md`:
 - `CHANGELOG.md`:
+- `infrastructure/self-evolution-evidence-rubric.md` (required when planning self-evolution items):
 - Issues/PRs:
 
 ## 3. Current State Snapshot
@@ -30,6 +31,7 @@ For each item/lane include:
 - Scope and non-goals:
 - Architecture deltas:
 - Validation plan:
+- Evidence contract (for self-evolution items): baseline, delta, thresholds/guardrails, rollback/fallback, risk notes
 - Rollback/fallback:
 - Acceptance criteria:
 - Owner recommendation:
