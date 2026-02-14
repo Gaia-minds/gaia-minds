@@ -4,66 +4,42 @@ Updated: February 14, 2026
 
 ## Current Sprint
 
-**Phase 3 Execution Queue (Post-Delivery Stabilization)** (Feb 13–28, 2026)
+**Sprint: Governance + Onboarding Stabilization** (Feb 14–28, 2026)
 
-See `ROADMAP.md` for full phase details and exit criteria.
+See `ROADMAP.md` for phase details and dependency order.
 
 ## Shipped This Sprint
 
-- `gaia chat` MVP with local session memory and resume (`#18`, PR #27)
-- Note/task capture workflow (`#19`, PR #28)
-- Research-link summarization workflow (`#20`, PR #29)
-- Goal-to-plan generation workflow (`#21`, PR #30)
-- Profile-aware preferences in local config (`#22`, PR #31)
-- Capability registry with permission levels (`#23`, PR #32)
-- Structured action traces for every executed step (`#24`, PR #33)
-- Deterministic smoke test suite for assistant critical paths (`#25`, PR #34)
-- Phase 1 hardening checklist + report artifacts (`PR #38`)
-- npm release `@gaia-minds/assistant-cli@0.2.0` (`PR #39`, tag `v0.2.0`)
-- `P2-A Scheduler` - recurring/scheduled execution runtime and persistence (`#51`, PR #67)
-- `P2-B Reminders` - proactive reminder workflows and cadence controls (`#52`, PR #68)
-- `P2-C Skills Runtime` - `gaia skills list/inspect` and loading/indexing (`#53`, PR #69)
-- `P2-D Skill Validation` - `gaia skills validate` onboarding security gate (`#54`, PR #70)
-- `P2-E Sandbox` - sandbox profiles and escalation approvals (`#55`, PR #71)
-- `P2-F Policy Engine` - per-skill tool allowlists and risk/source/scope gating (`#56`, PR #72)
-- `P2-G Audit & Traces` - unified skill/sandbox/policy trace schema and incident linkage (`#57`, PR #73)
-- `P2-H Quality` - malicious fixtures, UAT/benchmark expansion, compatibility matrix (`#58`, PR #74)
-- `P2-I Memory Research` - memory architecture options/tradeoffs, recommendation, and benchmark plan (`#60`)
-- `Memory Runtime Contract + SQLite Adapter` - SQLite-backed `gaia memory` CRUD runtime with policy/trace integration (`#75`)
-- `Memory Retrieval + Ranking Pipeline` - deterministic `gaia memory retrieve` stages, reranking, and benchmark thresholds (`#76`)
-- `Memory Policy + Privacy Controls` - consent/retention policy enforcement, export capability gating, and delete/export evidence artifacts (`#77`)
-- `Memory QA and Red-Team Harness` - deterministic poisoning/leakage QA fixtures with retrieval/safety/latency regression gates (`#78`)
-- `Post-Phase-2 Reassessment` - planning artifact + Phase 3 kickoff queue/state sync (`#84`, PR #88)
-- `Phase 3 Evidence Rubric` - self-evolution PR evidence contract + CI gate (`#85`, PR #89)
-- `Phase 3 Hypothesis Pipeline v1` - deterministic proposal -> eval -> evidence workflow (`#86`, PR #90)
-- `Phase 3 Reliability Baseline Checkpoint` - baseline thresholds + checkpoint tooling + triage workflow (`#87`, PR #91)
-- `Phase 3 Drift Detection` - deterministic checkpoint-history drift report + CI gate + triage linkage (`#93`)
-- `Phase 3 Canary Rollout Gate` - deterministic hypothesis rollout decision contract (`go|hold|rollback-required`) with CI fixture coverage (`#94`, PR #100)
-- `Phase 3 Token Budget Enforcement` - deterministic per-cycle/per-track hard token gate with explicit `allow|warn|defer|block` decisions (`#95`, PR #101)
-- `Phase 3 Feedback Loop Capture` - deterministic local feedback records with `helpful`/`not helpful`, correction text, and session/trace linkage (`#96`)
-- `Phase 3 Personalized Response Profiles + Memory Summarization` - deterministic profile-aware chat style selection, `gaia memory summarize` with source traceability ledger, and summarize benchmark gate (`#97`)
-- `Phase 3 Dead-Code/Dead-Artifact Audit` - repository-wide keep/remove/defer audit artifact with high-confidence runtime cleanup of unused assistant helpers (`#105`)
-- `Phase 3 Assistant Modular Refactor` - extracted CLI parser construction into dedicated module with stable entrypoint/package compatibility and no command-surface regression (`#106`)
-- `Phase 3 README Live-Preview Refresh` - updated terminal/animated assistant assets and source-of-truth mapping for current command surfaces (`#107`)
-- npm release `@gaia-minds/assistant-cli@0.3.0` readiness + publish workflow (`#108`, tag `v0.3.0`)
-- `Phase 3 Privacy-Preserving Unmet-Intent Signals` - derived-only unmet-intent signal runtime (`gaia signals extract/list/export/clear`) with default-on collection, explicit opt-out, 90-day retention, bounded storage, and privacy/QA gate coverage (`#111`)
-- `Phase 3 Skill-Import Security Research` - continuous security-validation synthesis for broad-source skill imports with execution-ready hardening lanes seeded (`#115`, PR `#124`)
-- `Phase 3 Skill Provenance Admission Gate` - deterministic source pin/attestation/source-health policy checks for `gaia skills validate` with pass/warn/fail regression coverage (`#122`, PR `#125`)
-- `Phase 3 Obfuscation-Aware Skill Validation Hardening` - canonicalization-aware blocking for encoded/hidden/split-token prompt-injection and sensitive-exfiltration payloads with deterministic fixture/smoke/UAT coverage (`#123`, PR `#126`)
-- `Phase 3 Skill-First Unmet-Intent Triage` - deterministic `gaia signals triage` classification (`existing-skill-enable` / `skill-import-candidate` / `core-feature-gap` / `out-of-scope-or-rejected`) with security-gated import-candidate routing and validation-aware skill enablement (`#112`, PR `#127`)
-- `Phase 3 Signal-Derived Hypothesis Candidate Integration` - deterministic signal+triage threshold routing into hypothesis candidate artifacts with opt-out enforcement, derived-signal-only guardrails, and promoted candidate stub generation for canary-gated hypothesis pipeline flow (`#113`, PR pending)
+Historical sprint delivery remains in `CHANGELOG.md`; this section tracks only the
+current active sprint window.
+
+- `Phase 3 Dead-Code/Dead-Artifact Audit` (`#105`)
+- `Phase 3 Assistant Modular Refactor` (`#106`)
+- `Phase 3 README Live-Preview Refresh` (`#107`)
+- npm release `@gaia-minds/assistant-cli@0.3.0` (`#108`, tag `v0.3.0`)
+- `Phase 3 Privacy-Preserving Unmet-Intent Signals` (`#111`)
+- `Phase 3 Skill-Import Security Research` (`#115`)
+- `Phase 3 Skill Provenance Admission Gate` (`#122`, PR #125)
+- `Phase 3 Obfuscation-Aware Skill Validation Hardening` (`#123`, PR #126)
+- `Phase 3 Skill-First Unmet-Intent Triage` (`#112`, PR #127)
+- `Phase 3 Signal-Derived Hypothesis Candidate Integration` (`#113`, PR #128)
 
 ## In Progress
 
 _Nothing currently in progress._
 
-## Next Up (Post-Phase-3 Delivery Queue)
+## Next Up (Ordered Queue)
 
-_No queued signal-driven follow-on lanes. Awaiting next planning round._
+1. `#134` Fix OAuth onboarding activation + provider dependency preflight for `gaia run`.
+2. `#129` Governance/state sync reset for README + CONTRIBUTING + STATUS/ROADMAP/CHANGELOG alignment.
+3. `#131` Refactor onboarding/auth surfaces out of `tools/gaia-assistant.py`.
+4. `#130` Add Claude Code OAuth onboarding in `gaia onboard` / `gaia auth`.
+5. `#132` Rebuild live preview from reproducible real Gaia interaction traces.
+6. `#133` Prepare next npm release after stabilization lanes merge.
 
-## Planned Next Wave (Signal-Driven Evolution Follow-On)
+## Planned Next Wave
 
-_No queued items._
+- Follow-on architecture lane for provider-adapter boundaries if `#131` reveals additional extraction required.
 
 ## Blocked
 
@@ -71,6 +47,6 @@ _Nothing blocked._
 
 ## How to Use This File
 
-- **Claiming work**: Move an item from "Next Up" to "In Progress" with your agent/user name and link to the GitHub issue.
-- **Completing work**: Move item to "Shipped This Sprint" with PR link.
-- **Update frequency**: Update on every PR merge or status change.
+- **Claiming work**: Move an item from "Next Up" to "In Progress" with owner + issue link.
+- **Completing work**: Move completed lane to "Shipped This Sprint" with PR/tag link.
+- **Sprint rollover**: At sprint boundary, archive shipped history in `CHANGELOG.md` and reset this file to active queue only.

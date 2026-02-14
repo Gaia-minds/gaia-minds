@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- Planning-round artifact for governance/onboarding stabilization sequencing with issue queue `#129`-`#134`, dependency order, and gate expectations (`infrastructure/planning-round-2026-02-14-governance-onboarding-release-reset.md`)
 - Obfuscation-aware canonicalization checks in `gaia skills validate` for encoded/hidden/split-token prompt-injection and sensitive-exfiltration directives, with bounded deterministic candidate scanning (`tools/gaia-assistant.py`, `#123`)
 - Detection-stage metadata on skill validation findings (`detection.mode/source/candidate_stage`) and per-file canonicalization scan summaries in report provenance (`tools/gaia-assistant.py`, `#123`)
 - Obfuscation fixture set for malicious bypass and benign false-positive guard coverage (`assistant/fixtures/skills/malicious-obfuscated-prompt-injection/SKILL.md`, `assistant/fixtures/skills/malicious-obfuscated-exfiltration/SKILL.md`, `assistant/fixtures/skills/benign-obfuscation-control/SKILL.md`, `assistant/fixtures/skills/manifest.json`, `#123`)
@@ -38,6 +39,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Follow-on hardening issue set seeded from `#115`: provenance admission gate (`#122`) and obfuscation-aware validator/fixture expansion (`#123`)
 
 ### Changed
+- Sprint state docs now track only active queue lanes and include the user-reported OAuth onboarding continuity fix lane (`#134`) before onboarding expansion/release work (`STATUS.md`, `ROADMAP.md`)
+- Phase 3 immediate priorities were reset from stale completed items to the active stabilization queue (`#129`-`#134`) with explicit merge order and release dependency gating (`ROADMAP.md`)
 - Top-level roadmap/status state now marks `#113` delivered and the signal-driven follow-on queue complete pending next planning round (`STATUS.md`, `ROADMAP.md`)
 - Top-level roadmap/status state now marks `#123` delivered and advances signal-driven queue sequencing with `#112` triage delivery evidence (`STATUS.md`, `ROADMAP.md`)
 - Top-level roadmap/status state now marks `#122` delivered and advances active queue ownership to `#123` (`STATUS.md`, `ROADMAP.md`)

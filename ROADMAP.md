@@ -154,7 +154,7 @@ Integration order is intentionally light:
 ## Phase 3: Framework Self-Evolution v1
 
 Timeline: February 13 to March 21, 2026
-Status: In Progress (kickoff queue delivered; stabilization queue published as of February 14, 2026)
+Status: In Progress (signal-driven queue delivered; sprint reset queue opened on February 14, 2026)
 
 Assistant track outcomes:
 
@@ -212,6 +212,30 @@ Execution queue (signal-driven self-evolution follow-on; planning published):
 Recommended merge order:
 
 1. Queue delivered; next planning round should seed the next framework-evolution lane set.
+
+Execution queue (governance + onboarding stabilization sprint reset):
+
+- `#134` Fix OAuth onboarding activation + provider dependency preflight for `gaia run` (queued; based on user reproduction)
+- `#129` Governance/state sync reset across `README.md`, `CONTRIBUTING.md`, `STATUS.md`, `ROADMAP.md`, and `CHANGELOG.md` (queued)
+- `#131` Refactor onboarding/auth surfaces out of `tools/gaia-assistant.py` (queued)
+- `#130` Add Claude Code OAuth onboarding path to `gaia onboard` + `gaia auth` (queued; depends on `#131`)
+- `#132` Rebuild live preview from reproducible real Gaia interaction traces (queued)
+- `#133` Prepare next npm release after stabilization lanes merge (queued; release gate)
+
+Recommended merge order:
+
+1. `#134` (fix broken OAuth onboarding -> run continuity first)
+2. `#129` (source-of-truth reset for docs/state)
+3. `#131` (onboarding/auth refactor boundary)
+4. `#130` (Claude Code OAuth onboarding integration)
+5. `#132` (live preview refresh from reproducible captures)
+6. `#133` (release preparation and publish)
+
+Claude Code OAuth implementation notes (for `#130`):
+
+- Use official Claude CLI auth commands (`claude auth login`, `claude auth status --json`) as onboarding/status surfaces.
+- Respect official credential handling model: credentials are stored in OS keychain/libsecret/credential manager, not in-repo files.
+- Gaia should persist only minimal profile linkage metadata required for launcher UX and status checks.
 
 Privacy/architecture rule for this queue:
 
@@ -312,9 +336,9 @@ Framework KPIs:
 
 ## Immediate 14-Day Priorities
 
-1. Publish reliability baseline checkpoint and SLO-style thresholds for Phase 3 work (`#87`).
-2. Re-run planning review on February 16, 2026 with updated queue/metrics evidence.
-3. Keep Phase 3 governance docs/state aligned as `#87` lands.
+1. Fix onboarding/runtime continuity regression (`#134`) so successful OAuth onboarding leads to a runnable default path.
+2. Complete governance/state reset lane (`#129`) so onboarding/contributor docs and sprint tracking stop diverging.
+3. Land onboarding/auth module extraction (`#131`), Claude Code OAuth integration (`#130`), and publish next npm release after full validation (`#132`, `#133`).
 
 ## Milestones Log
 
@@ -337,5 +361,7 @@ Framework KPIs:
 | 2026-02-13 | Phase 3 kickoff issue set opened | Issues #85, #86, #87 |
 | 2026-02-13 | Phase 3 evidence rubric merged | Issue #85 via PR #89 |
 | 2026-02-13 | Phase 3 hypothesis pipeline v1 merged | Issue #86 via PR #90 |
+| 2026-02-14 | Signal-driven follow-on queue completed | Issues #111, #112, #113, #115, #122, #123 merged |
+| 2026-02-14 | Governance/onboarding stabilization sprint queue opened | Issues #129, #130, #131, #132, #133, #134 |
 
 This roadmap is a living document and should be updated at least weekly.
