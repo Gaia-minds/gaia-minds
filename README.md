@@ -110,7 +110,7 @@ protocol for agent onboarding and execution.
 
 It defines:
 
-- main-role handshake (`planner` or `contributor`) before work starts
+- main-role resolution (`planner` or `contributor`) before work starts
 - mandatory remote-first sync before any planning or issue claim
 - autonomous issue selection for contributor role
 - strict main-role/sub-role matrix + mandatory merge gates
@@ -125,8 +125,8 @@ Target repository: https://github.com/Gaia-minds/gaia-minds.git (Gaia-minds/gaia
 Sync with remote first: verify `git remote get-url origin` points to Gaia-minds/gaia-minds, then run `git fetch origin` + `git pull --ff-only origin main`, and check open issues/PRs on GitHub.
 Then read CONSTITUTION.md, skills/gaia-contributor/SKILL.md, and infrastructure/agent-execution-protocol.md.
 Follow infrastructure/agent-execution-protocol.md as your operating protocol.
-Ask me which main role to take: planner or contributor.
-Do not start work until I answer.
+Select your main role autonomously: planner for planning/reprioritization rounds, contributor for implementation/research/docs/review execution.
+Do not wait for role confirmation; declare your selected main role and proceed.
 Use all other skills only as sub-roles under the chosen main role.
 Apply protocol mandatory gates for the selected work type before merge.
 ```

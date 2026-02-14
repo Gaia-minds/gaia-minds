@@ -53,13 +53,24 @@ All other skills are sub-roles and must be used under one of the two main roles:
 
 ## Startup Handshake (Required)
 
-After completing remote-first sync and reading repo context, the agent must ask:
+After completing remote-first sync and reading repo context, the agent must
+resolve the main role before work starts.
 
-`Which main role should I take: planner or contributor?`
+Autonomous mode rule:
+- If the human/operator explicitly requests unattended/autonomous execution,
+  select the main role directly:
+  - `planner` for planning/reprioritization/decomposition rounds
+  - `contributor` for implementation/research/docs/review execution
+  Then declare the selected main role in the first issue/PR comment and proceed
+  without waiting for role confirmation.
+
+Interactive mode rule:
+- If unattended/autonomous execution is not explicitly requested, ask:
+  `Which main role should I take: planner or contributor?`
 
 Rules:
 
-1. Do not start work before main-role confirmation (unless human explicitly requests unattended/autonomous mode).
+1. Do not start work before main-role resolution (interactive confirmation or autonomous self-selection).
 2. Declare chosen main role in first issue/PR comment.
 3. Trigger sub-role skills only when task conditions require them.
 
@@ -201,9 +212,9 @@ Required startup:
 3) Read CONSTITUTION.md
 4) Read skills/gaia-contributor/SKILL.md
 5) Read infrastructure/agent-execution-protocol.md and follow it as the operating protocol
-6) Ask me which main role to take: planner or contributor
+6) Select your main role autonomously (planner or contributor) based on task type, declare it, and proceed without waiting for confirmation
 
-Do not start work until I answer with the main role.
+Do not start work until the main role is resolved and declared.
 
 Then:
 - If planner: run a planning round and publish the planning artifact.

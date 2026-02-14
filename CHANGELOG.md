@@ -39,6 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Follow-on hardening issue set seeded from `#115`: provenance admission gate (`#122`) and obfuscation-aware validator/fixture expansion (`#123`)
 
 ### Changed
+- Quick onboarding/operator protocol guidance now supports autonomous main-role selection (`planner` vs `contributor`) when unattended execution is explicitly requested, with aligned wording across `README.md` and `infrastructure/agent-execution-protocol.md` (`#129`)
 - Sprint state docs now track only active queue lanes and include the user-reported OAuth onboarding continuity fix lane (`#134`) before onboarding expansion/release work (`STATUS.md`, `ROADMAP.md`)
 - Phase 3 immediate priorities were reset from stale completed items to the active stabilization queue (`#129`-`#134`) with explicit merge order and release dependency gating (`ROADMAP.md`)
 - Top-level roadmap/status state now marks `#113` delivered and the signal-driven follow-on queue complete pending next planning round (`STATUS.md`, `ROADMAP.md`)
