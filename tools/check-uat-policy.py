@@ -2,7 +2,8 @@
 """Enforce Gaia UAT coverage and change-governance policy.
 
 Policy highlights:
-- Every command path in tools/gaia-assistant.py must be mapped in assistant/feature-catalog.json.
+- Every command path in tools/gaia-assistant.py and tools/gaia_assistant_parser.py
+  must be mapped in assistant/feature-catalog.json.
 - Every action type in tools/agent-actions.py must be mapped in assistant/feature-catalog.json.
 - New command/action features vs base ref require UAT updates in the same PR.
 - Changes to protected UAT assets require:
@@ -28,6 +29,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CATALOG = REPO_ROOT / "assistant" / "feature-catalog.json"
 DEFAULT_MANIFEST = REPO_ROOT / "assistant" / "uat-scenarios.json"
 DEFAULT_ASSISTANT_FILE = REPO_ROOT / "tools" / "gaia-assistant.py"
+DEFAULT_ASSISTANT_PARSER_FILE = REPO_ROOT / "tools" / "gaia_assistant_parser.py"
 DEFAULT_ACTIONS_FILE = REPO_ROOT / "tools" / "agent-actions.py"
 DEFAULT_PROTECTED_PATHS = [
     "assistant/feature-catalog.json",
@@ -101,6 +103,13 @@ def _extract_action_types(text: str) -> Set[str]:
 
 def _extract_from_ref(ref: str, rel_path: str) -> str:
     return _run_git(["show", f"{ref}:{rel_path}"])
+
+
+def _extract_from_ref_optional(ref: str, rel_path: str) -> str:
+    try:
+        return _extract_from_ref(ref, rel_path)
+    except Exception:
+        return ""
 
 
 def _merge_base(ref: str) -> str:
@@ -197,6 +206,11 @@ def main() -> int:
     parser.add_argument("--catalog", default=str(DEFAULT_CATALOG), help="Feature catalog JSON path")
     parser.add_argument("--manifest", default=str(DEFAULT_MANIFEST), help="UAT scenarios JSON path")
     parser.add_argument("--assistant-file", default=str(DEFAULT_ASSISTANT_FILE), help="Assistant CLI source file")
+    parser.add_argument(
+        "--assistant-parser-file",
+        default=str(DEFAULT_ASSISTANT_PARSER_FILE),
+        help="Assistant CLI parser source file",
+    )
     parser.add_argument("--actions-file", default=str(DEFAULT_ACTIONS_FILE), help="Agent actions source file")
     parser.add_argument("--base-ref", default="origin/main", help="Base ref for new-feature diff checks")
     parser.add_argument("--reviewer", default="TonyThePredictor", help="Required reviewer for protected UAT changes")
@@ -214,6 +228,7 @@ def main() -> int:
     catalog_path = Path(args.catalog).expanduser()
     manifest_path = Path(args.manifest).expanduser()
     assistant_path = Path(args.assistant_file).expanduser()
+    assistant_parser_path = Path(args.assistant_parser_file).expanduser()
     actions_path = Path(args.actions_file).expanduser()
 
     try:
@@ -291,12 +306,14 @@ def main() -> int:
 
     try:
         assistant_text = assistant_path.read_text(encoding="utf-8")
+        assistant_parser_text = assistant_parser_path.read_text(encoding="utf-8")
         actions_text = actions_path.read_text(encoding="utf-8")
     except OSError as exc:
         print(f"error: unable to read source files: {exc}")
         return 1
 
     head_commands = _extract_command_paths(assistant_text)
+    head_commands.update(_extract_command_paths(assistant_parser_text))
     head_actions = _extract_action_types(actions_text)
 
     missing_commands = sorted(head_commands - set(command_map.keys()))
@@ -310,8 +327,13 @@ def main() -> int:
         base_sha = _merge_base(args.base_ref)
         changed_files = _changed_files(base_sha)
         base_assistant = _extract_from_ref(base_sha, str(assistant_path.relative_to(REPO_ROOT)))
+        base_assistant_parser = _extract_from_ref_optional(
+            base_sha,
+            str(assistant_parser_path.relative_to(REPO_ROOT)),
+        )
         base_actions = _extract_from_ref(base_sha, str(actions_path.relative_to(REPO_ROOT)))
         base_commands = _extract_command_paths(base_assistant)
+        base_commands.update(_extract_command_paths(base_assistant_parser))
         base_action_types = _extract_action_types(base_actions)
         new_commands = sorted(head_commands - base_commands)
         new_action_types = sorted(head_actions - base_action_types)

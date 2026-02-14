@@ -32,6 +32,9 @@ def build_parser(ctx: Dict[str, Any]) -> argparse.ArgumentParser:
     REMINDER_DEFAULT_WINDOW_MINUTES = ctx["REMINDER_DEFAULT_WINDOW_MINUTES"]
     RESPONSE_PROFILE_CHOICES = ctx["RESPONSE_PROFILE_CHOICES"]
     SANDBOX_PROFILE_CHOICES = ctx["SANDBOX_PROFILE_CHOICES"]
+    SIGNALS_LIST_DEFAULT_LIMIT = ctx["SIGNALS_LIST_DEFAULT_LIMIT"]
+    SIGNALS_LIST_MAX_LIMIT = ctx["SIGNALS_LIST_MAX_LIMIT"]
+    SIGNALS_TYPE_CHOICES = ctx["SIGNALS_TYPE_CHOICES"]
     SCHEDULE_DEFAULT_WINDOW_MINUTES = ctx["SCHEDULE_DEFAULT_WINDOW_MINUTES"]
     SCHEDULE_MUTABLE_STATUS_CHOICES = ctx["SCHEDULE_MUTABLE_STATUS_CHOICES"]
     SCHEDULE_STATUS_CHOICES = ctx["SCHEDULE_STATUS_CHOICES"]
@@ -80,6 +83,10 @@ def build_parser(ctx: Dict[str, Any]) -> argparse.ArgumentParser:
     cmd_schedule_list = ctx["cmd_schedule_list"]
     cmd_schedule_run_due = ctx["cmd_schedule_run_due"]
     cmd_schedule_update = ctx["cmd_schedule_update"]
+    cmd_signals_clear = ctx["cmd_signals_clear"]
+    cmd_signals_export = ctx["cmd_signals_export"]
+    cmd_signals_extract = ctx["cmd_signals_extract"]
+    cmd_signals_list = ctx["cmd_signals_list"]
     cmd_skills_inspect = ctx["cmd_skills_inspect"]
     cmd_skills_list = ctx["cmd_skills_list"]
     cmd_skills_validate = ctx["cmd_skills_validate"]
@@ -344,6 +351,54 @@ def build_parser(ctx: Dict[str, Any]) -> argparse.ArgumentParser:
     )
     feedback_list.add_argument("--json", dest="as_json", action="store_true", help="Emit feedback list JSON")
     feedback_list.set_defaults(func=cmd_feedback_list)
+
+    signals = sub.add_parser("signals", help="Derive and inspect privacy-preserving unmet-intent signals")
+    signals_sub = signals.add_subparsers(dest="signals_command", required=True)
+
+    signals_extract = signals_sub.add_parser(
+        "extract",
+        help="Derive unmet-intent signals from local feedback and trace artifacts",
+    )
+    signals_extract.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    signals_extract.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    signals_extract.add_argument("--trace-dir", default=None, help="Trace directory override")
+    signals_extract.add_argument("--json", dest="as_json", action="store_true", help="Emit extraction payload JSON")
+    signals_extract.set_defaults(func=cmd_signals_extract)
+
+    signals_list = signals_sub.add_parser("list", help="List derived unmet-intent signals")
+    signals_list.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    signals_list.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    signals_list.add_argument("--trace-dir", default=None, help="Trace directory override")
+    signals_list.add_argument(
+        "--type",
+        dest="signal_type",
+        choices=list(SIGNALS_TYPE_CHOICES),
+        default=None,
+        help="Filter by signal type",
+    )
+    signals_list.add_argument("--intent-tag", default=None, help="Filter by intent tag substring")
+    signals_list.add_argument(
+        "--limit",
+        type=int,
+        default=SIGNALS_LIST_DEFAULT_LIMIT,
+        help=f"Max rows to return (1..{SIGNALS_LIST_MAX_LIMIT})",
+    )
+    signals_list.add_argument("--json", dest="as_json", action="store_true", help="Emit signal list JSON")
+    signals_list.set_defaults(func=cmd_signals_list)
+
+    signals_export = signals_sub.add_parser("export", help="Export the local unmet-intent signal ledger")
+    signals_export.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    signals_export.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    signals_export.add_argument("--trace-dir", default=None, help="Trace directory override")
+    signals_export.add_argument("--path", default=None, help="Export file path (JSON)")
+    signals_export.add_argument("--json", dest="as_json", action="store_true", help="Emit export payload JSON")
+    signals_export.set_defaults(func=cmd_signals_export)
+
+    signals_clear = signals_sub.add_parser("clear", help="Clear the local unmet-intent signal ledger")
+    signals_clear.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    signals_clear.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    signals_clear.add_argument("--trace-dir", default=None, help="Trace directory override")
+    signals_clear.set_defaults(func=cmd_signals_clear)
 
     memory = sub.add_parser("memory", help="Manage structured long-term memory records")
     memory_sub = memory.add_subparsers(dest="memory_command", required=True)

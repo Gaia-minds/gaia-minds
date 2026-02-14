@@ -46,18 +46,18 @@ See `ROADMAP.md` for full phase details and exit criteria.
 - `Phase 3 Assistant Modular Refactor` - extracted CLI parser construction into dedicated module with stable entrypoint/package compatibility and no command-surface regression (`#106`)
 - `Phase 3 README Live-Preview Refresh` - updated terminal/animated assistant assets and source-of-truth mapping for current command surfaces (`#107`)
 - npm release `@gaia-minds/assistant-cli@0.3.0` readiness + publish workflow (`#108`, tag `v0.3.0`)
+- `Phase 3 Privacy-Preserving Unmet-Intent Signals` - derived-only unmet-intent signal runtime (`gaia signals extract/list/export/clear`) with default-on collection, explicit opt-out, 90-day retention, bounded storage, and privacy/QA gate coverage (`#111`)
 
 ## In Progress
 
-_Nothing in progress._
+_No active lane currently claimed in this branch snapshot._
 
 ## Next Up (Post-Phase-3 Delivery Queue)
 
-_No queued stabilization lanes. Next queue begins with signal-driven follow-on (`#111`, `#115`, `#112`, `#113`)._
+_No queued stabilization lanes. Next queue continues with signal-driven follow-on (`#115`, `#112`, `#113`)._
 
 ## Planned Next Wave (Signal-Driven Evolution Follow-On)
 
-- `#111` `[Phase 3][Framework]` Privacy-preserving unmet-intent signal extraction from user interactions (default-on + opt-out, 90-day retention) (after `#108`)
 - `#115` `[Phase 3][Framework][Research]` Continuous security validation research for broad-source skill imports (parallel support lane)
 - `#112` `[Phase 3][Framework]` Skill-first triage for unmet-intent signals (`existing-skill-enable` / `skill-import-candidate` / `core-feature-gap`) with broad-source import candidates gated by security validation (depends on `#111`, informed by `#115`)
 - `#113` `[Phase 3][Framework]` Integrate unmet-intent signals into hypothesis candidate generation (depends on `#111` + `#112`)

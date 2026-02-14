@@ -9,10 +9,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
-- _Nothing yet._
+- Privacy-preserving unmet-intent signal command surface (`gaia signals extract/list/export/clear`) with deterministic derived-signal schema and local inspection/export/clear controls (`tools/gaia-assistant.py`, `tools/gaia_assistant_parser.py`, `#111`)
+- Default-on signal collection controls with explicit opt-out and bounded retention/cap settings via config keys (`signals_enabled`, `signals_retention_days`, `signals_max_records`) (`tools/gaia-assistant.py`, `#111`)
+- Local unmet-intent signal artifacts:
+  - `~/.gaia-assistant/data/unmet-intent-signals.json`
+  - `~/.gaia-assistant/data/unmet-intent-signal-exports.jsonl`
+- Deterministic smoke/UAT coverage for signal extraction privacy controls, opt-out behavior, retention-window enforcement, bounded storage cap, and export/clear flows (`tools/smoke-test.sh`, `assistant/uat-scenarios.json`, `assistant/feature-catalog.json`, `#111`)
+- UAT governance change record for unmet-intent signal command-surface coverage (`docs/uat-changes/2026-02-14-signals-surface.md`)
 
 ### Changed
-- _Nothing yet._
+- UAT policy checker now enforces command-path coverage across both assistant CLI sources after parser modularization (`tools/gaia-assistant.py` + `tools/gaia_assistant_parser.py`) (`tools/check-uat-policy.py`, `assistant/uat-policy.md`)
+- Assistant/runtime architecture docs now include unmet-intent signal privacy boundaries, retention/cap behavior, and command usage (`README.md`, `assistant/README.md`, `infrastructure/architecture.md`, `#111`)
 
 ### Removed
 - _Nothing yet._

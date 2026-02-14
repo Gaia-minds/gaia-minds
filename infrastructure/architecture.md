@@ -858,6 +858,72 @@ Lane: `Personalized response profiles and memory summarization` (`#97`)
 - Updated UAT feature-governance mapping for new command path:
   - `memory summarize`
 
+## Phase 3 Delta: Privacy-Preserving Unmet-Intent Signals (2026-02-14)
+
+Lane: `Privacy-preserving unmet-intent signal extraction from user interactions`
+(`#111`)
+
+### Runtime command surface
+
+- Added unmet-intent signal commands in assistant launcher:
+  - `gaia signals extract`
+  - `gaia signals list`
+  - `gaia signals export`
+  - `gaia signals clear`
+- Added explicit config controls through existing `gaia config set/get`:
+  - `signals_enabled`
+  - `signals_retention_days`
+  - `signals_max_records`
+
+### Derivation model and privacy boundary
+
+- Signals are derived deterministically from local artifacts:
+  - feedback records (`feedback.json`)
+  - structured action traces (`actions.jsonl`) with `error|blocked` outcomes
+- Signal ledger stores derived-only fields:
+  - `signal_id`, `signal_type`, `intent_tag`, `confidence`, `count`
+  - `first_seen_at`, `last_seen_at`, `source_event_ids`
+- Raw conversation transcript text is not copied into signal artifacts.
+- `source_event_ids` reference local feedback/trace IDs only.
+
+### Persistence, retention, and bounded storage
+
+- Added local signal ledger:
+  - `~/.gaia-assistant/data/unmet-intent-signals.json`
+- Added local signal export event log:
+  - `~/.gaia-assistant/data/unmet-intent-signal-exports.jsonl`
+- Product lock implemented:
+  - collection default: on
+  - explicit opt-out: `signals_enabled=false`
+  - retention default: 90 days
+  - deterministic cap: `signals_max_records`
+
+### Traceability and policy gates
+
+- Added structured trace events for signal operations:
+  - `signals_extract`
+  - `signals_list`
+  - `signals_export`
+  - `signals_clear`
+- Capability gates enforce local policy model:
+  - `memory_write` for extraction writes
+  - `memory_read` for listing
+  - `memory_export` for export
+  - `memory_delete` for clear
+
+### Deterministic quality coverage
+
+- Expanded smoke suite:
+  - `signals_extraction_privacy_controls`
+- Expanded deterministic UAT suite:
+  - `signals_extraction_privacy_controls`
+- Updated UAT feature governance map for new command paths:
+  - `signals`
+  - `signals extract`
+  - `signals list`
+  - `signals export`
+  - `signals clear`
+
 ## Phase 3 Delta: Assistant Parser Modularization (2026-02-14)
 
 Lane: `Refactor tools/gaia-assistant.py into modular command packages` (`#106`)
