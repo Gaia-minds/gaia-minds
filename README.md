@@ -46,6 +46,7 @@ See `assistant/README.md` for full runtime and release docs.
   - `assistant` (user-facing improvements)
   - `framework` (self-evolving engine improvements)
 - Default token budget split: `80%` user service, `20%` self-improvement
+- Token budget enforcement includes deterministic per-cycle + per-track caps with explicit breach action (`warn`/`defer`/`block`)
 
 ### Live Preview
 

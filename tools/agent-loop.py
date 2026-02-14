@@ -117,7 +117,14 @@ DEFAULT_BUDGET_POLICY: Dict[str, Any] = {
     "user_service_pct": 80,
     "self_improvement_pct": 20,
     "hard_cycle_token_cap": 12000,
+    "hard_window_token_cap": 60000,
+    "window": "daily_utc",
+    "warning_threshold_pct": 80,
+    "breach_action": "block",
+    "estimated_tokens_per_action": 400,
 }
+SUPPORTED_BUDGET_WINDOWS = {"hourly_utc", "daily_utc", "weekly_utc"}
+SUPPORTED_BREACH_ACTIONS = {"warn", "defer", "block"}
 
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
 DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
@@ -136,6 +143,7 @@ MEMORY_DIR = Path(
 DECISIONS_PATH = MEMORY_DIR / "decisions.jsonl"
 LESSONS_PATH = MEMORY_DIR / "lessons.jsonl"
 STATE_PATH = MEMORY_DIR / "state.json"
+BUDGET_DECISIONS_PATH = MEMORY_DIR / "budget-decisions.jsonl"
 
 
 def load_config(path: Path = CONFIG_PATH) -> Dict[str, Any]:
@@ -334,10 +342,15 @@ def _resolve_openrouter_runtime(config: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def load_memory(n_decisions: int = 10, n_lessons: int = 10) -> Dict[str, Any]:
+def load_memory(
+    n_decisions: int = 10,
+    n_lessons: int = 10,
+    n_budget_decisions: int = 10,
+) -> Dict[str, Any]:
     """Load recent decisions, lessons, and state from agent-memory/."""
     memory: Dict[str, Any] = {
         "recent_decisions": [],
+        "recent_budget_decisions": [],
         "lessons": [],
         "state": {},
     }
@@ -361,6 +374,17 @@ def load_memory(n_decisions: int = 10, n_lessons: int = 10) -> Dict[str, Any]:
             if line:
                 try:
                     memory["lessons"].append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+
+    # Budget decisions (last N lines)
+    if BUDGET_DECISIONS_PATH.exists():
+        lines = BUDGET_DECISIONS_PATH.read_text(encoding="utf-8").strip().splitlines()
+        for line in lines[-n_budget_decisions:]:
+            line = line.strip()
+            if line:
+                try:
+                    memory["recent_budget_decisions"].append(json.loads(line))
                 except json.JSONDecodeError:
                     pass
 
@@ -399,6 +423,17 @@ def log_decision(
         f.write(json.dumps(record) + "\n")
 
 
+def log_budget_decision(cycle: int, payload: Dict[str, Any]) -> None:
+    """Append a structured budget-decision record to budget-decisions.jsonl."""
+    record = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "cycle": cycle,
+    }
+    record.update(payload)
+    with open(BUDGET_DECISIONS_PATH, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record) + "\n")
+
+
 def log_lesson(cycle: int, lesson: str, source: str, context: str = "") -> None:
     """Append a lesson to lessons.jsonl."""
     record = {
@@ -417,6 +452,8 @@ def update_state(
     results: List[ActionResult],
     active_track: str = "unknown",
     budget_policy: Optional[Dict[str, Any]] = None,
+    budget_runtime: Optional[Dict[str, Any]] = None,
+    budget_decision: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Update state.json with cycle results."""
     state = {}
@@ -435,6 +472,10 @@ def update_state(
     state["track_counts"] = track_counts
     if budget_policy:
         state["budget_policy"] = budget_policy
+    if budget_runtime:
+        state["budget_runtime"] = budget_runtime
+    if budget_decision:
+        state["last_budget_decision"] = budget_decision
 
     for r in results:
         if r.artifacts.get("pr_url"):
@@ -478,9 +519,14 @@ def commit_memory(cycle: int) -> None:
 def rotate_logs(config: Dict[str, Any]) -> None:
     """Rotate decision and lesson logs if they exceed configured limits."""
     max_decisions = config.get("memory", {}).get("max_decisions_log_entries", 500)
+    max_budget_decisions = config.get("memory", {}).get("max_budget_decision_entries", 500)
     max_lessons = config.get("memory", {}).get("max_lessons_entries", 100)
 
-    for path, limit in [(DECISIONS_PATH, max_decisions), (LESSONS_PATH, max_lessons)]:
+    for path, limit in [
+        (DECISIONS_PATH, max_decisions),
+        (BUDGET_DECISIONS_PATH, max_budget_decisions),
+        (LESSONS_PATH, max_lessons),
+    ]:
         if not path.exists():
             continue
         lines = path.read_text(encoding="utf-8").strip().splitlines()
@@ -514,23 +560,426 @@ def normalized_track_config(config: Dict[str, Any]) -> Dict[str, Dict[str, Any]]
     return out
 
 
-def normalized_budget_policy(config: Dict[str, Any]) -> Dict[str, Any]:
-    """Return normalized budget policy with safe defaults."""
+def _parse_int(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _non_negative_int(value: Any, default: int = 0) -> int:
+    parsed = _parse_int(value, default)
+    return parsed if parsed >= 0 else default
+
+
+def validate_budget_policy_config(config: Dict[str, Any]) -> List[str]:
+    """Validate budget contract fields and return blocking startup errors."""
     budget_cfg = config.get("budget", {})
-    out = dict(DEFAULT_BUDGET_POLICY)
-    out.update(budget_cfg if isinstance(budget_cfg, dict) else {})
-    for key in ("user_service_pct", "self_improvement_pct", "hard_cycle_token_cap"):
+    if budget_cfg is None:
+        budget_cfg = {}
+    if not isinstance(budget_cfg, dict):
+        return ["budget must be a mapping in tools/agent-config.yml"]
+
+    errors: List[str] = []
+
+    def read_int(
+        field: str,
+        *,
+        min_value: Optional[int] = None,
+        max_value: Optional[int] = None,
+    ) -> Optional[int]:
+        if field not in budget_cfg:
+            return None
+        raw = budget_cfg.get(field)
         try:
-            out[key] = int(out[key])
+            parsed = int(raw)
         except (TypeError, ValueError):
-            out[key] = DEFAULT_BUDGET_POLICY[key]
-    if out["user_service_pct"] < 0:
-        out["user_service_pct"] = DEFAULT_BUDGET_POLICY["user_service_pct"]
-    if out["self_improvement_pct"] < 0:
-        out["self_improvement_pct"] = DEFAULT_BUDGET_POLICY["self_improvement_pct"]
-    if out["hard_cycle_token_cap"] < 1:
-        out["hard_cycle_token_cap"] = DEFAULT_BUDGET_POLICY["hard_cycle_token_cap"]
-    return out
+            errors.append(f"budget.{field} must be an integer")
+            return None
+        if min_value is not None and parsed < min_value:
+            errors.append(f"budget.{field} must be >= {min_value}")
+        if max_value is not None and parsed > max_value:
+            errors.append(f"budget.{field} must be <= {max_value}")
+        return parsed
+
+    user_pct = read_int("user_service_pct", min_value=0)
+    self_pct = read_int("self_improvement_pct", min_value=0)
+    if user_pct is not None and self_pct is not None and (user_pct + self_pct) <= 0:
+        errors.append("budget.user_service_pct + budget.self_improvement_pct must be > 0")
+
+    hard_cycle = read_int("hard_cycle_token_cap", min_value=1)
+    hard_window = read_int("hard_window_token_cap", min_value=1)
+    if hard_cycle is not None and hard_window is not None and hard_window < hard_cycle:
+        errors.append("budget.hard_window_token_cap must be >= budget.hard_cycle_token_cap")
+
+    read_int("warning_threshold_pct", min_value=1, max_value=100)
+    read_int("estimated_tokens_per_action", min_value=0)
+
+    window = budget_cfg.get("window")
+    if window is not None:
+        window_value = str(window).strip().lower()
+        if window_value not in SUPPORTED_BUDGET_WINDOWS:
+            allowed = ", ".join(sorted(SUPPORTED_BUDGET_WINDOWS))
+            errors.append(f"budget.window must be one of: {allowed}")
+
+    breach_action = budget_cfg.get("breach_action")
+    if breach_action is not None:
+        breach_value = str(breach_action).strip().lower()
+        if breach_value not in SUPPORTED_BREACH_ACTIONS:
+            allowed = ", ".join(sorted(SUPPORTED_BREACH_ACTIONS))
+            errors.append(f"budget.breach_action must be one of: {allowed}")
+
+    cycle_cap_limit = (
+        hard_cycle
+        if hard_cycle is not None
+        else int(DEFAULT_BUDGET_POLICY["hard_cycle_token_cap"])
+    )
+    window_cap_limit = (
+        hard_window
+        if hard_window is not None
+        else int(DEFAULT_BUDGET_POLICY["hard_window_token_cap"])
+    )
+
+    for key, cap_limit in (
+        ("track_cycle_token_cap", cycle_cap_limit),
+        ("track_window_token_cap", window_cap_limit),
+    ):
+        caps = budget_cfg.get(key)
+        if caps is None:
+            continue
+        if not isinstance(caps, dict):
+            errors.append(f"budget.{key} must be a mapping with assistant/framework keys")
+            continue
+        for track in ("assistant", "framework"):
+            if track not in caps:
+                errors.append(f"budget.{key}.{track} is required when budget.{key} is set")
+                continue
+            try:
+                track_cap = int(caps[track])
+            except (TypeError, ValueError):
+                errors.append(f"budget.{key}.{track} must be an integer")
+                continue
+            if track_cap < 1:
+                errors.append(f"budget.{key}.{track} must be >= 1")
+            if track_cap > cap_limit:
+                errors.append(
+                    f"budget.{key}.{track} must be <= budget."
+                    f"{'hard_cycle_token_cap' if key == 'track_cycle_token_cap' else 'hard_window_token_cap'}"
+                )
+
+    return errors
+
+
+def normalized_budget_policy(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Return normalized budget policy with explicit global + track caps."""
+    budget_cfg = config.get("budget", {})
+    budget_cfg = budget_cfg if isinstance(budget_cfg, dict) else {}
+
+    user_pct = _parse_int(
+        budget_cfg.get("user_service_pct", DEFAULT_BUDGET_POLICY["user_service_pct"]),
+        int(DEFAULT_BUDGET_POLICY["user_service_pct"]),
+    )
+    self_pct = _parse_int(
+        budget_cfg.get(
+            "self_improvement_pct",
+            DEFAULT_BUDGET_POLICY["self_improvement_pct"],
+        ),
+        int(DEFAULT_BUDGET_POLICY["self_improvement_pct"]),
+    )
+    if user_pct < 0:
+        user_pct = int(DEFAULT_BUDGET_POLICY["user_service_pct"])
+    if self_pct < 0:
+        self_pct = int(DEFAULT_BUDGET_POLICY["self_improvement_pct"])
+    split_total = user_pct + self_pct
+    if split_total <= 0:
+        user_pct = int(DEFAULT_BUDGET_POLICY["user_service_pct"])
+        self_pct = int(DEFAULT_BUDGET_POLICY["self_improvement_pct"])
+        split_total = user_pct + self_pct
+
+    hard_cycle = _parse_int(
+        budget_cfg.get("hard_cycle_token_cap", DEFAULT_BUDGET_POLICY["hard_cycle_token_cap"]),
+        int(DEFAULT_BUDGET_POLICY["hard_cycle_token_cap"]),
+    )
+    if hard_cycle < 1:
+        hard_cycle = int(DEFAULT_BUDGET_POLICY["hard_cycle_token_cap"])
+
+    hard_window = _parse_int(
+        budget_cfg.get("hard_window_token_cap", DEFAULT_BUDGET_POLICY["hard_window_token_cap"]),
+        int(DEFAULT_BUDGET_POLICY["hard_window_token_cap"]),
+    )
+    if hard_window < hard_cycle:
+        hard_window = max(hard_cycle, int(DEFAULT_BUDGET_POLICY["hard_window_token_cap"]))
+
+    warning_threshold_pct = _parse_int(
+        budget_cfg.get("warning_threshold_pct", DEFAULT_BUDGET_POLICY["warning_threshold_pct"]),
+        int(DEFAULT_BUDGET_POLICY["warning_threshold_pct"]),
+    )
+    if warning_threshold_pct < 1 or warning_threshold_pct > 100:
+        warning_threshold_pct = int(DEFAULT_BUDGET_POLICY["warning_threshold_pct"])
+
+    estimated_tokens_per_action = _parse_int(
+        budget_cfg.get(
+            "estimated_tokens_per_action",
+            DEFAULT_BUDGET_POLICY["estimated_tokens_per_action"],
+        ),
+        int(DEFAULT_BUDGET_POLICY["estimated_tokens_per_action"]),
+    )
+    if estimated_tokens_per_action < 0:
+        estimated_tokens_per_action = int(DEFAULT_BUDGET_POLICY["estimated_tokens_per_action"])
+
+    window = str(budget_cfg.get("window", DEFAULT_BUDGET_POLICY["window"])).strip().lower()
+    if window not in SUPPORTED_BUDGET_WINDOWS:
+        window = str(DEFAULT_BUDGET_POLICY["window"])
+
+    breach_action = str(
+        budget_cfg.get("breach_action", DEFAULT_BUDGET_POLICY["breach_action"])
+    ).strip().lower()
+    if breach_action not in SUPPORTED_BREACH_ACTIONS:
+        breach_action = str(DEFAULT_BUDGET_POLICY["breach_action"])
+
+    assistant_ratio = user_pct / split_total
+    framework_ratio = self_pct / split_total
+    assistant_cycle_default = max(1, int(round(hard_cycle * assistant_ratio)))
+    framework_cycle_default = max(1, hard_cycle - assistant_cycle_default)
+    assistant_window_default = max(1, int(round(hard_window * assistant_ratio)))
+    framework_window_default = max(1, hard_window - assistant_window_default)
+
+    cycle_overrides = budget_cfg.get("track_cycle_token_cap", {})
+    cycle_overrides = cycle_overrides if isinstance(cycle_overrides, dict) else {}
+    window_overrides = budget_cfg.get("track_window_token_cap", {})
+    window_overrides = window_overrides if isinstance(window_overrides, dict) else {}
+
+    track_cycle_caps = {
+        "assistant": min(
+            hard_cycle,
+            max(1, _parse_int(cycle_overrides.get("assistant"), assistant_cycle_default)),
+        ),
+        "framework": min(
+            hard_cycle,
+            max(1, _parse_int(cycle_overrides.get("framework"), framework_cycle_default)),
+        ),
+    }
+    track_window_caps = {
+        "assistant": min(
+            hard_window,
+            max(1, _parse_int(window_overrides.get("assistant"), assistant_window_default)),
+        ),
+        "framework": min(
+            hard_window,
+            max(1, _parse_int(window_overrides.get("framework"), framework_window_default)),
+        ),
+    }
+
+    return {
+        "user_service_pct": user_pct,
+        "self_improvement_pct": self_pct,
+        "hard_cycle_token_cap": hard_cycle,
+        "hard_window_token_cap": hard_window,
+        "window": window,
+        "warning_threshold_pct": warning_threshold_pct,
+        "breach_action": breach_action,
+        "estimated_tokens_per_action": estimated_tokens_per_action,
+        "track_cycle_token_cap": track_cycle_caps,
+        "track_window_token_cap": track_window_caps,
+    }
+
+
+def _budget_window_key(now: datetime, window: str) -> str:
+    if window == "hourly_utc":
+        return now.strftime("%Y-%m-%dT%H")
+    if window == "weekly_utc":
+        year, week, _ = now.isocalendar()
+        return f"{year}-W{week:02d}"
+    return now.strftime("%Y-%m-%d")
+
+
+def _normalize_budget_runtime(
+    state: Dict[str, Any],
+    budget_policy: Dict[str, Any],
+    now: datetime,
+) -> Dict[str, Any]:
+    runtime = state.get("budget_runtime", {})
+    runtime = runtime if isinstance(runtime, dict) else {}
+    window = str(budget_policy.get("window", "daily_utc"))
+    window_key = _budget_window_key(now, window)
+
+    totals = runtime.get("totals", {})
+    totals = totals if isinstance(totals, dict) else {}
+    normalized_totals = {
+        "overall": _non_negative_int(totals.get("overall", 0), 0),
+        "assistant": _non_negative_int(totals.get("assistant", 0), 0),
+        "framework": _non_negative_int(totals.get("framework", 0), 0),
+    }
+
+    same_window = (
+        str(runtime.get("window", "")).strip() == window
+        and str(runtime.get("window_key", "")).strip() == window_key
+    )
+
+    if not same_window:
+        normalized_totals = {"overall": 0, "assistant": 0, "framework": 0}
+
+    window_started_at = str(runtime.get("window_started_at", "")).strip()
+    if not same_window or not window_started_at:
+        window_started_at = now.isoformat()
+
+    return {
+        "window": window,
+        "window_key": window_key,
+        "window_started_at": window_started_at,
+        "totals": normalized_totals,
+    }
+
+
+def estimate_cycle_tokens(
+    config: Dict[str, Any],
+    budget_policy: Dict[str, Any],
+    actions: List[Dict[str, Any]],
+) -> int:
+    """Estimate token usage for this cycle deterministically."""
+    if not actions:
+        return 0
+
+    reasoning_cfg = config.get("reasoning", {})
+    reasoning_cfg = reasoning_cfg if isinstance(reasoning_cfg, dict) else {}
+    max_tokens = _parse_int(reasoning_cfg.get("max_tokens", 4096), 4096)
+    if max_tokens < 1:
+        max_tokens = 4096
+
+    per_action = _parse_int(
+        budget_policy.get("estimated_tokens_per_action", 0),
+        int(DEFAULT_BUDGET_POLICY["estimated_tokens_per_action"]),
+    )
+    if per_action < 0:
+        per_action = int(DEFAULT_BUDGET_POLICY["estimated_tokens_per_action"])
+
+    return max_tokens + (len(actions) * per_action)
+
+
+def evaluate_budget_decision(
+    *,
+    budget_policy: Dict[str, Any],
+    state: Dict[str, Any],
+    active_track: str,
+    estimated_cycle_tokens: int,
+    now: Optional[datetime] = None,
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Evaluate deterministic budget decision before action execution."""
+    now_utc = now if now is not None else datetime.now(timezone.utc)
+    runtime = _normalize_budget_runtime(state, budget_policy, now_utc)
+    totals = runtime["totals"]
+
+    track = active_track if active_track in {"assistant", "framework"} else "assistant"
+    estimated = max(0, _parse_int(estimated_cycle_tokens, 0))
+    warning_threshold_pct = _parse_int(
+        budget_policy.get("warning_threshold_pct", DEFAULT_BUDGET_POLICY["warning_threshold_pct"]),
+        int(DEFAULT_BUDGET_POLICY["warning_threshold_pct"]),
+    )
+    if warning_threshold_pct < 1 or warning_threshold_pct > 100:
+        warning_threshold_pct = int(DEFAULT_BUDGET_POLICY["warning_threshold_pct"])
+
+    cycle_caps = budget_policy.get("track_cycle_token_cap", {})
+    cycle_caps = cycle_caps if isinstance(cycle_caps, dict) else {}
+    window_caps = budget_policy.get("track_window_token_cap", {})
+    window_caps = window_caps if isinstance(window_caps, dict) else {}
+
+    limits = {
+        "cycle": {
+            "overall": _parse_int(
+                budget_policy.get("hard_cycle_token_cap", DEFAULT_BUDGET_POLICY["hard_cycle_token_cap"]),
+                int(DEFAULT_BUDGET_POLICY["hard_cycle_token_cap"]),
+            ),
+            "assistant": _parse_int(cycle_caps.get("assistant", 0), 0),
+            "framework": _parse_int(cycle_caps.get("framework", 0), 0),
+        },
+        "window": {
+            "overall": _parse_int(
+                budget_policy.get(
+                    "hard_window_token_cap",
+                    DEFAULT_BUDGET_POLICY["hard_window_token_cap"],
+                ),
+                int(DEFAULT_BUDGET_POLICY["hard_window_token_cap"]),
+            ),
+            "assistant": _parse_int(window_caps.get("assistant", 0), 0),
+            "framework": _parse_int(window_caps.get("framework", 0), 0),
+        },
+    }
+
+    projected = {
+        "overall": totals["overall"] + estimated,
+        "assistant": totals["assistant"] + (estimated if track == "assistant" else 0),
+        "framework": totals["framework"] + (estimated if track == "framework" else 0),
+    }
+
+    breaches: List[Dict[str, Any]] = []
+    warnings: List[Dict[str, Any]] = []
+
+    def evaluate_limit(metric_id: str, actual: int, limit: int) -> None:
+        if limit < 1:
+            return
+        if actual > limit:
+            breaches.append({"id": metric_id, "actual": actual, "limit": limit})
+            return
+        threshold = max(1, int(limit * warning_threshold_pct / 100))
+        if actual >= threshold:
+            warnings.append({"id": metric_id, "actual": actual, "threshold": threshold, "limit": limit})
+
+    evaluate_limit("cycle.overall", estimated, limits["cycle"]["overall"])
+    evaluate_limit(f"cycle.{track}", estimated, limits["cycle"][track])
+    evaluate_limit("window.overall", projected["overall"], limits["window"]["overall"])
+    evaluate_limit(f"window.{track}", projected[track], limits["window"][track])
+
+    breach_action = str(budget_policy.get("breach_action", "block")).strip().lower()
+    if breach_action not in SUPPORTED_BREACH_ACTIONS:
+        breach_action = "block"
+
+    if breaches:
+        decision = "warn" if breach_action == "warn" else breach_action
+        reason = "budget cap breached: " + ", ".join(item["id"] for item in breaches)
+    elif warnings:
+        decision = "warn"
+        reason = "budget near threshold: " + ", ".join(item["id"] for item in warnings)
+    else:
+        decision = "allow"
+        reason = "budget within thresholds"
+
+    apply_usage = decision in {"allow", "warn"}
+    applied_usage = (
+        projected
+        if apply_usage
+        else {
+            "overall": totals["overall"],
+            "assistant": totals["assistant"],
+            "framework": totals["framework"],
+        }
+    )
+    runtime["totals"] = dict(applied_usage)
+
+    payload: Dict[str, Any] = {
+        "decision": decision,
+        "reason": reason,
+        "breach_action": breach_action,
+        "window": runtime["window"],
+        "window_key": runtime["window_key"],
+        "track": track,
+        "estimated_cycle_tokens": estimated,
+        "warning_threshold_pct": warning_threshold_pct,
+        "limits": limits,
+        "usage": {
+            "current": {
+                "overall": totals["overall"],
+                "assistant": totals["assistant"],
+                "framework": totals["framework"],
+            },
+            "projected": projected,
+            "applied": applied_usage,
+        },
+        "breaches": breaches,
+        "warnings": warnings,
+        "enforced": decision in {"block", "defer"},
+        "applied_usage": apply_usage,
+    }
+    return payload, runtime
 
 
 def select_active_track(
@@ -615,6 +1064,9 @@ Current repository state:
 
 Recent memory (last {n_decisions} decisions):
 {decisions_json}
+
+Recent budget decisions:
+{budget_decisions_json}
 
 Lessons learned:
 {lessons_json}
@@ -836,6 +1288,7 @@ def ask_model_for_plan(
         state_json=json.dumps(state_to_summary(state), indent=2),
         n_decisions=n_decisions,
         decisions_json=json.dumps(memory.get("recent_decisions", []), indent=2),
+        budget_decisions_json=json.dumps(memory.get("recent_budget_decisions", []), indent=2),
         lessons_json=json.dumps(memory.get("lessons", []), indent=2),
         agent_state_json=json.dumps(memory.get("state", {}), indent=2),
         active_track=active_track,
@@ -932,11 +1385,17 @@ def run_cycle(
     memory = load_memory()
     active_track = select_active_track(config, cycle_number)
     log.info(
-        "Active track: %s (budget split: service=%s%%, self_improvement=%s%%, hard_cycle_token_cap=%s)",
+        (
+            "Active track: %s (budget split: service=%s%%, self_improvement=%s%%, "
+            "hard_cycle_token_cap=%s, hard_window_token_cap=%s, window=%s, breach_action=%s)"
+        ),
         active_track,
         budget_policy["user_service_pct"],
         budget_policy["self_improvement_pct"],
         budget_policy["hard_cycle_token_cap"],
+        budget_policy["hard_window_token_cap"],
+        budget_policy["window"],
+        budget_policy["breach_action"],
     )
 
     # 3. Load constitution
@@ -968,9 +1427,84 @@ def run_cycle(
         )
 
     actions = plan.get("actions", [])
+    actions = actions if isinstance(actions, list) else []
+
+    memory_state = memory.get("state", {})
+    memory_state = memory_state if isinstance(memory_state, dict) else {}
+    estimated_cycle_tokens = estimate_cycle_tokens(config, budget_policy, actions)
+    budget_decision, budget_runtime = evaluate_budget_decision(
+        budget_policy=budget_policy,
+        state=memory_state,
+        active_track=active_track,
+        estimated_cycle_tokens=estimated_cycle_tokens,
+    )
+    log_budget_decision(cycle_number, budget_decision)
+    log.info(
+        "Budget decision: %s (estimated_cycle_tokens=%d, reason=%s)",
+        budget_decision.get("decision", "allow"),
+        estimated_cycle_tokens,
+        budget_decision.get("reason", ""),
+    )
+
     if not actions:
         log.info("No actions proposed this cycle.")
-        update_state(cycle_number, [], active_track, budget_policy)
+        update_state(
+            cycle_number,
+            [],
+            active_track,
+            budget_policy,
+            budget_runtime=budget_runtime,
+            budget_decision=budget_decision,
+        )
+        return []
+
+    if budget_decision.get("decision") in {"block", "defer"}:
+        decision = str(budget_decision.get("decision", "block"))
+        outcome = "blocked_by_budget" if decision == "block" else "deferred_by_budget"
+        reason = str(budget_decision.get("reason", "")).strip()
+        log.warning(
+            "Budget gate enforced (%s): %s. Skipping %d action(s).",
+            decision,
+            reason or "no reason provided",
+            len(actions),
+        )
+        budget_alignment = AlignmentResult(
+            allowed=False,
+            risk_level="high" if decision == "block" else "medium",
+            reasoning=reason or "Budget gate enforced.",
+        )
+        log_decision(
+            cycle_number,
+            {
+                "type": "budget_gate",
+                "params": {
+                    "decision": decision,
+                    "estimated_cycle_tokens": estimated_cycle_tokens,
+                    "track": active_track,
+                },
+            },
+            budget_alignment,
+            outcome,
+            reason,
+            active_track=active_track,
+        )
+        log_lesson(
+            cycle_number,
+            (
+                f"Budget gate enforced decision='{decision}' for track '{active_track}' "
+                f"(estimated_cycle_tokens={estimated_cycle_tokens})"
+            ),
+            "budget_gate",
+            reason[:300],
+        )
+        update_state(
+            cycle_number,
+            [],
+            active_track,
+            budget_policy,
+            budget_runtime=budget_runtime,
+            budget_decision=budget_decision,
+        )
         return []
 
     # 5. Process each action
@@ -1089,7 +1623,14 @@ def run_cycle(
             )
 
     # 6. Update state
-    update_state(cycle_number, results, active_track, budget_policy)
+    update_state(
+        cycle_number,
+        results,
+        active_track,
+        budget_policy,
+        budget_runtime=budget_runtime,
+        budget_decision=budget_decision,
+    )
 
     # 7. Rotate logs if needed
     rotate_logs(config)
@@ -1196,6 +1737,13 @@ def main() -> int:
     config = load_config(config_path)
     if not isinstance(config, dict):
         log.error("Config file is invalid: expected a YAML mapping at %s", config_path)
+        return 1
+
+    budget_errors = validate_budget_policy_config(config)
+    if budget_errors:
+        log.error("Budget configuration validation failed:")
+        for item in budget_errors:
+            log.error("- %s", item)
         return 1
 
     reasoning_provider = _resolve_reasoning_provider(config)

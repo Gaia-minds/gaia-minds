@@ -86,6 +86,17 @@ budget:
   user_service_pct: 80
   self_improvement_pct: 20
   hard_cycle_token_cap: 12000
+  hard_window_token_cap: 60000
+  window: "daily_utc"  # hourly_utc | daily_utc | weekly_utc
+  warning_threshold_pct: 80
+  breach_action: "block"  # warn | defer | block
+  estimated_tokens_per_action: 400
+  track_cycle_token_cap:
+    assistant: 9600
+    framework: 2400
+  track_window_token_cap:
+    assistant: 48000
+    framework: 12000
 
 # ---------------------------------------------------------------------------
 # Risk classification for auto-execution vs PR
@@ -117,6 +128,7 @@ risk:
 # ---------------------------------------------------------------------------
 memory:
   max_decisions_log_entries: 500  # rotate old entries
+  max_budget_decision_entries: 500
   max_lessons_entries: 100
   summary_interval_cycles: 10  # every N cycles, summarize lessons
 

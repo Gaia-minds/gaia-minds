@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "suite": "gaia-token-budget-fixtures",
+  "policy": {
+    "user_service_pct": 80,
+    "self_improvement_pct": 20,
+    "hard_cycle_token_cap": 12000,
+    "hard_window_token_cap": 60000,
+    "window": "daily_utc",
+    "warning_threshold_pct": 80,
+    "breach_action": "block",
+    "estimated_tokens_per_action": 400,
+    "track_cycle_token_cap": {
+      "assistant": 9600,
+      "framework": 2400
+    },
+    "track_window_token_cap": {
+      "assistant": 48000,
+      "framework": 12000
+    }
+  },
+  "scenarios": [
+    {
+      "id": "assistant-pass",
+      "track": "assistant",
+      "estimated_cycle_tokens": 1500,
+      "state": {
+        "budget_runtime": {
+          "window": "daily_utc",
+          "window_key": "2026-02-14",
+          "window_started_at": "2026-02-14T00:00:00+00:00",
+          "totals": {
+            "overall": 0,
+            "assistant": 0,
+            "framework": 0
+          }
+        }
+      },
+      "now": "2026-02-14T10:00:00+00:00",
+      "expected": {
+        "decision": "allow",
+        "enforced": false,
+        "applied_usage": true,
+        "applied": {
+          "overall": 1500,
+          "assistant": 1500,
+          "framework": 0
+        }
+      }
+    },
+    {
+      "id": "framework-warn-threshold-edge",
+      "track": "framework",
+      "estimated_cycle_tokens": 1920,
+      "state": {
+        "budget_runtime": {
+          "window": "daily_utc",
+          "window_key": "2026-02-14",
+          "window_started_at": "2026-02-14T00:00:00+00:00",
+          "totals": {
+            "overall": 1200,
+            "assistant": 800,
+            "framework": 400
+          }
+        }
+      },
+      "now": "2026-02-14T10:00:00+00:00",
+      "expected": {
+        "decision": "warn",
+        "enforced": false,
+        "applied_usage": true,
+        "applied": {
+          "overall": 3120,
+          "assistant": 800,
+          "framework": 2320
+        }
+      }
+    },
+    {
+      "id": "framework-block-cycle-cap-breach",
+      "track": "framework",
+      "estimated_cycle_tokens": 2600,
+      "state": {
+        "budget_runtime": {
+          "window": "daily_utc",
+          "window_key": "2026-02-14",
+          "window_started_at": "2026-02-14T00:00:00+00:00",
+          "totals": {
+            "overall": 2400,
+            "assistant": 2000,
+            "framework": 400
+          }
+        }
+      },
+      "now": "2026-02-14T10:00:00+00:00",
+      "expected": {
+        "decision": "block",
+        "enforced": true,
+        "applied_usage": false,
+        "applied": {
+          "overall": 2400,
+          "assistant": 2000,
+          "framework": 400
+        }
+      }
+    },
+    {
+      "id": "assistant-defer-window-breach",
+      "track": "assistant",
+      "estimated_cycle_tokens": 2500,
+      "policy_overrides": {
+        "breach_action": "defer"
+      },
+      "state": {
+        "budget_runtime": {
+          "window": "daily_utc",
+          "window_key": "2026-02-14",
+          "window_started_at": "2026-02-14T00:00:00+00:00",
+          "totals": {
+            "overall": 59000,
+            "assistant": 47000,
+            "framework": 12000
+          }
+        }
+      },
+      "now": "2026-02-14T10:00:00+00:00",
+      "expected": {
+        "decision": "defer",
+        "enforced": true,
+        "applied_usage": false,
+        "applied": {
+          "overall": 59000,
+          "assistant": 47000,
+          "framework": 12000
+        }
+      }
+    },
+    {
+      "id": "framework-warn-on-breach-action",
+      "track": "framework",
+      "estimated_cycle_tokens": 3000,
+      "policy_overrides": {
+        "breach_action": "warn"
+      },
+      "state": {
+        "budget_runtime": {
+          "window": "daily_utc",
+          "window_key": "2026-02-14",
+          "window_started_at": "2026-02-14T00:00:00+00:00",
+          "totals": {
+            "overall": 0,
+            "assistant": 0,
+            "framework": 0
+          }
+        }
+      },
+      "now": "2026-02-14T10:00:00+00:00",
+      "expected": {
+        "decision": "warn",
+        "enforced": false,
+        "applied_usage": true,
+        "applied": {
+          "overall": 3000,
+          "assistant": 0,
+          "framework": 3000
+        }
+      }
+    },
+    {
+      "id": "window-reset-pass",
+      "track": "assistant",
+      "estimated_cycle_tokens": 1000,
+      "state": {
+        "budget_runtime": {
+          "window": "daily_utc",
+          "window_key": "2026-02-13",
+          "window_started_at": "2026-02-13T00:00:00+00:00",
+          "totals": {
+            "overall": 58000,
+            "assistant": 47000,
+            "framework": 11000
+          }
+        }
+      },
+      "now": "2026-02-14T10:00:00+00:00",
+      "expected": {
+        "decision": "allow",
+        "enforced": false,
+        "applied_usage": true,
+        "applied": {
+          "overall": 1000,
+          "assistant": 1000,
+          "framework": 0
+        }
+      }
+    }
+  ]
+}
