@@ -1,6 +1,6 @@
 # Status
 
-Updated: February 13, 2026
+Updated: February 14, 2026
 
 ## Current Sprint
 
@@ -38,6 +38,7 @@ See `ROADMAP.md` for full phase details and exit criteria.
 - `Phase 3 Hypothesis Pipeline v1` - deterministic proposal -> eval -> evidence workflow (`#86`, PR #90)
 - `Phase 3 Reliability Baseline Checkpoint` - baseline thresholds + checkpoint tooling + triage workflow (`#87`, PR #91)
 - `Phase 3 Drift Detection` - deterministic checkpoint-history drift report + CI gate + triage linkage (`#93`)
+- `Phase 3 Canary Rollout Gate` - deterministic hypothesis rollout decision contract (`go|hold|rollback-required`) with CI fixture coverage (`#94`, PR #100)
 
 ## In Progress
 
@@ -47,11 +48,9 @@ _Nothing currently in progress._
 
 1. `#95` (`framework-track`) - Hard token-budget enforcement per cycle and track
    - Recommended owner role: contributor + `gaia-security-reviewer` + `gaia-qa-evaluator`
-2. `#94` (`framework-track`) - Canary gate for hypothesis rollout decisions
-   - Dependency: after `#93`
-3. `#96` (`assistant-track`) - Feedback loop capture and correction records
+2. `#96` (`assistant-track`) - Feedback loop capture and correction records
    - Recommended owner role: contributor + `gaia-technical-writer`
-4. `#97` (`assistant-track`) - Personalized response profiles and memory summarization
+3. `#97` (`assistant-track`) - Personalized response profiles and memory summarization
    - Dependency: after `#96`
 
 ## Blocked

@@ -205,6 +205,59 @@ def _validate_hypothesis(payload: Dict[str, Any]) -> List[str]:
                 if not json_path:
                     errors.append(f"expected_metric_movement[{idx}].{side}.json_path is required")
 
+    canary_gate = payload.get("canary_gate")
+    if canary_gate is not None:
+        if not isinstance(canary_gate, dict):
+            errors.append("canary_gate must be an object when provided")
+        else:
+            window = str(canary_gate.get("window", "")).strip()
+            if not window:
+                errors.append("canary_gate.window is required when canary_gate is provided")
+
+            try:
+                sample_size = int(canary_gate.get("sample_size", 0))
+            except Exception:
+                sample_size = 0
+            if sample_size < 1:
+                errors.append("canary_gate.sample_size must be a positive integer")
+
+            try:
+                pass_threshold = _normalize_number(
+                    canary_gate.get("pass_threshold"),
+                    "canary_gate.pass_threshold",
+                )
+            except ValueError as exc:
+                errors.append(str(exc))
+                pass_threshold = -1.0
+
+            try:
+                rollback_threshold = _normalize_number(
+                    canary_gate.get("rollback_threshold"),
+                    "canary_gate.rollback_threshold",
+                )
+            except ValueError as exc:
+                errors.append(str(exc))
+                rollback_threshold = -1.0
+
+            if pass_threshold < 0 or pass_threshold > 1:
+                errors.append("canary_gate.pass_threshold must be between 0 and 1")
+            if rollback_threshold < 0 or rollback_threshold > 1:
+                errors.append("canary_gate.rollback_threshold must be between 0 and 1")
+            if (
+                pass_threshold >= 0
+                and rollback_threshold >= 0
+                and pass_threshold < rollback_threshold
+            ):
+                errors.append(
+                    "canary_gate.pass_threshold must be >= canary_gate.rollback_threshold"
+                )
+
+            fallback_owner = str(canary_gate.get("fallback_owner", "")).strip()
+            if not fallback_owner:
+                errors.append(
+                    "canary_gate.fallback_owner is required when canary_gate is provided"
+                )
+
     return errors
 
 
@@ -289,6 +342,94 @@ def _evaluate_metric(item: Dict[str, Any], hypothesis_id: str, output_dir: Path)
     return result
 
 
+def _evaluate_canary_gate(
+    hypothesis: Dict[str, Any],
+    command_results: List[Dict[str, Any]],
+    metric_results: List[Dict[str, Any]],
+    rollback_required: bool,
+) -> Dict[str, Any]:
+    canary_gate = hypothesis.get("canary_gate")
+    if not isinstance(canary_gate, dict):
+        return {
+            "configured": False,
+            "decision": "hold",
+            "reason": "canary_gate config missing; default hold decision.",
+            "window": "",
+            "sample_size_required": 0,
+            "sample_size_observed": 0,
+            "sample_sufficient": False,
+            "thresholds": {
+                "pass_threshold": 1.0,
+                "rollback_threshold": 1.0,
+            },
+            "pass_rate": 0.0,
+            "checks_total": 0,
+            "checks_passed": 0,
+            "fallback_owner": "",
+            "rollback_required": rollback_required,
+        }
+
+    window = str(canary_gate.get("window", "")).strip()
+    sample_size_required = max(1, int(canary_gate.get("sample_size", 1)))
+    pass_threshold = float(canary_gate.get("pass_threshold", 1.0))
+    rollback_threshold = float(canary_gate.get("rollback_threshold", 1.0))
+    fallback_owner = str(canary_gate.get("fallback_owner", "")).strip()
+
+    checks_total = len(command_results) + len(metric_results)
+    checks_passed = sum(
+        1
+        for item in command_results
+        if str(item.get("status", "")) in {"pass", "skipped-dry-run"}
+    )
+    checks_passed += sum(1 for item in metric_results if bool(item.get("passed", False)))
+    pass_rate = checks_passed / checks_total if checks_total > 0 else 0.0
+    sample_sufficient = checks_total >= sample_size_required
+
+    if rollback_required or pass_rate < rollback_threshold:
+        decision = "rollback-required"
+        reason = (
+            "Canary decision is rollback-required due to failing required gates or "
+            f"pass_rate={pass_rate:.4f} below rollback_threshold={rollback_threshold:.4f}."
+        )
+    elif not sample_sufficient:
+        decision = "hold"
+        reason = (
+            f"Canary sample insufficient ({checks_total}/{sample_size_required}); "
+            "holding rollout for more evidence."
+        )
+    elif pass_rate >= pass_threshold:
+        decision = "go"
+        reason = (
+            f"Canary pass_rate={pass_rate:.4f} meets pass_threshold={pass_threshold:.4f} "
+            "with sufficient sample."
+        )
+    else:
+        decision = "hold"
+        reason = (
+            f"Canary pass_rate={pass_rate:.4f} is between rollback_threshold={rollback_threshold:.4f} "
+            f"and pass_threshold={pass_threshold:.4f}; holding rollout."
+        )
+
+    return {
+        "configured": True,
+        "decision": decision,
+        "reason": reason,
+        "window": window,
+        "sample_size_required": sample_size_required,
+        "sample_size_observed": checks_total,
+        "sample_sufficient": sample_sufficient,
+        "thresholds": {
+            "pass_threshold": pass_threshold,
+            "rollback_threshold": rollback_threshold,
+        },
+        "pass_rate": pass_rate,
+        "checks_total": checks_total,
+        "checks_passed": checks_passed,
+        "fallback_owner": fallback_owner,
+        "rollback_required": rollback_required,
+    }
+
+
 def _build_bundle_markdown(hypothesis: Dict[str, Any], report: Dict[str, Any]) -> str:
     lines: List[str] = []
     lines.append(f"# Hypothesis Evidence Bundle: {hypothesis.get('title', 'Untitled')}")
@@ -330,6 +471,36 @@ def _build_bundle_markdown(hypothesis: Dict[str, Any], report: Dict[str, Any]) -
         error = str(item.get("error", "")).strip()
         if error:
             lines.append(f"| `{item.get('name', '')}` error | n/a | n/a | n/a | n/a | n/a | `{error}` |")
+    lines.append("")
+    lines.append("## Canary Decision")
+    lines.append("")
+    canary = report.get("canary_decision", {})
+    if isinstance(canary, dict):
+        lines.append(f"- Decision: `{canary.get('decision', '')}`")
+        lines.append(f"- Reason: {canary.get('reason', '')}")
+        lines.append(f"- Window: `{canary.get('window', '')}`")
+        lines.append(
+            "- Sample size: observed `{observed}` / required `{required}` (sufficient={sufficient})".format(
+                observed=canary.get("sample_size_observed", 0),
+                required=canary.get("sample_size_required", 0),
+                sufficient=canary.get("sample_sufficient", False),
+            )
+        )
+        thresholds = canary.get("thresholds", {})
+        if isinstance(thresholds, dict):
+            lines.append(
+                "- Thresholds: pass `>= {pass_t}` / rollback `< {rollback_t}`".format(
+                    pass_t=thresholds.get("pass_threshold", ""),
+                    rollback_t=thresholds.get("rollback_threshold", ""),
+                )
+            )
+        lines.append(f"- Pass rate: `{float(canary.get('pass_rate', 0.0)):.4f}`")
+        fallback_owner = str(canary.get("fallback_owner", "")).strip()
+        if fallback_owner:
+            lines.append(f"- Fallback owner: `{fallback_owner}`")
+    else:
+        lines.append("- Decision: `hold`")
+        lines.append("- Reason: canary decision data unavailable")
     lines.append("")
     lines.append("## Rollback Recommendation")
     lines.append("")
@@ -456,6 +627,20 @@ def _run_pipeline(hypothesis_path: Path, output_root: Path, run_id: str, dry_run
     if rollback_required:
         report_status = "fail"
 
+    canary_decision = _evaluate_canary_gate(
+        hypothesis=hypothesis,
+        command_results=command_results,
+        metric_results=metric_results,
+        rollback_required=rollback_required,
+    )
+    if canary_decision.get("decision") == "rollback-required":
+        rollback_required = True
+        if report_status != "fail":
+            report_status = "fail"
+        reason = str(canary_decision.get("reason", "")).strip()
+        if reason:
+            rollback_reasons.append(reason)
+
     report: Dict[str, Any] = {
         "schema_version": 1,
         "pipeline_version": "hypothesis-pipeline-v1",
@@ -484,6 +669,7 @@ def _run_pipeline(hypothesis_path: Path, output_root: Path, run_id: str, dry_run
             "recommended_action": str(rollback.get("recommended_action", "")).strip(),
             "commands": rollback.get("commands", []),
         },
+        "canary_decision": canary_decision,
     }
 
     report_path = output_dir / "evaluation-report.json"
@@ -511,6 +697,7 @@ def _run_pipeline(hypothesis_path: Path, output_root: Path, run_id: str, dry_run
         print(f"Hypothesis pipeline PASS: {hypothesis_id}")
     else:
         print(f"Hypothesis pipeline FAIL: {hypothesis_id}")
+    print(f"canary_decision={canary_decision.get('decision', '')}")
     print(f"report: {report_path}")
     print(f"bundle: {bundle_path}")
 

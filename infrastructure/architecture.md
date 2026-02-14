@@ -654,6 +654,51 @@ Lane: `Memory QA and Red-Team Harness` (`#78`)
   memory evaluation gates:
   `assistant/benchmarking.md`, `assistant/uat-policy.md`, `assistant/README.md`.
 
+## Phase 3 Delta: Canary Rollout Gate (2026-02-14)
+
+Lane: `Canary gate for hypothesis rollout decisions` (`#94`)
+
+### Runtime and evidence-model changes
+
+- Extended hypothesis artifact contract with optional `canary_gate` config:
+  - `window`
+  - `sample_size`
+  - `pass_threshold`
+  - `rollback_threshold`
+  - `fallback_owner`
+- Added deterministic canary evaluator in `tools/hypothesis-pipeline.py` that
+  emits explicit rollout decisions:
+  - `go`
+  - `hold`
+  - `rollback-required`
+- Added structured canary decision payload to evaluation artifacts:
+  - `canary_decision.decision`
+  - `canary_decision.reason`
+  - `canary_decision.pass_rate`
+  - `canary_decision.sample_size_observed` / `sample_size_required`
+  - `canary_decision.thresholds.*`
+  - `canary_decision.fallback_owner`
+
+### Rollout safety behavior
+
+- Required command/metric/artifact failures still force rollback recommendation.
+- Canary can also force `rollback-required` if observed pass rate breaches
+  rollback threshold.
+- If canary sample size is insufficient, decision defaults to `hold` so rollout
+  is paused pending more evidence.
+- If `canary_gate` config is absent, decision defaults to `hold` (safe fallback).
+
+### CI/local enforcement changes
+
+- Expanded hypothesis pipeline CI workflow to assert deterministic decision paths:
+  - pass fixture -> `go`
+  - hold fixture -> `hold`
+  - failure fixture -> `rollback-required`
+- Added deterministic hold fixture:
+  `assistant/hypotheses/phase3-hypothesis-pipeline-v1-hold-fixture.json`.
+- Added local command target for hold fixture:
+  `make hypothesis-hold-fixture`.
+
 ---
 
 ## Open Technical Questions

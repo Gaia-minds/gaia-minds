@@ -1,24 +1,23 @@
 {
   "schema_version": 1,
-  "hypothesis_id": "phase3-hypothesis-pipeline-v1",
-  "title": "Hypothesis pipeline v1 non-regression baseline",
-  "summary": "Introduce deterministic hypothesis evidence packaging while holding benchmark quality non-regression against the pinned baseline.",
+  "hypothesis_id": "phase3-hypothesis-pipeline-v1-hold-fixture",
+  "title": "Hypothesis pipeline v1 hold-decision fixture",
+  "summary": "Deterministic fixture to validate canary hold decisions when sample-size requirements are not yet met.",
   "owner": "framework-track",
   "risk_level": "high",
   "rollback_criteria": {
     "reason_on_failure": "Required command or metric gate failed, so rollout evidence is insufficient.",
-    "recommended_action": "Stop rollout, revert hypothesis pipeline changes, and rerun baseline validation before retry.",
+    "recommended_action": "Pause rollout and gather additional canary evidence before deciding go/rollback.",
     "commands": [
-      "git revert <merge-commit-sha>",
-      "make benchmark",
-      "make test-uat"
+      "make hypothesis-dry-run",
+      "make reliability-drift-check"
     ]
   },
   "evaluation": {
     "commands": [
       {
         "id": "compatibility-check",
-        "description": "Ensure compatibility matrix contract is still reproducible before packaging evidence.",
+        "description": "Ensure compatibility matrix contract is reproducible before packaging evidence.",
         "run": "python3 ./tools/compatibility-matrix.py --baseline ./assistant/compatibility-matrix-baseline.json --matrix-out ./assistant/compatibility-matrix.md --check",
         "required": true
       }
@@ -29,8 +28,8 @@
     ]
   },
   "canary_gate": {
-    "window": "24h",
-    "sample_size": 3,
+    "window": "72h",
+    "sample_size": 6,
     "pass_threshold": 0.95,
     "rollback_threshold": 0.8,
     "fallback_owner": "release-manager"

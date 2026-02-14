@@ -27,6 +27,13 @@
       "assistant/benchmark-results.json"
     ]
   },
+  "canary_gate": {
+    "window": "24h",
+    "sample_size": 2,
+    "pass_threshold": 0.95,
+    "rollback_threshold": 0.8,
+    "fallback_owner": "release-manager"
+  },
   "expected_metric_movement": [
     {
       "id": "benchmark-score-positive-jump",
@@ -50,6 +57,7 @@
       "proposal",
       "command execution",
       "metric movement",
+      "canary decision",
       "rollback recommendation",
       "evidence paths"
     ]

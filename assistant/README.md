@@ -202,6 +202,9 @@ make hypothesis-validate
 # run deterministic packaging dry-run
 make hypothesis-dry-run
 
+# run hold fixture (expected zero, canary decision = hold)
+make hypothesis-hold-fixture
+
 # run failure fixture (expected non-zero, includes rollback recommendation)
 make hypothesis-failure-fixture
 ```
@@ -211,6 +214,7 @@ Artifacts:
 - Proposal contracts: `assistant/hypotheses/*.json`
 - Pipeline tool: `tools/hypothesis-pipeline.py`
 - Evidence output: `assistant/hypothesis-evals/<hypothesis-id>/<run-id>/`
+- Canary decision evidence: `evaluation-report.json` -> `canary_decision` (`go` | `hold` | `rollback-required`)
 - Contract docs: `infrastructure/hypothesis-pipeline-v1.md`
 
 `make hypothesis-*` commands write to `/tmp/gaia-hypothesis-evals` by default.
