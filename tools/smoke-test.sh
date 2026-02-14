@@ -131,6 +131,73 @@ run_smoke_suite() {
     [[ \"\$out\" == *\"Invalid feedback label\"* ]]
   "
 
+  run_test "signals_extraction_privacy_controls" bash -lc "
+    raw_phrase='SMOKE_RAW_TRANSCRIPT_NEVER_COPY_42' &&
+    chat_out=\$(printf \"\$raw_phrase\\n/exit\\n\" | \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" chat 2>&1) &&
+    session_id=\$(printf '%s' \"\$chat_out\" | sed -n 's/^Started session: //p' | head -n1) &&
+    [[ -n \"\$session_id\" ]] &&
+    trace_json=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" traces --type chat_turn --last 1 --json) &&
+    trace_id=\$(printf '%s' \"\$trace_json\" | python3 -c \"import json,sys; data=json.load(sys.stdin); print(data[-1].get('id', '') if data else '')\") &&
+    [[ -n \"\$trace_id\" ]] &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" feedback record --label 'not helpful' --session-id \"\$session_id\" --trace-id \"\$trace_id\" --correction \"\$raw_phrase too long keep concise\" >/dev/null &&
+    extract_json=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" signals extract --json) &&
+    signal_count=\$(printf '%s' \"\$extract_json\" | python3 -c \"import json,sys; payload=json.load(sys.stdin); print(payload.get('signal_count', 0))\") &&
+    written=\$(printf '%s' \"\$extract_json\" | python3 -c \"import json,sys; payload=json.load(sys.stdin); print(str(payload.get('written', False)).lower())\") &&
+    [[ \"\$signal_count\" -ge 1 ]] &&
+    [[ \"\$written\" == \"true\" ]] &&
+    ledger_path=\"\$GAIA_ASSISTANT_HOME/data/unmet-intent-signals.json\" &&
+    [[ -f \"\$ledger_path\" ]] &&
+    set +e
+    rg -q \"\$raw_phrase\" \"\$ledger_path\"
+    raw_hit_rc=\$?
+    set -e
+    [[ \$raw_hit_rc -ne 0 ]] &&
+    before_hash=\$(sha256sum \"\$ledger_path\" | awk '{print \$1}') &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" config set signals_enabled false >/dev/null &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" feedback record --label 'not helpful' --session-id \"\$session_id\" --trace-id \"\$trace_id\" --correction 'another unmet intent signal please' >/dev/null &&
+    disabled_json=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" signals extract --json) &&
+    disabled_written=\$(printf '%s' \"\$disabled_json\" | python3 -c \"import json,sys; payload=json.load(sys.stdin); print(str(payload.get('written', False)).lower())\") &&
+    [[ \"\$disabled_written\" == \"false\" ]] &&
+    after_hash=\$(sha256sum \"\$ledger_path\" | awk '{print \$1}') &&
+    [[ \"\$before_hash\" == \"\$after_hash\" ]] &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" config set signals_enabled true >/dev/null &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" config set signals_retention_days 1 >/dev/null &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" config set signals_max_records 1 >/dev/null &&
+    python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+path = Path(os.environ[\"GAIA_ASSISTANT_HOME\"]) / \"traces\" / \"actions.jsonl\"
+path.parent.mkdir(parents=True, exist_ok=True)
+old = {
+    \"id\": \"smoke-old-trace-id\",
+    \"timestamp\": \"2000-01-01T00:00:00+00:00\",
+    \"action_type\": \"sandbox_run\",
+    \"input_summary\": \"old trace should be pruned\",
+    \"output_summary\": \"old failure\",
+    \"duration_ms\": 1.0,
+    \"permission_level\": \"safe\",
+    \"status\": \"error\",
+    \"schema_version\": 1,
+}
+with path.open(\"a\", encoding=\"utf-8\") as handle:
+    handle.write(json.dumps(old) + \"\\n\")
+PY
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" signals extract >/dev/null &&
+    bounded_json=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" signals list --json --limit 5) &&
+    bounded_count=\$(printf '%s' \"\$bounded_json\" | python3 -c \"import json,sys; data=json.load(sys.stdin); print(len(data))\") &&
+    [[ \"\$bounded_count\" -le 1 ]] &&
+    [[ \"\$bounded_json\" != *\"smoke-old-trace-id\"* ]] &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" capability set memory_export safe >/dev/null &&
+    export_json=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" signals export --path \"\$GAIA_ASSISTANT_HOME/smoke-signals-export.json\" --json) &&
+    [[ \"\$export_json\" == *\"export_id\"* ]] &&
+    [[ -f \"\$GAIA_ASSISTANT_HOME/smoke-signals-export.json\" ]] &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" capability set memory_delete safe >/dev/null &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" signals clear >/dev/null &&
+    [[ ! -f \"\$ledger_path\" ]]
+  "
+
   run_test "memory_crud_and_filters" bash -lc "
     \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory add --type user_long --subject smoke-user --content 'Smoke memory content' --summary 'Smoke memory summary' --consent-scope user --retention-ttl P30D >/tmp/memory-add-smoke.out &&
     memory_id=\$(awk 'NR==1 {print \$1}' /tmp/memory-add-smoke.out) &&

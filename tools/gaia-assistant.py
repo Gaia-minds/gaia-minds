@@ -133,6 +133,10 @@ PROFILE_KEY_MAP = {
     "response_profile": ("profile", "response_profile"),
     "response-style": ("profile", "response_profile"),
     "style": ("profile", "response_profile"),
+    "signals_enabled": ("signals", "enabled"),
+    "signal_collection": ("signals", "enabled"),
+    "signals_retention_days": ("signals", "retention_days"),
+    "signals_max_records": ("signals", "max_records"),
 }
 
 MEMORY_STORE_SCHEMA_VERSION = 1
@@ -147,6 +151,55 @@ FEEDBACK_LIST_DEFAULT_LIMIT = 20
 FEEDBACK_LIST_MAX_LIMIT = 200
 FEEDBACK_CORRECTION_MAX_CHARS = 2000
 FEEDBACK_MAX_RECORDS = 500
+SIGNALS_SCHEMA_VERSION = 1
+SIGNALS_LEDGER_SCHEMA_VERSION = 1
+SIGNALS_TYPE_CHOICES = (
+    "feedback_not_helpful",
+    "feedback_correction_pattern",
+    "command_failure",
+)
+SIGNALS_LIST_DEFAULT_LIMIT = 20
+SIGNALS_LIST_MAX_LIMIT = 200
+SIGNALS_RETENTION_DAYS_DEFAULT = 90
+SIGNALS_RETENTION_DAYS_MIN = 1
+SIGNALS_RETENTION_DAYS_MAX = 3650
+SIGNALS_MAX_RECORDS_DEFAULT = 300
+SIGNALS_MAX_RECORDS_MIN = 1
+SIGNALS_MAX_RECORDS_MAX = 2000
+SIGNALS_MAX_EVENT_IDS_PER_SIGNAL = 50
+SIGNALS_CORRECTION_TAG_KEYWORDS: Dict[str, Tuple[str, ...]] = {
+    "response_style.concise": (
+        "concise",
+        "too long",
+        "shorter",
+        "brief",
+        "less words",
+        "trim",
+    ),
+    "response_style.detailed": (
+        "more detail",
+        "deeper",
+        "step by step",
+        "thorough",
+        "expand",
+        "more context",
+    ),
+    "response_style.actionable": (
+        "actionable",
+        "next steps",
+        "clear actions",
+        "practical",
+        "specific",
+    ),
+    "intent.missing_capability": (
+        "can't",
+        "cannot",
+        "missing",
+        "not available",
+        "unsupported",
+        "doesn't support",
+    ),
+}
 MEMORY_POLICY_RULES: Dict[str, Dict[str, int | str]] = {
     "session_short": {
         "consent_scope": "session",
@@ -226,6 +279,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "storage": {
         "dir": str(DEFAULT_DATA_DIR),
     },
+    "signals": {
+        "enabled": True,
+        "retention_days": SIGNALS_RETENTION_DAYS_DEFAULT,
+        "max_records": SIGNALS_MAX_RECORDS_DEFAULT,
+    },
     "skills": {
         "local_dir": str(DEFAULT_HOME / "skills"),
     },
@@ -290,6 +348,33 @@ def _write_secret_json(path: Path, payload: Dict[str, Any]) -> None:
     except OSError:
         # Best effort: on some filesystems chmod may not be supported.
         pass
+
+
+def _normalize_bool_default(value: Any, default_value: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and value in (0, 1):
+        return bool(value)
+    token = str(value).strip().lower()
+    if token in ("1", "true", "yes", "on", "enabled"):
+        return True
+    if token in ("0", "false", "no", "off", "disabled"):
+        return False
+    return default_value
+
+
+def _normalize_int_default(
+    value: Any,
+    *,
+    default_value: int,
+    min_value: int,
+    max_value: int,
+) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = default_value
+    return min(max(parsed, min_value), max_value)
 
 
 def _normalize_config(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -361,6 +446,24 @@ def _normalize_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     storage_dir = str(storage.get("dir", "")).strip()
     if not storage_dir:
         storage["dir"] = str(DEFAULT_DATA_DIR)
+
+    signals = cfg.setdefault("signals", {})
+    if not isinstance(signals, dict):
+        signals = {}
+        cfg["signals"] = signals
+    signals["enabled"] = _normalize_bool_default(signals.get("enabled", True), True)
+    signals["retention_days"] = _normalize_int_default(
+        signals.get("retention_days", SIGNALS_RETENTION_DAYS_DEFAULT),
+        default_value=SIGNALS_RETENTION_DAYS_DEFAULT,
+        min_value=SIGNALS_RETENTION_DAYS_MIN,
+        max_value=SIGNALS_RETENTION_DAYS_MAX,
+    )
+    signals["max_records"] = _normalize_int_default(
+        signals.get("max_records", SIGNALS_MAX_RECORDS_DEFAULT),
+        default_value=SIGNALS_MAX_RECORDS_DEFAULT,
+        min_value=SIGNALS_MAX_RECORDS_MIN,
+        max_value=SIGNALS_MAX_RECORDS_MAX,
+    )
 
     skills = cfg.setdefault("skills", {})
     local_skills_dir = str(skills.get("local_dir", "")).strip()
@@ -473,7 +576,7 @@ def _set_nested_value(cfg: Dict[str, Any], path: Tuple[str, str], value: Any) ->
     section_value[field] = value
 
 
-def _normalize_profile_value(key: str, value: str) -> Tuple[Optional[str], Optional[str]]:
+def _normalize_config_value(key: str, value: str) -> Tuple[Optional[Any], Optional[str]]:
     canonical_key = key.strip().lower()
     raw = value.strip()
     if canonical_key == "verbosity":
@@ -507,6 +610,35 @@ def _normalize_profile_value(key: str, value: str) -> Tuple[Optional[str], Optio
         return raw, None
     if canonical_key == "name":
         return raw, None
+    if canonical_key in ("signals_enabled", "signal_collection"):
+        token = raw.lower()
+        if token in ("1", "true", "yes", "on", "enabled"):
+            return True, None
+        if token in ("0", "false", "no", "off", "disabled"):
+            return False, None
+        return None, "Invalid signals_enabled value. Expected true/false."
+    if canonical_key == "signals_retention_days":
+        try:
+            days = int(raw)
+        except ValueError:
+            return None, "Invalid signals_retention_days value. Expected an integer."
+        if days < SIGNALS_RETENTION_DAYS_MIN or days > SIGNALS_RETENTION_DAYS_MAX:
+            return None, (
+                "Invalid signals_retention_days value. "
+                f"Expected {SIGNALS_RETENTION_DAYS_MIN}..{SIGNALS_RETENTION_DAYS_MAX}."
+            )
+        return days, None
+    if canonical_key == "signals_max_records":
+        try:
+            count = int(raw)
+        except ValueError:
+            return None, "Invalid signals_max_records value. Expected an integer."
+        if count < SIGNALS_MAX_RECORDS_MIN or count > SIGNALS_MAX_RECORDS_MAX:
+            return None, (
+                "Invalid signals_max_records value. "
+                f"Expected {SIGNALS_MAX_RECORDS_MIN}..{SIGNALS_MAX_RECORDS_MAX}."
+            )
+        return count, None
     return None, f"Unsupported key: {key}"
 
 
@@ -790,6 +922,14 @@ def _memory_export_events_path(storage_dir: Path) -> Path:
 
 def _memory_summary_events_path(storage_dir: Path) -> Path:
     return storage_dir / "memory-summary-events.jsonl"
+
+
+def _signals_path(storage_dir: Path) -> Path:
+    return storage_dir / "unmet-intent-signals.json"
+
+
+def _signals_export_events_path(storage_dir: Path) -> Path:
+    return storage_dir / "unmet-intent-signal-exports.jsonl"
 
 
 def _autopilot_runs_path(trace_dir: Path) -> Path:
@@ -4367,7 +4507,7 @@ def cmd_config_set(args: argparse.Namespace) -> int:
         print("Action blocked by capability policy.", file=sys.stderr)
         return 1
 
-    normalized, error = _normalize_profile_value(key, str(args.value))
+    normalized, error = _normalize_config_value(key, str(args.value))
     if error:
         _write_action_trace(
             trace_dir=trace_dir,
@@ -5188,6 +5328,395 @@ def _normalize_feedback_records(items: List[Dict[str, Any]]) -> List[Dict[str, A
     return normalized
 
 
+def _signals_settings(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = _normalize_config(cfg)
+    raw = normalized.get("signals", {})
+    signals = raw if isinstance(raw, dict) else {}
+    return {
+        "enabled": _normalize_bool_default(signals.get("enabled", True), True),
+        "retention_days": _normalize_int_default(
+            signals.get("retention_days", SIGNALS_RETENTION_DAYS_DEFAULT),
+            default_value=SIGNALS_RETENTION_DAYS_DEFAULT,
+            min_value=SIGNALS_RETENTION_DAYS_MIN,
+            max_value=SIGNALS_RETENTION_DAYS_MAX,
+        ),
+        "max_records": _normalize_int_default(
+            signals.get("max_records", SIGNALS_MAX_RECORDS_DEFAULT),
+            default_value=SIGNALS_MAX_RECORDS_DEFAULT,
+            min_value=SIGNALS_MAX_RECORDS_MIN,
+            max_value=SIGNALS_MAX_RECORDS_MAX,
+        ),
+    }
+
+
+def _parse_optional_datetime_utc(raw: Any) -> Optional[datetime]:
+    value = str(raw or "").strip()
+    if not value:
+        return None
+    normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _normalize_signal_intent_tag(raw: str) -> str:
+    value = re.sub(r"[^a-z0-9._-]+", "_", str(raw).strip().lower()).strip("._-")
+    return value or "unknown"
+
+
+def _signal_id(signal_type: str, intent_tag: str) -> str:
+    digest = hashlib.sha256(f"{signal_type}:{intent_tag}".encode("utf-8")).hexdigest()
+    return f"sig-{digest[:12]}"
+
+
+def _signal_confidence(signal_type: str, count: int) -> float:
+    base = {
+        "feedback_not_helpful": 0.55,
+        "feedback_correction_pattern": 0.65,
+        "command_failure": 0.60,
+    }.get(signal_type, 0.50)
+    bonus = min(0.35, max(count - 1, 0) * 0.05)
+    return round(min(0.99, base + bonus), 3)
+
+
+def _feedback_correction_intent_tags(correction: str) -> List[str]:
+    text = str(correction).strip().lower()
+    if not text:
+        return []
+    tags: List[str] = []
+    for tag, keywords in SIGNALS_CORRECTION_TAG_KEYWORDS.items():
+        if any(keyword in text for keyword in keywords):
+            tags.append(tag)
+    if not tags:
+        tags.append("response_quality.other")
+    return sorted(set(tags))
+
+
+def _trace_failure_intent_tag(trace: Dict[str, Any]) -> str:
+    action_type = str(trace.get("action_type", "")).strip().lower()
+    status = str(trace.get("status", "")).strip().lower()
+    metadata = _trace_metadata(trace)
+    policy_decision = str(metadata.get("policy_decision", "")).strip().lower()
+    if policy_decision == "deny":
+        return "policy.denied"
+    if policy_decision == "confirm":
+        return "policy.confirmation_required"
+    if action_type == "permission_decision" and status == "blocked":
+        capability = str(metadata.get("capability", "")).strip().lower()
+        if capability:
+            return f"capability.{_normalize_signal_intent_tag(capability)}.blocked"
+        return "capability.blocked"
+    if action_type.startswith("memory_"):
+        return f"memory.{_normalize_signal_intent_tag(action_type)}"
+    if action_type.startswith("skill"):
+        return f"skills.{_normalize_signal_intent_tag(action_type)}"
+    if action_type.startswith("sandbox"):
+        return f"sandbox.{_normalize_signal_intent_tag(action_type)}"
+    if action_type.startswith("auth_"):
+        return f"auth.{_normalize_signal_intent_tag(action_type)}"
+    if action_type:
+        return f"command.{_normalize_signal_intent_tag(action_type)}"
+    return "command.unknown"
+
+
+def _signal_sort_key(item: Dict[str, Any]) -> Tuple[int, float, str, str]:
+    count = int(item.get("count", 0) or 0)
+    last_seen = _parse_optional_datetime_utc(item.get("last_seen_at"))
+    last_seen_epoch = last_seen.timestamp() if last_seen else 0.0
+    return (
+        -count,
+        -last_seen_epoch,
+        str(item.get("signal_type", "")),
+        str(item.get("intent_tag", "")),
+    )
+
+
+def _build_unmet_intent_signals(
+    *,
+    feedback_records: List[Dict[str, Any]],
+    action_traces: List[Dict[str, Any]],
+    now: datetime,
+    retention_days: int,
+    max_records: int,
+) -> List[Dict[str, Any]]:
+    cutoff = now - timedelta(days=max(retention_days, 1))
+    buckets: Dict[Tuple[str, str], Dict[str, Any]] = {}
+
+    def ingest(
+        signal_type: str,
+        intent_tag: str,
+        *,
+        source: str,
+        event_id: str,
+        event_time: Optional[datetime],
+    ) -> None:
+        if signal_type not in SIGNALS_TYPE_CHOICES:
+            return
+        if event_time is None or event_time < cutoff:
+            return
+        normalized_event_id = str(event_id).strip()
+        if not normalized_event_id:
+            return
+        key = (signal_type, _normalize_signal_intent_tag(intent_tag))
+        bucket = buckets.setdefault(
+            key,
+            {
+                "signal_type": signal_type,
+                "intent_tag": key[1],
+                "count": 0,
+                "first_seen": event_time,
+                "last_seen": event_time,
+                "_seen_ids": set(),
+                "_events": [],
+            },
+        )
+        event_ref = f"{source}:{normalized_event_id}"
+        seen_ids = bucket["_seen_ids"]
+        if event_ref in seen_ids:
+            return
+        seen_ids.add(event_ref)
+        bucket["count"] += 1
+        if event_time < bucket["first_seen"]:
+            bucket["first_seen"] = event_time
+        if event_time > bucket["last_seen"]:
+            bucket["last_seen"] = event_time
+        bucket["_events"].append((event_time, event_ref))
+
+    for record in feedback_records:
+        event_time = _parse_optional_datetime_utc(
+            record.get("created_at") or record.get("updated_at")
+        )
+        event_id = str(record.get("id", "")).strip()
+        label = str(record.get("label", "")).strip().lower()
+        if label == "not-helpful":
+            ingest(
+                "feedback_not_helpful",
+                "response_quality.unsatisfied",
+                source="feedback",
+                event_id=event_id,
+                event_time=event_time,
+            )
+        correction = str(record.get("correction", "")).strip()
+        for intent_tag in _feedback_correction_intent_tags(correction):
+            ingest(
+                "feedback_correction_pattern",
+                intent_tag,
+                source="feedback",
+                event_id=event_id,
+                event_time=event_time,
+            )
+
+    for trace in action_traces:
+        status = str(trace.get("status", "")).strip().lower()
+        if status not in ("error", "blocked"):
+            continue
+        event_time = _parse_optional_datetime_utc(trace.get("timestamp"))
+        event_id = str(trace.get("id", "")).strip()
+        ingest(
+            "command_failure",
+            _trace_failure_intent_tag(trace),
+            source="trace",
+            event_id=event_id,
+            event_time=event_time,
+        )
+
+    signals: List[Dict[str, Any]] = []
+    for bucket in buckets.values():
+        events = sorted(
+            bucket["_events"],
+            key=lambda item: (item[0], item[1]),
+            reverse=True,
+        )[:SIGNALS_MAX_EVENT_IDS_PER_SIGNAL]
+        count = int(bucket["count"])
+        signals.append(
+            {
+                "signal_id": _signal_id(bucket["signal_type"], bucket["intent_tag"]),
+                "signal_type": bucket["signal_type"],
+                "intent_tag": bucket["intent_tag"],
+                "confidence": _signal_confidence(bucket["signal_type"], count),
+                "count": count,
+                "first_seen_at": _isoformat_utc(bucket["first_seen"]),
+                "last_seen_at": _isoformat_utc(bucket["last_seen"]),
+                "source_event_ids": [event_id for _, event_id in events],
+                "source_event_count": count,
+                "schema_version": SIGNALS_SCHEMA_VERSION,
+            }
+        )
+
+    signals.sort(key=_signal_sort_key)
+    bounded_max = _normalize_int_default(
+        max_records,
+        default_value=SIGNALS_MAX_RECORDS_DEFAULT,
+        min_value=SIGNALS_MAX_RECORDS_MIN,
+        max_value=SIGNALS_MAX_RECORDS_MAX,
+    )
+    return signals[:bounded_max]
+
+
+def _empty_signals_ledger(
+    *,
+    generated_at: str,
+    settings: Dict[str, Any],
+) -> Dict[str, Any]:
+    retention_days = int(settings.get("retention_days", SIGNALS_RETENTION_DAYS_DEFAULT))
+    max_records = int(settings.get("max_records", SIGNALS_MAX_RECORDS_DEFAULT))
+    return {
+        "schema_version": SIGNALS_LEDGER_SCHEMA_VERSION,
+        "generated_at": generated_at,
+        "collection_enabled": bool(settings.get("enabled", True)),
+        "retention_days": retention_days,
+        "max_records": max_records,
+        "signal_count": 0,
+        "signals": [],
+        "source_summary": {
+            "window_start_at": "",
+            "feedback_records_scanned": 0,
+            "action_traces_scanned": 0,
+        },
+    }
+
+
+def _normalize_signals_records(items: Any) -> List[Dict[str, Any]]:
+    if not isinstance(items, list):
+        return []
+    normalized: List[Dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        signal_type = str(item.get("signal_type", "")).strip().lower()
+        if signal_type not in SIGNALS_TYPE_CHOICES:
+            continue
+        intent_tag = _normalize_signal_intent_tag(str(item.get("intent_tag", "")))
+        if not intent_tag:
+            continue
+        try:
+            confidence = float(item.get("confidence", 0.5))
+        except (TypeError, ValueError):
+            confidence = 0.5
+        confidence = round(min(max(confidence, 0.0), 1.0), 3)
+        count = _normalize_int_default(
+            item.get("count", 1),
+            default_value=1,
+            min_value=1,
+            max_value=1_000_000,
+        )
+        first_seen = _parse_optional_datetime_utc(item.get("first_seen_at"))
+        last_seen = _parse_optional_datetime_utc(item.get("last_seen_at"))
+        if first_seen is None and last_seen is None:
+            continue
+        if first_seen is None:
+            first_seen = last_seen
+        if last_seen is None:
+            last_seen = first_seen
+        source_event_ids: List[str] = []
+        raw_event_ids = item.get("source_event_ids", [])
+        if isinstance(raw_event_ids, list):
+            for raw_event in raw_event_ids:
+                event_id = str(raw_event).strip()
+                if not event_id or event_id in source_event_ids:
+                    continue
+                source_event_ids.append(event_id)
+        normalized.append(
+            {
+                "signal_id": str(item.get("signal_id") or _signal_id(signal_type, intent_tag)).strip(),
+                "signal_type": signal_type,
+                "intent_tag": intent_tag,
+                "confidence": confidence,
+                "count": count,
+                "first_seen_at": _isoformat_utc(first_seen),
+                "last_seen_at": _isoformat_utc(last_seen),
+                "source_event_ids": source_event_ids[:SIGNALS_MAX_EVENT_IDS_PER_SIGNAL],
+                "source_event_count": max(
+                    count,
+                    _normalize_int_default(
+                        item.get("source_event_count", len(source_event_ids)),
+                        default_value=len(source_event_ids),
+                        min_value=0,
+                        max_value=1_000_000,
+                    ),
+                ),
+                "schema_version": SIGNALS_SCHEMA_VERSION,
+            }
+        )
+    normalized.sort(key=_signal_sort_key)
+    return normalized
+
+
+def _load_signals_ledger(storage_dir: Path, cfg: Dict[str, Any]) -> Dict[str, Any]:
+    settings = _signals_settings(cfg)
+    payload = _load_json(_signals_path(storage_dir))
+    if not payload or not isinstance(payload, dict):
+        return _empty_signals_ledger(generated_at="", settings=settings)
+    ledger = _empty_signals_ledger(
+        generated_at=str(payload.get("generated_at", "")).strip(),
+        settings=settings,
+    )
+    ledger["signals"] = _normalize_signals_records(payload.get("signals", []))
+    ledger["signal_count"] = len(ledger["signals"])
+    raw_summary = payload.get("source_summary", {})
+    if isinstance(raw_summary, dict):
+        ledger["source_summary"] = {
+            "window_start_at": str(raw_summary.get("window_start_at", "")).strip(),
+            "feedback_records_scanned": _normalize_int_default(
+                raw_summary.get("feedback_records_scanned", 0),
+                default_value=0,
+                min_value=0,
+                max_value=1_000_000,
+            ),
+            "action_traces_scanned": _normalize_int_default(
+                raw_summary.get("action_traces_scanned", 0),
+                default_value=0,
+                min_value=0,
+                max_value=1_000_000,
+            ),
+        }
+    return ledger
+
+
+def _extract_unmet_intent_signals(
+    *,
+    cfg: Dict[str, Any],
+    storage_dir: Path,
+    trace_dir: Path,
+    persist: bool,
+) -> Dict[str, Any]:
+    settings = _signals_settings(cfg)
+    now = datetime.now(timezone.utc)
+    retention_days = int(settings["retention_days"])
+    max_records = int(settings["max_records"])
+    feedback_records = _normalize_feedback_records(_load_records(_feedback_path(storage_dir)))
+    action_traces = _read_action_traces(trace_dir)
+    signals = _build_unmet_intent_signals(
+        feedback_records=feedback_records,
+        action_traces=action_traces,
+        now=now,
+        retention_days=retention_days,
+        max_records=max_records,
+    )
+    cutoff = now - timedelta(days=retention_days)
+    ledger = _empty_signals_ledger(
+        generated_at=_isoformat_utc(now),
+        settings=settings,
+    )
+    ledger["signals"] = signals
+    ledger["signal_count"] = len(signals)
+    ledger["source_summary"] = {
+        "window_start_at": _isoformat_utc(cutoff),
+        "feedback_records_scanned": len(feedback_records),
+        "action_traces_scanned": len(action_traces),
+    }
+    wrote = False
+    if persist and bool(settings["enabled"]):
+        _write_json(_signals_path(storage_dir), ledger)
+        wrote = True
+    ledger["written"] = wrote
+    return ledger
+
+
 def cmd_feedback_record(args: argparse.Namespace) -> int:
     cfg_path = Path(args.config).expanduser()
     cfg = _ensure_config_exists(cfg_path)
@@ -5339,6 +5868,18 @@ def cmd_feedback_record(args: argparse.Namespace) -> int:
         ),
     )
 
+    try:
+        _extract_unmet_intent_signals(
+            cfg=cfg,
+            storage_dir=storage_dir,
+            trace_dir=trace_dir,
+            persist=True,
+        )
+    except Exception:
+        # Best-effort refresh; feedback capture must not fail if signal refresh
+        # encounters malformed local artifacts.
+        pass
+
     if args.as_json:
         print(json.dumps(record, indent=2))
     else:
@@ -5487,6 +6028,328 @@ def cmd_feedback_list(args: argparse.Namespace) -> int:
         if correction:
             line += f" correction={_summarize_text(correction, max_chars=72)}"
         print(line)
+    return 0
+
+
+def _signals_trace_metadata(
+    *,
+    signal_count: Optional[int] = None,
+    written: Optional[bool] = None,
+    collection_enabled: Optional[bool] = None,
+    export_id: Optional[str] = None,
+    export_path: Optional[str] = None,
+    cleared: Optional[bool] = None,
+) -> Dict[str, Any]:
+    metadata: Dict[str, Any] = {}
+    if signal_count is not None:
+        metadata["signal_count"] = int(signal_count)
+    if written is not None:
+        metadata["written"] = bool(written)
+    if collection_enabled is not None:
+        metadata["collection_enabled"] = bool(collection_enabled)
+    if export_id:
+        metadata["export_id"] = export_id
+    if export_path:
+        metadata["export_path"] = export_path
+    if cleared is not None:
+        metadata["cleared"] = bool(cleared)
+    return _with_trace_metadata(metadata=metadata)
+
+
+def cmd_signals_extract(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="memory_write",
+        input_summary="signals extract",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="signals_extract",
+            input_summary="signals extract",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    result = _extract_unmet_intent_signals(
+        cfg=cfg,
+        storage_dir=storage_dir,
+        trace_dir=trace_dir,
+        persist=True,
+    )
+    signal_count = int(result.get("signal_count", 0))
+    written = bool(result.get("written", False))
+    collection_enabled = bool(result.get("collection_enabled", True))
+    if collection_enabled:
+        output_summary = f"derived {signal_count} signals (written={written})"
+    else:
+        output_summary = "signal collection disabled; no write"
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="signals_extract",
+        input_summary="signals extract",
+        output_summary=output_summary,
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata=_signals_trace_metadata(
+            signal_count=signal_count,
+            written=written,
+            collection_enabled=collection_enabled,
+        ),
+    )
+
+    if args.as_json:
+        print(json.dumps(result, indent=2))
+        return 0
+
+    if not collection_enabled:
+        print(
+            "Signal collection is disabled (`signals.enabled=false`); no new signal ledger was written."
+        )
+    print(
+        "signal_count="
+        f"{signal_count} written={str(written).lower()} "
+        f"retention_days={result.get('retention_days')} max_records={result.get('max_records')}"
+    )
+    return 0
+
+
+def cmd_signals_list(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    limit = int(args.limit)
+    if limit < 1 or limit > SIGNALS_LIST_MAX_LIMIT:
+        message = (
+            f"Invalid --limit value {limit}. "
+            f"Expected 1..{SIGNALS_LIST_MAX_LIMIT}."
+        )
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="signals_list",
+            input_summary=f"limit={limit}",
+            output_summary=message,
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+            status="error",
+        )
+        print(message, file=sys.stderr)
+        return 1
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="memory_read",
+        input_summary="signals list",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="signals_list",
+            input_summary="signals list",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    ledger = _load_signals_ledger(storage_dir, cfg)
+    records = _normalize_signals_records(ledger.get("signals", []))
+    signal_type_filter = str(args.signal_type or "").strip().lower()
+    if signal_type_filter:
+        records = [item for item in records if str(item.get("signal_type", "")).strip().lower() == signal_type_filter]
+    intent_tag_filter = str(args.intent_tag or "").strip().lower()
+    if intent_tag_filter:
+        records = [item for item in records if intent_tag_filter in str(item.get("intent_tag", "")).strip().lower()]
+    selected = records[:limit]
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="signals_list",
+        input_summary=(
+            f"type={signal_type_filter or '-'} intent_tag={intent_tag_filter or '-'} "
+            f"limit={limit}"
+        ),
+        output_summary=f"{len(selected)} signals",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata=_signals_trace_metadata(
+            signal_count=len(selected),
+            collection_enabled=bool(ledger.get("collection_enabled", True)),
+        ),
+    )
+
+    if args.as_json:
+        print(json.dumps(selected, indent=2))
+        return 0
+
+    if not selected:
+        print("No unmet-intent signals found.")
+        return 0
+    for item in selected:
+        print(
+            f"{str(item.get('signal_id', '?')).strip()} "
+            f"{str(item.get('signal_type', '')).strip():<28} "
+            f"{str(item.get('intent_tag', '')).strip():<36} "
+            f"count={int(item.get('count', 0))} "
+            f"confidence={float(item.get('confidence', 0.0)):.3f} "
+            f"last={str(item.get('last_seen_at', '-')).strip() or '-'}"
+        )
+    return 0
+
+
+def cmd_signals_export(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="memory_export",
+        input_summary="signals export",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="signals_export",
+            input_summary="signals export",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    ledger = _load_signals_ledger(storage_dir, cfg)
+    export_path = (
+        Path(args.path).expanduser()
+        if args.path
+        else storage_dir / "unmet-intent-signals-export.json"
+    )
+    export_id = _new_record_id("sigexp")
+    exported_at = datetime.now(timezone.utc)
+    export_payload = dict(ledger)
+    export_payload["export_id"] = export_id
+    export_payload["exported_at"] = _isoformat_utc(exported_at)
+    _write_json(export_path, export_payload)
+    _append_jsonl(
+        _signals_export_events_path(storage_dir),
+        {
+            "schema_version": SIGNALS_SCHEMA_VERSION,
+            "export_id": export_id,
+            "exported_at": _isoformat_utc(exported_at),
+            "path": str(export_path),
+            "signal_count": int(ledger.get("signal_count", 0)),
+        },
+    )
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="signals_export",
+        input_summary=f"path={export_path}",
+        output_summary=f"exported {int(ledger.get('signal_count', 0))} signals",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata=_signals_trace_metadata(
+            signal_count=int(ledger.get("signal_count", 0)),
+            export_id=export_id,
+            export_path=str(export_path),
+            collection_enabled=bool(ledger.get("collection_enabled", True)),
+        ),
+    )
+
+    if args.as_json:
+        print(
+            json.dumps(
+                {
+                    "export_id": export_id,
+                    "exported_at": _isoformat_utc(exported_at),
+                    "path": str(export_path),
+                    "signal_count": int(ledger.get("signal_count", 0)),
+                },
+                indent=2,
+            )
+        )
+    else:
+        print(
+            f"Exported {int(ledger.get('signal_count', 0))} signals to {export_path} "
+            f"(export_id={export_id})"
+        )
+    return 0
+
+
+def cmd_signals_clear(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="memory_delete",
+        input_summary="signals clear",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="signals_clear",
+            input_summary="signals clear",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    path = _signals_path(storage_dir)
+    existed = path.exists()
+    path.unlink(missing_ok=True)
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="signals_clear",
+        input_summary=str(path),
+        output_summary="cleared" if existed else "already empty",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata=_signals_trace_metadata(cleared=existed),
+    )
+
+    if existed:
+        print(f"Cleared unmet-intent signal ledger: {path}")
+    else:
+        print("Signal ledger already empty.")
     return 0
 
 

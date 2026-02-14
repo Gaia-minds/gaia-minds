@@ -196,22 +196,21 @@ Execution queue (post-delivery stabilization round):
 
 Recommended merge order:
 
-1. Stabilization round complete; next merge queue begins with signal-driven follow-on (`#111`, `#115`, `#112`, `#113`)
+1. Stabilization round complete; signal-driven follow-on queue now proceeds with (`#115`, `#112`, `#113`) after `#111` delivery.
 
 Execution queue (signal-driven self-evolution follow-on; planning published):
 
 - `#110` Planning lane for user-intent signal architecture and queue decomposition
-- `#111` Privacy-preserving unmet-intent signal extraction from local interaction artifacts
+- `#111` Privacy-preserving unmet-intent signal extraction from local interaction artifacts (delivered)
 - `#112` Skill-first triage for unmet-intent signals (`existing-skill-enable` / `skill-import-candidate` / `core-feature-gap`) with broad-source import candidates gated by security validation
 - `#113` Integrate unmet-intent signal aggregates into hypothesis candidate generation
 - `#115` Continuous security validation research for broad-source skill imports (parallel support lane)
 
 Recommended merge order:
 
-1. `#111`
-2. `#115` (parallel support lane)
-3. `#112`
-4. `#113`
+1. `#115` (parallel support lane)
+2. `#112`
+3. `#113`
 
 Privacy/architecture rule for this queue:
 

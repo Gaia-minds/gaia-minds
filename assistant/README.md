@@ -531,6 +531,46 @@ Planned use in future improvement cycles:
 - drive explicit before/after evaluations in hypothesis/reliability workflows
 - remain human-reviewable and policy-gated before any automation path is added
 
+## Unmet-Intent Signals Runtime
+
+Gaia now derives privacy-preserving unmet-intent signals from local feedback and
+trace artifacts without copying raw chat transcripts into the signal ledger.
+
+```bash
+# default-on collection controls
+gaia config set signals_enabled true
+gaia config set signals_retention_days 90
+gaia config set signals_max_records 300
+
+# explicit opt-out
+gaia config set signals_enabled false
+
+# derive + inspect local signals
+gaia signals extract --json
+gaia signals list --limit 20
+
+# local export + clear controls
+gaia capability set memory_export safe
+gaia signals export --path ./unmet-intent-signals.json --json
+gaia capability set memory_delete safe
+gaia signals clear
+```
+
+Derived signal record contract:
+
+- `signal_id`, `signal_type`, `intent_tag`, `confidence`, `count`
+- `first_seen_at`, `last_seen_at`
+- `source_event_ids` (feedback/trace IDs only, no raw transcript copy)
+
+Privacy and retention boundaries:
+
+- collection default: on, with explicit opt-out via `signals_enabled`
+- derived-signal retention default: 90 days
+- deterministic bounded storage cap: `signals_max_records`
+- local-only ledger path: `~/.gaia-assistant/data/unmet-intent-signals.json`
+- export event ledger: `~/.gaia-assistant/data/unmet-intent-signal-exports.jsonl`
+- no external telemetry upload in this flow
+
 ## Skills Runtime
 
 Skills runtime commands provide deterministic discovery and inspection of

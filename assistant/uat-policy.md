@@ -29,8 +29,8 @@ Coverage registry files:
 - Feature catalog: `assistant/feature-catalog.json`
 
 Policy script `tools/check-uat-policy.py` enforces that every command path in
-`tools/gaia-assistant.py` and every action type in `tools/agent-actions.py`
-has an explicit mapping to scenario IDs.
+`tools/gaia-assistant.py` + `tools/gaia_assistant_parser.py` and every action
+type in `tools/agent-actions.py` has an explicit mapping to scenario IDs.
 
 ## Required CI Checks
 
