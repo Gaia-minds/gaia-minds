@@ -792,6 +792,72 @@ Lane: `Feedback loop capture and correction records` (`#96`)
   - `feedback record`
   - `feedback list`
 
+## Phase 3 Delta: Personalized Profiles + Memory Summarization (2026-02-14)
+
+Lane: `Personalized response profiles and memory summarization` (`#97`)
+
+### Runtime and behavior changes
+
+- Added deterministic response profile contract for chat and summarization:
+  - `auto`
+  - `concise`
+  - `balanced`
+  - `detailed`
+- Added profile preference aliases in config:
+  - `response_profile`
+  - `response-style`
+  - `style`
+- Added chat override path:
+  - `gaia chat --response-profile <auto|concise|balanced|detailed>`
+- Deterministic local provider twins now emit profile markers:
+  - `[local-<provider>][profile=<resolved-profile>]`
+- `response_profile=auto` resolves from local feedback heuristics with explicit
+  source annotation (`override:auto-feedback` or `config:auto-feedback`).
+
+### Memory summarize command and policy integration
+
+- Added summary command surface:
+  - `gaia memory summarize`
+- Summarization reads candidate memory records via existing memory query
+  filters (`--type`, `--subject`, `--q`, `--limit`) and compacts selected items
+  by resolved response profile budget.
+- Summary persistence reuses existing memory policy contract through
+  `memory_write` + consent/retention enforcement:
+  - generated summary is stored as a normal memory record (`memory add` policy
+    pathway reused).
+- Capability gates required for summarize flow:
+  - `memory_read` (source retrieval)
+  - `memory_write` (summary persistence)
+
+### Traceability and evidence artifacts
+
+- Added memory summarize event ledger:
+  - `~/.gaia-assistant/data/memory-summary-events.jsonl`
+- Each summary event includes:
+  - summary memory id/type/subject
+  - resolved response profile + source
+  - selected source memory ids and filter context
+  - deterministic content hash
+- Added structured action trace type:
+  - `memory_summarize`
+- Trace metadata includes summary event id, source memory ids, policy decision,
+  and response profile provenance.
+
+### Deterministic quality coverage
+
+- Expanded smoke suite:
+  - `chat_response_profiles_deterministic`
+  - `memory_summarize_traceability_and_benchmark`
+- Expanded deterministic UAT suite:
+  - `chat_response_profiles_deterministic`
+  - `memory_summarize_traceability_benchmark`
+- Added summarize benchmark fixture + gate:
+  - `assistant/memory-summary-fixtures.json`
+  - `tools/memory-summary-benchmark.py`
+  - `make memory-summary-benchmark`
+- Updated UAT feature-governance mapping for new command path:
+  - `memory summarize`
+
 ---
 
 ## Open Technical Questions

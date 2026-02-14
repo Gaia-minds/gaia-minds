@@ -75,6 +75,29 @@ run_smoke_suite() {
     [[ \"\$resume\" == *\"Resumed session: \$session_id\"* ]]
   "
 
+  run_test "chat_response_profiles_deterministic" bash -lc "
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" config set response_profile balanced >/dev/null &&
+    concise=\$(printf 'profile concise smoke\\n/exit\\n' | \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" chat --response-profile concise 2>&1) &&
+    [[ \"\$concise\" == *\"Response profile: concise (override)\"* ]] &&
+    [[ \"\$concise\" == *\"[profile=concise]\"* ]] &&
+    [[ \"\$concise\" != *\"Detail: deterministic expanded context\"* ]] &&
+    detailed=\$(printf 'profile detailed smoke\\n/exit\\n' | \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" chat --response-profile detailed 2>&1) &&
+    [[ \"\$detailed\" == *\"Response profile: detailed (override)\"* ]] &&
+    [[ \"\$detailed\" == *\"[profile=detailed]\"* ]] &&
+    [[ \"\$detailed\" == *\"Detail: deterministic expanded context\"* ]] &&
+    seed=\$(printf 'profile auto seed\\n/exit\\n' | \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" chat 2>&1) &&
+    seed_session=\$(printf '%s' \"\$seed\" | sed -n 's/^Started session: //p' | head -n1) &&
+    [[ -n \"\$seed_session\" ]] &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" feedback record --label 'not helpful' --session-id \"\$seed_session\" --correction 'too long, keep concise bullet updates' >/dev/null &&
+    auto=\$(printf 'profile auto smoke\\n/exit\\n' | \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" chat --response-profile auto 2>&1) &&
+    [[ \"\$auto\" == *\"Response profile: concise (override:auto-feedback)\"* ]] &&
+    [[ \"\$auto\" == *\"[profile=concise]\"* ]] &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" config set response_profile detailed >/dev/null &&
+    configured=\$(printf 'profile config smoke\\n/exit\\n' | \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" chat 2>&1) &&
+    [[ \"\$configured\" == *\"Response profile: detailed (config)\"* ]] &&
+    [[ \"\$configured\" == *\"[profile=detailed]\"* ]]
+  "
+
   run_test "note_capture_and_tasks" bash -lc "
     \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" note \"Smoke task capture\" --task >/dev/null &&
     listed=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" tasks --status all) &&
@@ -141,6 +164,35 @@ run_smoke_suite() {
     bench_out=\$(cat /tmp/memory-benchmark-smoke.out) &&
     [[ \"\$bench_out\" == *'\"status\": \"pass\"'* ]] &&
     [[ -f \"\$GAIA_ASSISTANT_HOME/memory-benchmark-smoke.json\" ]]
+  "
+
+  run_test "memory_summarize_traceability_and_benchmark" bash -lc "
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory add --memory-id smoke_summary_1 --type user_long --subject user:summary-smoke --content 'Updates should stay concise and decision-focused.' --summary 'decision-focused updates' --consent-scope user --retention-ttl P45D >/dev/null &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory add --memory-id smoke_summary_2 --type user_long --subject user:summary-smoke --content 'Updates should include practical next steps.' --summary 'practical next steps' --consent-scope user --retention-ttl P45D >/dev/null &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory add --memory-id smoke_summary_3 --type user_long --subject user:summary-smoke --content 'Updates should call out blockers early.' --summary 'blockers first' --consent-scope user --retention-ttl P45D >/dev/null &&
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory add --memory-id smoke_summary_4 --type user_long --subject user:summary-smoke --content 'Updates should include owner accountability.' --summary 'owner accountability' --consent-scope user --retention-ttl P45D >/dev/null &&
+    summary_json=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory summarize --subject user:summary-smoke --q updates --response-profile concise --summary-type session_short --summary-subject user:summary-smoke --json) &&
+    summary_id=\$(printf '%s' \"\$summary_json\" | python3 -c \"import json,sys; payload=json.load(sys.stdin); print(payload.get('summary_memory', {}).get('memory_id', ''))\") &&
+    summary_event_id=\$(printf '%s' \"\$summary_json\" | python3 -c \"import json,sys; payload=json.load(sys.stdin); print(payload.get('summary_event', {}).get('summary_event_id', ''))\") &&
+    selected_count=\$(printf '%s' \"\$summary_json\" | python3 -c \"import json,sys; payload=json.load(sys.stdin); print(payload.get('summary_event', {}).get('selected_source_count', 0))\") &&
+    [[ -n \"\$summary_id\" ]] &&
+    [[ -n \"\$summary_event_id\" ]] &&
+    [[ \"\$selected_count\" -ge 1 ]] &&
+    [[ \"\$selected_count\" -le 3 ]] &&
+    summary_events=\$(cat \"\$GAIA_ASSISTANT_HOME/data/memory-summary-events.jsonl\") &&
+    [[ \"\$summary_events\" == *\"\$summary_id\"* ]] &&
+    [[ \"\$summary_events\" == *\"\$summary_event_id\"* ]] &&
+    trace_json=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" traces --type memory_summarize --last 1 --json) &&
+    [[ \"\$trace_json\" == *\"summary_event_id\"* ]] &&
+    python3 \"${ROOT_DIR}/tools/memory-summary-benchmark.py\" \
+      --fixtures \"${ROOT_DIR}/assistant/memory-summary-fixtures.json\" \
+      --assistant-home \"\$GAIA_ASSISTANT_HOME/memory-summary-benchmark-smoke\" \
+      --json-out \"\$GAIA_ASSISTANT_HOME/memory-summary-benchmark-smoke.json\" \
+      --check >/tmp/memory-summary-benchmark-smoke.out 2>&1 &&
+    bench_out=\$(cat /tmp/memory-summary-benchmark-smoke.out) &&
+    [[ \"\$bench_out\" == *'\"suite\": \"gaia-memory-summary-benchmark\"'* ]] &&
+    [[ \"\$bench_out\" == *'\"status\": \"pass\"'* ]] &&
+    [[ -f \"\$GAIA_ASSISTANT_HOME/memory-summary-benchmark-smoke.json\" ]]
   "
 
   run_test "memory_policy_privacy_controls" bash -lc "

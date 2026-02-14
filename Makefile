@@ -1,4 +1,4 @@
-.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy quality-matrix compatibility-matrix benchmark memory-benchmark memory-quality benchmark-trend hypothesis-validate hypothesis-run hypothesis-dry-run hypothesis-hold-fixture hypothesis-failure-fixture token-budget-fixtures reliability-checkpoint reliability-checkpoint-check reliability-checkpoint-simulate-breach reliability-drift reliability-drift-check reliability-drift-simulate hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
+.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy quality-matrix compatibility-matrix benchmark memory-benchmark memory-summary-benchmark memory-quality benchmark-trend hypothesis-validate hypothesis-run hypothesis-dry-run hypothesis-hold-fixture hypothesis-failure-fixture token-budget-fixtures reliability-checkpoint reliability-checkpoint-check reliability-checkpoint-simulate-breach reliability-drift reliability-drift-check reliability-drift-simulate hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
 
 HYPOTHESIS_OUTPUT_ROOT ?= /tmp/gaia-hypothesis-evals
 RELIABILITY_CHECKPOINT_ROOT ?= /tmp/gaia-reliability-checkpoints
@@ -40,6 +40,9 @@ benchmark:
 
 memory-benchmark:
 	python3 ./tools/memory-benchmark.py --check --json-out ./assistant/memory-retrieval-benchmark-results.json
+
+memory-summary-benchmark:
+	python3 ./tools/memory-summary-benchmark.py --check --json-out ./assistant/memory-summary-benchmark-results.json
 
 memory-quality:
 	python3 ./tools/memory-quality-matrix.py --check --json-out ./assistant/memory-quality-results.json

@@ -49,6 +49,22 @@ DEFAULT_OPENROUTER_MODEL = "openrouter/auto"
 ONBOARD_PROVIDER_CHOICES = ("openrouter", "openai", "anthropic", "openai-codex")
 PROFILE_VERBOSITY_CHOICES = ("concise", "balanced", "detailed")
 PROFILE_PROVIDER_CHOICES = ("openrouter", "openai", "anthropic", "openai-codex")
+RESPONSE_PROFILE_CHOICES = ("auto", "concise", "balanced", "detailed")
+RESPONSE_PROFILE_DEFAULT = "balanced"
+RESPONSE_PROFILE_SYSTEM_PROMPTS: Dict[str, str] = {
+    "concise": (
+        "Response profile: concise. Keep replies compact and actionable. "
+        "Use short bullets when useful and avoid filler."
+    ),
+    "balanced": (
+        "Response profile: balanced. Provide clear practical detail with concise reasoning "
+        "and direct next steps."
+    ),
+    "detailed": (
+        "Response profile: detailed. Provide thorough context, explicit assumptions, and "
+        "step-by-step guidance when relevant."
+    ),
+}
 PERMISSION_LEVEL_CHOICES = ("safe", "confirm", "forbidden")
 DEFAULT_SESSION_CONTEXT_TURNS = 20
 SCHEDULE_STATUS_CHOICES = ("active", "paused", "canceled", "completed", "failed")
@@ -113,6 +129,9 @@ PROFILE_KEY_MAP = {
     "verbosity": ("profile", "verbosity"),
     "provider": ("profile", "default_provider"),
     "default_provider": ("profile", "default_provider"),
+    "response_profile": ("profile", "response_profile"),
+    "response-style": ("profile", "response_profile"),
+    "style": ("profile", "response_profile"),
 }
 
 MEMORY_STORE_SCHEMA_VERSION = 1
@@ -191,6 +210,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "timezone": "UTC",
         "verbosity": "balanced",
         "default_provider": "anthropic",
+        "response_profile": RESPONSE_PROFILE_DEFAULT,
     },
     "capabilities": {
         "overrides": {},
@@ -304,6 +324,7 @@ def _normalize_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     profile.setdefault("timezone", "UTC")
     profile.setdefault("verbosity", "balanced")
     profile.setdefault("default_provider", "anthropic")
+    profile.setdefault("response_profile", RESPONSE_PROFILE_DEFAULT)
 
     verbosity = str(profile.get("verbosity", "")).strip().lower()
     if verbosity not in PROFILE_VERBOSITY_CHOICES:
@@ -312,6 +333,10 @@ def _normalize_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     default_provider = str(profile.get("default_provider", "")).strip().lower()
     if default_provider not in PROFILE_PROVIDER_CHOICES:
         profile["default_provider"] = "anthropic"
+
+    response_profile = str(profile.get("response_profile", "")).strip().lower()
+    if response_profile not in RESPONSE_PROFILE_CHOICES:
+        profile["response_profile"] = RESPONSE_PROFILE_DEFAULT
 
     capabilities = cfg.setdefault("capabilities", {})
     overrides = capabilities.setdefault("overrides", {})
@@ -464,6 +489,15 @@ def _normalize_profile_value(key: str, value: str) -> Tuple[Optional[str], Optio
             return None, (
                 f"Invalid provider '{value}'. "
                 f"Expected one of: {', '.join(PROFILE_PROVIDER_CHOICES)}."
+            )
+        return normalized, None
+    if canonical_key in ("response_profile", "response-style", "style"):
+        normalized = raw.lower().replace("_", "-")
+        normalized = re.sub(r"\s+", "-", normalized)
+        if normalized not in RESPONSE_PROFILE_CHOICES:
+            return None, (
+                f"Invalid response profile '{value}'. "
+                f"Expected one of: {', '.join(RESPONSE_PROFILE_CHOICES)}."
             )
         return normalized, None
     if canonical_key == "timezone":
@@ -753,6 +787,10 @@ def _memory_export_events_path(storage_dir: Path) -> Path:
     return storage_dir / "memory-export-events.jsonl"
 
 
+def _memory_summary_events_path(storage_dir: Path) -> Path:
+    return storage_dir / "memory-summary-events.jsonl"
+
+
 def _autopilot_runs_path(trace_dir: Path) -> Path:
     return trace_dir / "autopilot-runs.jsonl"
 
@@ -1014,6 +1052,12 @@ def _memory_policy_rule(memory_type: str) -> Dict[str, int | str]:
     if not isinstance(rule, dict) or not rule:
         raise ValueError(f"Missing memory policy rule for memory_type '{memory_type}'.")
     return rule
+
+
+def _default_memory_consent_scope(memory_type: str) -> str:
+    rule = _memory_policy_rule(memory_type)
+    scope = str(rule.get("consent_scope", "")).strip().lower()
+    return _normalize_memory_consent_scope(scope)
 
 
 def _enforce_memory_policy_contract(
@@ -2764,11 +2808,123 @@ def _extract_last_user_text(messages: List[Dict[str, str]]) -> str:
     return ""
 
 
+def _normalize_response_profile_token(raw: str) -> str:
+    normalized = str(raw).strip().lower().replace("_", "-")
+    normalized = re.sub(r"\s+", "-", normalized)
+    if normalized in RESPONSE_PROFILE_CHOICES:
+        return normalized
+    return ""
+
+
+def _feedback_profile_scores(storage_dir: Path) -> Dict[str, int]:
+    scores: Dict[str, int] = {
+        "concise": 0,
+        "balanced": 1,
+        "detailed": 0,
+    }
+    concise_terms = ("concise", "short", "brief", "too long", "trim", "less words", "tldr")
+    detailed_terms = ("detail", "deeper", "explain", "more context", "step by step", "thorough")
+    balanced_terms = ("balanced", "clear", "actionable", "structured", "practical")
+
+    for item in _load_records(_feedback_path(storage_dir)):
+        if not isinstance(item, dict):
+            continue
+        label_raw = str(item.get("label", "")).strip()
+        try:
+            label = _normalize_feedback_label(label_raw)
+        except ValueError:
+            continue
+        correction = str(item.get("correction", "")).strip().lower()
+        weight = 2 if label == "not-helpful" else 1
+        if correction:
+            if any(term in correction for term in concise_terms):
+                scores["concise"] += weight
+            if any(term in correction for term in detailed_terms):
+                scores["detailed"] += weight
+            if any(term in correction for term in balanced_terms):
+                scores["balanced"] += weight
+        elif label == "helpful":
+            scores["balanced"] += 1
+    return scores
+
+
+def _auto_response_profile_from_feedback(storage_dir: Path) -> Tuple[str, Dict[str, int]]:
+    scores = _feedback_profile_scores(storage_dir)
+    order = ("balanced", "concise", "detailed")
+    selected = order[0]
+    for profile in order[1:]:
+        if scores.get(profile, 0) > scores.get(selected, 0):
+            selected = profile
+    return selected, scores
+
+
+def _resolve_response_profile(
+    cfg: Dict[str, Any],
+    storage_dir: Path,
+    *,
+    override: Optional[str] = None,
+) -> Tuple[str, str]:
+    override_token = _normalize_response_profile_token(str(override or ""))
+    if override_token:
+        if override_token == "auto":
+            selected, _ = _auto_response_profile_from_feedback(storage_dir)
+            return selected, "override:auto-feedback"
+        return override_token, "override"
+
+    profile_cfg = cfg.get("profile", {})
+    profile_cfg = profile_cfg if isinstance(profile_cfg, dict) else {}
+    configured = _normalize_response_profile_token(str(profile_cfg.get("response_profile", "")))
+    if not configured:
+        configured = RESPONSE_PROFILE_DEFAULT
+    if configured == "auto":
+        selected, _ = _auto_response_profile_from_feedback(storage_dir)
+        return selected, "config:auto-feedback"
+    return configured, "config"
+
+
+def _response_profile_system_prompt(profile: str, profile_source: str) -> str:
+    normalized = _normalize_response_profile_token(profile)
+    if not normalized or normalized == "auto":
+        normalized = RESPONSE_PROFILE_DEFAULT
+    base = RESPONSE_PROFILE_SYSTEM_PROMPTS.get(normalized, RESPONSE_PROFILE_SYSTEM_PROMPTS[RESPONSE_PROFILE_DEFAULT])
+    return f"{base}\nProfile source: {profile_source}."
+
+
+def _response_profile_display(profile: str) -> str:
+    normalized = _normalize_response_profile_token(profile)
+    if not normalized or normalized == "auto":
+        return RESPONSE_PROFILE_DEFAULT
+    return normalized
+
+
+def _extract_response_profile_from_messages(messages: List[Dict[str, str]]) -> str:
+    for msg in messages:
+        if str(msg.get("role", "")).strip() != "system":
+            continue
+        content = str(msg.get("content", "")).strip()
+        match = re.search(r"response profile:\s*([a-z-]+)", content, flags=re.IGNORECASE)
+        if match:
+            token = _normalize_response_profile_token(match.group(1))
+            if token and token != "auto":
+                return token
+    return RESPONSE_PROFILE_DEFAULT
+
+
 def _mock_provider_response(provider: str, model: str, messages: List[Dict[str, str]]) -> str:
     prompt = _extract_last_user_text(messages)
     prompt_summary = _summarize_text(prompt, max_chars=140)
+    response_profile = _extract_response_profile_from_messages(messages)
+    prefix = f"[local-{provider}][profile={response_profile}]"
+    if response_profile == "concise":
+        return f"{prefix} {prompt_summary}"
+    if response_profile == "detailed":
+        return (
+            f"{prefix} {prompt_summary}\n"
+            f"Detail: deterministic expanded context for '{_summarize_text(prompt, max_chars=80)}'.\n"
+            f"Context messages: {len(messages)} | model: {model}."
+        )
     return (
-        f"[local-{provider}] {prompt_summary}\n"
+        f"{prefix} {prompt_summary}\n"
         f"Context messages: {len(messages)} | model: {model}."
     )
 
@@ -2992,9 +3148,13 @@ def _build_context_messages(
     turns: List[Dict[str, Any]],
     user_prompt: str,
     max_turns: int,
+    system_prompt: Optional[str] = None,
 ) -> List[Dict[str, str]]:
     bounded = turns[-max_turns:] if max_turns > 0 else turns
     messages: List[Dict[str, str]] = []
+    system_text = str(system_prompt or "").strip()
+    if system_text:
+        messages.append({"role": "system", "content": system_text})
     for turn in bounded:
         role = str(turn.get("role", "")).strip()
         content = str(turn.get("content", "")).strip()
@@ -3889,6 +4049,12 @@ def cmd_chat(args: argparse.Namespace) -> int:
     max_turns = args.max_context_turns if args.max_context_turns else configured_max_turns
     if not isinstance(max_turns, int) or max_turns < 2:
         max_turns = DEFAULT_SESSION_CONTEXT_TURNS
+    response_profile, response_profile_source = _resolve_response_profile(
+        cfg,
+        storage_dir,
+        override=args.response_profile,
+    )
+    system_prompt = _response_profile_system_prompt(response_profile, response_profile_source)
 
     session: Optional[Dict[str, Any]] = None
     if args.resume:
@@ -3900,14 +4066,29 @@ def cmd_chat(args: argparse.Namespace) -> int:
         if session is None:
             print(f"Session not found: {target_session_id}", file=sys.stderr)
             return 1
+        if args.response_profile:
+            session["response_profile"] = response_profile
+            session["response_profile_source"] = response_profile_source
+        else:
+            session_profile = _normalize_response_profile_token(str(session.get("response_profile", "")))
+            if session_profile and session_profile != "auto":
+                response_profile = session_profile
+                response_profile_source = "session"
+                system_prompt = _response_profile_system_prompt(response_profile, response_profile_source)
+            else:
+                session["response_profile"] = response_profile
+                session["response_profile_source"] = response_profile_source
         print(f"Resumed session: {target_session_id}")
     else:
         session = _create_session(provider=provider, model=model)
+        session["response_profile"] = response_profile
+        session["response_profile_source"] = response_profile_source
         _save_session(session_dir, session)
         print(f"Started session: {session['id']}")
 
     assert session is not None
     print(f"Provider: {provider} | Model: {model}")
+    print(f"Response profile: {response_profile} ({response_profile_source})")
     print("Type /help for commands.")
 
     while True:
@@ -3964,7 +4145,13 @@ def cmd_chat(args: argparse.Namespace) -> int:
                     duration_ms=(time.perf_counter() - turn_start) * 1000,
                     permission_level=permission_level,
                     status="blocked",
-                    metadata={"session_id": session["id"], "provider": provider, "model": model},
+                    metadata={
+                        "session_id": session["id"],
+                        "provider": provider,
+                        "model": model,
+                        "response_profile": response_profile,
+                        "response_profile_source": response_profile_source,
+                    },
                 )
                 continue
 
@@ -3996,7 +4183,12 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 output_summary=reply,
                 duration_ms=(time.perf_counter() - turn_start) * 1000,
                 permission_level=permission_level,
-                metadata={"session_id": session["id"], "source": "chat"},
+                metadata={
+                    "session_id": session["id"],
+                    "source": "chat",
+                    "response_profile": response_profile,
+                    "response_profile_source": response_profile_source,
+                },
             )
             continue
 
@@ -4026,11 +4218,22 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 duration_ms=(time.perf_counter() - turn_start) * 1000,
                 permission_level=permission_level,
                 status="blocked",
-                metadata={"session_id": session["id"], "provider": provider, "model": model},
+                metadata={
+                    "session_id": session["id"],
+                    "provider": provider,
+                    "model": model,
+                    "response_profile": response_profile,
+                    "response_profile_source": response_profile_source,
+                },
             )
             continue
 
-        messages = _build_context_messages(session["turns"], user_input, max_turns=max_turns)
+        messages = _build_context_messages(
+            session["turns"],
+            user_input,
+            max_turns=max_turns,
+            system_prompt=system_prompt,
+        )
         status = "ok"
         try:
             assistant_reply = _reasoning_response(
@@ -4046,6 +4249,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 compact_turns,
                 user_input,
                 max_turns=max(4, max_turns // 2),
+                system_prompt=system_prompt,
             )
             try:
                 assistant_reply = _reasoning_response(
@@ -4082,6 +4286,8 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 "provider": provider,
                 "model": model,
                 "context_messages": len(messages),
+                "response_profile": response_profile,
+                "response_profile_source": response_profile_source,
             },
         )
 
@@ -5322,6 +5528,10 @@ def _memory_trace_metadata(
     selected_count: Optional[int] = None,
     tombstone_id: Optional[str] = None,
     export_id: Optional[str] = None,
+    summary_event_id: Optional[str] = None,
+    source_memory_ids: Optional[List[str]] = None,
+    response_profile: Optional[str] = None,
+    response_profile_source: Optional[str] = None,
     evidence_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     metadata: Dict[str, Any] = {}
@@ -5349,9 +5559,65 @@ def _memory_trace_metadata(
         metadata["tombstone_id"] = tombstone_id
     if export_id:
         metadata["export_id"] = export_id
+    if summary_event_id:
+        metadata["summary_event_id"] = summary_event_id
+    if source_memory_ids is not None:
+        metadata["source_memory_ids"] = [str(item).strip() for item in source_memory_ids if str(item).strip()]
+    if response_profile:
+        metadata["response_profile"] = _response_profile_display(response_profile)
+    if response_profile_source:
+        metadata["response_profile_source"] = str(response_profile_source).strip()
     if evidence_path:
         metadata["evidence_path"] = evidence_path
     return _with_trace_metadata(metadata=metadata)
+
+
+def _memory_summary_item_budget(response_profile: str) -> Tuple[int, int]:
+    profile = _normalize_response_profile_token(response_profile)
+    if profile == "concise":
+        return 3, 100
+    if profile == "detailed":
+        return 8, 180
+    return 5, 130
+
+
+def _compose_memory_summary_payload(
+    records: List[Dict[str, Any]],
+    *,
+    response_profile: str,
+    query: str,
+    subject_filter: str,
+) -> Tuple[str, str, List[str]]:
+    item_limit, snippet_chars = _memory_summary_item_budget(response_profile)
+    selected = records[:item_limit]
+    source_ids = [str(item.get("memory_id", "")).strip() for item in selected if str(item.get("memory_id", "")).strip()]
+    profile_label = _response_profile_display(response_profile)
+
+    highlights: List[str] = []
+    for record in selected:
+        memory_id = str(record.get("memory_id", "")).strip() or "unknown-id"
+        memory_type = str(record.get("memory_type", "")).strip() or "unknown-type"
+        subject_id = str(record.get("subject_id", "")).strip() or "unknown-subject"
+        snippet = _summarize_text(record.get("summary") or record.get("content", ""), max_chars=snippet_chars)
+        highlights.append(f"- {memory_id} ({memory_type}, {subject_id}): {snippet}")
+
+    query_label = str(query or "").strip() or "-"
+    subject_label = str(subject_filter or "").strip() or "-"
+    summary_text = (
+        f"{profile_label} profile memory summary from {len(records)} records "
+        f"(selected {len(selected)}, query={query_label}, subject={subject_label})."
+    )
+    content_lines = [
+        f"Memory summary profile: {profile_label}",
+        f"Source count: {len(records)}",
+        f"Selected source count: {len(selected)}",
+        f"Source memory ids: {', '.join(source_ids) if source_ids else '-'}",
+        f"Filters: query={query_label} subject={subject_label}",
+        "",
+        "Highlights:",
+        *highlights,
+    ]
+    return summary_text, "\n".join(content_lines).strip(), source_ids
 
 
 def _tokenize_text(raw: str) -> List[str]:
@@ -5836,6 +6102,270 @@ def cmd_memory_retrieve(args: argparse.Namespace) -> int:
             f"type={item.get('memory_type', '?')} subject={item.get('subject_id', '?')} "
             f"summary={summary}"
         )
+    return 0
+
+
+def cmd_memory_summarize(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    source_subject = str(args.subject_id or "").strip()
+    source_query = str(args.q or "").strip()
+    source_type = str(args.memory_type or "").strip() or None
+    response_profile, response_profile_source = _resolve_response_profile(
+        cfg,
+        storage_dir,
+        override=args.response_profile,
+    )
+    summary_type = _normalize_memory_type(str(args.summary_memory_type))
+    summary_subject = str(args.summary_subject_id or source_subject or "memory:summary").strip()
+    if not summary_subject:
+        print("summary subject cannot be empty.", file=sys.stderr)
+        return 1
+    summary_consent_scope = str(args.summary_consent_scope or "").strip()
+    if summary_consent_scope:
+        summary_consent_scope = _normalize_memory_consent_scope(summary_consent_scope)
+    else:
+        summary_consent_scope = _default_memory_consent_scope(summary_type)
+
+    allowed_read, read_permission = _enforce_capability(
+        cfg=cfg,
+        capability="memory_read",
+        input_summary="memory summarize read",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed_read:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_summarize",
+            input_summary=f"type={source_type or '-'} subject={source_subject or '-'} q={source_query or '-'}",
+            output_summary="blocked by memory_read policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=read_permission,
+            status="blocked",
+            metadata=_memory_trace_metadata(
+                memory_type=source_type,
+                subject_id=source_subject,
+                retrieval_mode="summarize",
+                policy_decision="deny",
+                policy_reason="blocked by memory_read capability policy",
+                response_profile=response_profile,
+                response_profile_source=response_profile_source,
+            ),
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    allowed_write, write_permission = _enforce_capability(
+        cfg=cfg,
+        capability="memory_write",
+        input_summary="memory summarize write",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed_write:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_summarize",
+            input_summary=f"type={source_type or '-'} subject={source_subject or '-'} q={source_query or '-'}",
+            output_summary="blocked by memory_write policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=write_permission,
+            status="blocked",
+            metadata=_memory_trace_metadata(
+                memory_type=summary_type,
+                subject_id=summary_subject,
+                consent_scope=summary_consent_scope,
+                retention_ttl=str(args.retention_ttl or "").strip(),
+                retrieval_mode="summarize",
+                policy_decision="deny",
+                policy_reason="blocked by memory_write capability policy",
+                response_profile=response_profile,
+                response_profile_source=response_profile_source,
+            ),
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    store = _memory_store(storage_dir)
+    try:
+        records = store.list(
+            memory_type=source_type,
+            subject_id=source_subject or None,
+            query=source_query or None,
+            limit=int(args.limit),
+            include_deleted=bool(args.include_deleted),
+        )
+    except ValueError as exc:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_summarize",
+            input_summary=f"type={source_type or '-'} subject={source_subject or '-'} q={source_query or '-'}",
+            output_summary=str(exc),
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=write_permission,
+            status="error",
+            metadata=_memory_trace_metadata(
+                memory_type=source_type,
+                subject_id=source_subject,
+                retrieval_mode="summarize",
+                policy_decision="deny",
+                policy_reason=str(exc),
+                response_profile=response_profile,
+                response_profile_source=response_profile_source,
+            ),
+        )
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    if not records:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_summarize",
+            input_summary=f"type={source_type or '-'} subject={source_subject or '-'} q={source_query or '-'}",
+            output_summary="no matching records",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=write_permission,
+            status="error",
+            metadata=_memory_trace_metadata(
+                memory_type=source_type,
+                subject_id=source_subject,
+                retrieval_mode="summarize",
+                candidate_count=0,
+                selected_count=0,
+                policy_decision="deny",
+                policy_reason="no source memory records matched summarize filters",
+                response_profile=response_profile,
+                response_profile_source=response_profile_source,
+            ),
+        )
+        print("No memory records found for summarize filters.", file=sys.stderr)
+        return 1
+
+    summary_text, summary_content, source_ids = _compose_memory_summary_payload(
+        records,
+        response_profile=response_profile,
+        query=source_query,
+        subject_filter=source_subject,
+    )
+
+    try:
+        summary_record = store.create(
+            {
+                "memory_id": args.summary_memory_id,
+                "memory_type": summary_type,
+                "subject_id": summary_subject,
+                "content": summary_content,
+                "summary": summary_text,
+                "source_trace_id": str(args.source_trace_id or "").strip(),
+                "confidence": args.confidence,
+                "importance": args.importance,
+                "retention_ttl": str(args.retention_ttl or "").strip(),
+                "consent_scope": summary_consent_scope,
+            }
+        )
+    except (ValueError, sqlite3.Error) as exc:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="memory_summarize",
+            input_summary=f"type={source_type or '-'} subject={source_subject or '-'} q={source_query or '-'}",
+            output_summary=str(exc),
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=write_permission,
+            status="error",
+            metadata=_memory_trace_metadata(
+                memory_type=summary_type,
+                subject_id=summary_subject,
+                consent_scope=summary_consent_scope,
+                retention_ttl=str(args.retention_ttl or "").strip(),
+                retrieval_mode="summarize",
+                candidate_count=len(records),
+                selected_count=len(source_ids),
+                policy_decision="deny",
+                policy_reason=str(exc),
+                source_memory_ids=source_ids,
+                response_profile=response_profile,
+                response_profile_source=response_profile_source,
+            ),
+        )
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    summary_event_id = _new_record_id("ms")
+    summary_event = {
+        "schema_version": 1,
+        "summary_event_id": summary_event_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "summary_memory_id": summary_record["memory_id"],
+        "summary_memory_type": summary_record["memory_type"],
+        "summary_subject_id": summary_record["subject_id"],
+        "response_profile": _response_profile_display(response_profile),
+        "response_profile_source": response_profile_source,
+        "source_count": len(records),
+        "selected_source_count": len(source_ids),
+        "source_memory_ids": source_ids,
+        "filters": {
+            "memory_type": source_type,
+            "subject_id": source_subject,
+            "query": source_query,
+            "include_deleted": bool(args.include_deleted),
+            "limit": int(args.limit),
+        },
+        "summary_sha256": hashlib.sha256(summary_content.encode("utf-8")).hexdigest(),
+    }
+    summary_events_path = _memory_summary_events_path(storage_dir)
+    _append_jsonl(summary_events_path, summary_event)
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="memory_summarize",
+        input_summary=f"type={source_type or '-'} subject={source_subject or '-'} q={source_query or '-'}",
+        output_summary=f"summary {summary_record['memory_id']} from {len(source_ids)} sources",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=write_permission,
+        metadata=_memory_trace_metadata(
+            memory_id=summary_record["memory_id"],
+            memory_type=summary_record["memory_type"],
+            subject_id=summary_record["subject_id"],
+            consent_scope=summary_record["consent_scope"],
+            retention_ttl=summary_record["retention_ttl"],
+            retrieval_mode="summarize",
+            candidate_count=len(records),
+            selected_count=len(source_ids),
+            policy_decision="allow",
+            policy_reason="memory summary persisted with source traceability evidence",
+            summary_event_id=summary_event_id,
+            source_memory_ids=source_ids,
+            response_profile=response_profile,
+            response_profile_source=response_profile_source,
+            evidence_path=str(summary_events_path),
+        ),
+    )
+
+    if args.as_json:
+        print(
+            json.dumps(
+                {
+                    "summary_memory": summary_record,
+                    "summary_event": summary_event,
+                    "source_memory_ids": source_ids,
+                },
+                indent=2,
+            )
+        )
+        return 0
+
+    print(
+        f"{summary_record['memory_id']} {summary_record['memory_type']} {summary_record['subject_id']} "
+        f"profile={_response_profile_display(response_profile)} sources={len(source_ids)} "
+        f"event={summary_event_id}"
+    )
+    print(summary_text)
     return 0
 
 
@@ -9596,6 +10126,12 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument("--storage-dir", default=None, help="Data storage directory override")
     chat.add_argument("--trace-dir", default=None, help="Trace directory override")
     chat.add_argument("--resume", default=None, help="Session id or 'last'")
+    chat.add_argument(
+        "--response-profile",
+        choices=list(RESPONSE_PROFILE_CHOICES),
+        default=None,
+        help="Response profile override (auto/concise/balanced/detailed)",
+    )
     chat.add_argument("--max-context-turns", type=int, default=None, help="Override max context turns")
     chat.set_defaults(func=cmd_chat)
 
@@ -9723,6 +10259,48 @@ def build_parser() -> argparse.ArgumentParser:
     memory_retrieve.add_argument("--json", dest="as_json", action="store_true", help="Emit retrieval result JSON")
     memory_retrieve.add_argument("--query", required=True, help="Retrieval query")
     memory_retrieve.set_defaults(func=cmd_memory_retrieve)
+
+    memory_summarize = memory_sub.add_parser("summarize", help="Create a compact traceable summary from memory records")
+    memory_summarize.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    memory_summarize.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    memory_summarize.add_argument("--trace-dir", default=None, help="Trace directory override")
+    memory_summarize.add_argument("--type", dest="memory_type", choices=list(MEMORY_TYPE_CHOICES), default=None)
+    memory_summarize.add_argument("--subject", dest="subject_id", default=None, help="Filter source subject id")
+    memory_summarize.add_argument("--q", default=None, help="Filter source records by content/summary keyword")
+    memory_summarize.add_argument("--limit", type=int, default=MEMORY_LIST_MAX_LIMIT, help="Max source rows before profile compaction")
+    memory_summarize.add_argument("--include-deleted", action="store_true", help="Include soft-deleted source records")
+    memory_summarize.add_argument(
+        "--response-profile",
+        choices=list(RESPONSE_PROFILE_CHOICES),
+        default=None,
+        help="Summary profile override (auto/concise/balanced/detailed)",
+    )
+    memory_summarize.add_argument("--summary-memory-id", default=None, help="Optional explicit summary memory id")
+    memory_summarize.add_argument(
+        "--summary-type",
+        dest="summary_memory_type",
+        choices=list(MEMORY_TYPE_CHOICES),
+        default="session_short",
+        help="Memory class for the generated summary record",
+    )
+    memory_summarize.add_argument(
+        "--summary-subject",
+        dest="summary_subject_id",
+        default=None,
+        help="Subject id for the generated summary record",
+    )
+    memory_summarize.add_argument(
+        "--summary-consent-scope",
+        choices=list(MEMORY_CONSENT_SCOPE_CHOICES),
+        default=None,
+        help="Consent scope override for generated summary record",
+    )
+    memory_summarize.add_argument("--retention-ttl", default="", help="Retention hint for generated summary record")
+    memory_summarize.add_argument("--source-trace-id", default="", help="Optional source trace id for generated summary record")
+    memory_summarize.add_argument("--confidence", type=float, default=0.7, help="Generated summary confidence score (0-1)")
+    memory_summarize.add_argument("--importance", type=float, default=0.6, help="Generated summary importance score (0-1)")
+    memory_summarize.add_argument("--json", dest="as_json", action="store_true", help="Emit summary payload JSON")
+    memory_summarize.set_defaults(func=cmd_memory_summarize)
 
     memory_export = memory_sub.add_parser("export", help="Export memory records with audit evidence")
     memory_export.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
