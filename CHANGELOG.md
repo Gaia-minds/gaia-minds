@@ -9,6 +9,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- Skill provenance admission policy controls for validation workflow (`skills_provenance_mode`, `skills_attestation_mode`, `skills_source_health_mode`, `skills_source_health_min_score`) (`tools/gaia-assistant.py`, `#122`)
+- Deterministic provenance admission evidence in skill validation reports (`provenance_admission`) and `skills_validate` trace metadata (`tools/gaia-assistant.py`, `#122`)
+- Provenance fixture set for skill validation quality checks (`assistant/fixtures/skills/provenance-complete/*`, `assistant/fixtures/skills/provenance-missing/SKILL.md`, `assistant/fixtures/skills/manifest.json`, `#122`)
+- Reusable provenance admission regression script and smoke/UAT coverage for pass/warn/fail policy modes (`tools/skill-provenance-check.sh`, `tools/smoke-test.sh`, `assistant/uat-scenarios.json`, `assistant/feature-catalog.json`, `#122`)
+- UAT governance change record for skills provenance admission coverage (`docs/uat-changes/2026-02-14-skills-provenance-admission-surface.md`, `#122`)
 - Privacy-preserving unmet-intent signal command surface (`gaia signals extract/list/export/clear`) with deterministic derived-signal schema and local inspection/export/clear controls (`tools/gaia-assistant.py`, `tools/gaia_assistant_parser.py`, `#111`)
 - Default-on signal collection controls with explicit opt-out and bounded retention/cap settings via config keys (`signals_enabled`, `signals_retention_days`, `signals_max_records`) (`tools/gaia-assistant.py`, `#111`)
 - Local unmet-intent signal artifacts:

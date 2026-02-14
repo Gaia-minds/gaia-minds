@@ -400,6 +400,10 @@ PY
     [[ \"\$traces\" == *\"skills_validate\"* ]]
   "
 
+  run_test "skills_provenance_admission_modes" bash -lc "
+    bash \"${ROOT_DIR}/tools/skill-provenance-check.sh\"
+  "
+
   run_test "sandbox_profile_and_escalation" bash -lc "
     profiles=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" sandbox profiles) &&
     [[ \"\$profiles\" == *\"read-only\"* ]] &&

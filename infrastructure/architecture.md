@@ -924,6 +924,42 @@ Lane: `Privacy-preserving unmet-intent signal extraction from user interactions`
   - `signals export`
   - `signals clear`
 
+## Phase 3 Delta: Skill Provenance Admission Gate (2026-02-14)
+
+Lane: `Provenance admission gate for broad-source skill imports` (`#122`)
+
+### Runtime and policy changes
+
+- Extended `gaia skills validate` with deterministic provenance admission checks
+  for `local` and `path` sources:
+  - source pinning (`source_repo` + commit/tree hash)
+  - attestation evidence (`attestation_ref`, optional hash verification)
+  - source-health threshold (`source_health_score`)
+- Added config policy knobs through existing `gaia config set/get`:
+  - `skills_provenance_mode` (`off|warn|enforce`)
+  - `skills_attestation_mode` (`off|warn|enforce`)
+  - `skills_source_health_mode` (`off|warn|enforce`)
+  - `skills_source_health_min_score` (`0..10`)
+
+### Validation report changes
+
+- Skill validation reports now include `provenance_admission` evidence with:
+  - applied policy snapshot
+  - extracted provenance metadata
+  - per-check decisions
+  - overall decision (`pass|warn|fail|skipped`)
+- `skills_validate` trace metadata now includes provenance decision fields.
+
+### Deterministic fixture and gate coverage
+
+- Added provenance fixtures under `assistant/fixtures/skills/`:
+  - `provenance-complete` (pass path)
+  - `provenance-missing` (warn path in default mode)
+- Added reusable deterministic provenance check script:
+  - `tools/skill-provenance-check.sh`
+- Expanded smoke/UAT coverage:
+  - `skills_provenance_admission_modes`
+
 ## Phase 3 Delta: Assistant Parser Modularization (2026-02-14)
 
 Lane: `Refactor tools/gaia-assistant.py into modular command packages` (`#106`)

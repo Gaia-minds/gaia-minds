@@ -616,6 +616,31 @@ Validation report artifacts:
 - report schema: `gaia.skill-validation.v1`
 - blocking severities: `high`, `critical`
 
+Provenance admission policy knobs:
+
+```bash
+# source pinning gate (off|warn|enforce)
+gaia config set skills_provenance_mode warn
+
+# attestation evidence gate (off|warn|enforce)
+gaia config set skills_attestation_mode warn
+
+# source health threshold gate (off|warn|enforce)
+gaia config set skills_source_health_mode warn
+gaia config set skills_source_health_min_score 7
+```
+
+Expected provenance metadata (frontmatter or `provenance.json`):
+
+- `source_repo`
+- `source_commit` (or `source_tree`)
+- `attestation_ref` (+ optional `attestation_sha256`)
+- `source_health_score` (+ optional provider metadata)
+
+`gaia skills validate --json` now includes `provenance_admission` evidence with
+per-check decisions (`source_pinning`, `attestation`, `source_health`) and an
+overall decision (`pass|warn|fail|skipped`).
+
 ## Sandbox
 
 Sandbox commands provide explicit execution profiles and escalation approval
