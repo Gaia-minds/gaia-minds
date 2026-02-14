@@ -4,7 +4,7 @@ Updated: February 14, 2026
 
 ## Current Sprint
 
-**Phase 3 Execution Queue (Post-Kickoff)** (Feb 13–28, 2026)
+**Phase 3 Execution Queue (Post-Delivery Stabilization)** (Feb 13–28, 2026)
 
 See `ROADMAP.md` for full phase details and exit criteria.
 
@@ -47,9 +47,12 @@ See `ROADMAP.md` for full phase details and exit criteria.
 
 _Nothing in progress._
 
-## Next Up (Kickoff Queue)
+## Next Up (Post-Phase-3 Delivery Queue)
 
-_Nothing queued._
+- `#105` `[Phase 3][Framework]` Dead-code/dead-artifact audit across runtime/docs/release surfaces (no dependencies)
+- `#106` `[Phase 3][Framework]` Refactor `tools/gaia-assistant.py` into modular command packages (depends on `#105`)
+- `#107` `[Phase 3][Assistant]` Refresh README live preview assets for current CLI capabilities (depends on `#106`)
+- `#108` `[Phase 3][Release]` Prepare and publish npm release `@gaia-minds/assistant-cli@0.3.0` (depends on `#106` + `#107`)
 
 ## Blocked
 
