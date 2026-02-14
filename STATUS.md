@@ -45,6 +45,7 @@ See `ROADMAP.md` for full phase details and exit criteria.
 - `Phase 3 Dead-Code/Dead-Artifact Audit` - repository-wide keep/remove/defer audit artifact with high-confidence runtime cleanup of unused assistant helpers (`#105`)
 - `Phase 3 Assistant Modular Refactor` - extracted CLI parser construction into dedicated module with stable entrypoint/package compatibility and no command-surface regression (`#106`)
 - `Phase 3 README Live-Preview Refresh` - updated terminal/animated assistant assets and source-of-truth mapping for current command surfaces (`#107`)
+- npm release `@gaia-minds/assistant-cli@0.3.0` readiness + publish workflow (`#108`, tag `v0.3.0`)
 
 ## In Progress
 
@@ -52,7 +53,7 @@ _Nothing in progress._
 
 ## Next Up (Post-Phase-3 Delivery Queue)
 
-- `#108` `[Phase 3][Release]` Prepare and publish npm release `@gaia-minds/assistant-cli@0.3.0` (depends on `#106` + `#107`)
+_No queued stabilization lanes. Next queue begins with signal-driven follow-on (`#111`, `#115`, `#112`, `#113`)._
 
 ## Planned Next Wave (Signal-Driven Evolution Follow-On)
 

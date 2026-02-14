@@ -192,11 +192,11 @@ Execution queue (post-delivery stabilization round):
 - `#105` Dead-code/dead-artifact audit across runtime/docs/release surfaces (delivered)
 - `#106` Modular refactor of `tools/gaia-assistant.py` command/runtime surfaces (delivered)
 - `#107` README live-preview asset refresh for current CLI capabilities (delivered)
-- `#108` npm release `@gaia-minds/assistant-cli@0.3.0` readiness + publish (depends on `#106`, `#107`)
+- `#108` npm release `@gaia-minds/assistant-cli@0.3.0` readiness + publish (delivered)
 
 Recommended merge order:
 
-1. `#108`
+1. Stabilization round complete; next merge queue begins with signal-driven follow-on (`#111`, `#115`, `#112`, `#113`)
 
 Execution queue (signal-driven self-evolution follow-on; planning published):
 
@@ -326,6 +326,7 @@ Framework KPIs:
 | 2026-02-08 | Phase 1 core utility batch merged | PRs #27, #28, #29, #30, #31, #32, #33, #34 |
 | 2026-02-08 | Phase 1 hardening report published | PR #38, 20/20 canonical tasks passed |
 | 2026-02-08 | npm CLI release published (`0.2.0`) | PR #39 + tag `v0.2.0` |
+| 2026-02-14 | npm CLI release published (`0.3.0`) | Issue #108 + tag `v0.3.0` |
 | 2026-02-08 | Roadmap/backlog reassessment opened | Issue #46 with research-backed sequencing |
 | 2026-02-08 | Skills/sandbox research synthesized | Added Phase 2 items from Agent Skills + Claude + Codex docs |
 | 2026-02-08 | Skill onboarding security research synthesized | Added Phase 2 validation-gate requirements for malicious-skill prevention |

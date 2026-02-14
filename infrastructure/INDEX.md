@@ -22,7 +22,9 @@ Technical foundations and operational guidance.
 - [Post-Phase-3-Delivery Stabilization + Release Planning Round - 2026-02-14](planning-round-2026-02-14-post-phase3-delivery-stabilization.md) — Updated: February 14, 2026 Coordinator: Codex (planner main role) Activated sub-roles: `gaia-planner`, `gaia-researcher`...
 - [Post-Phase-3-Kickoff Reassessment Planning Round - 2026-02-13](planning-round-2026-02-13-post-phase3-kickoff-reassessment.md) — Updated: February 13, 2026 Coordinator: Codex (planner main role) Activated sub-roles: `gaia-planner`, `gaia-integration-coordinator`...
 - [Privacy and Memory Review Template](privacy-memory-review-template.md) — Updated: February 8, 2026
+- [QA Evaluation Report: Release v0.3.0](qa-evaluation-2026-02-14-v0.3.0.md) — Date: February 14, 2026 Issue: `#108` Evaluator: Codex (`gaia-qa-evaluator` sub-role)
 - [QA Evaluation Template](qa-evaluation-template.md) — Updated: February 8, 2026
+- [Release Readiness Report: v0.3.0](release-readiness-2026-02-14-v0.3.0.md) — Date: February 14, 2026 Issue: `#108` Main role: `contributor` Sub-role gates: `gaia-release-manager`, `gaia-qa-evaluator`
 - [Release Readiness Template](release-readiness-template.md) — Updated: February 13, 2026
 - [Reliability Drift Report v1](reliability-drift-report-v1.md) — Updated: February 13, 2026
 - [Reliability Triage Workflow](reliability-triage-workflow.md) — Updated: February 13, 2026
