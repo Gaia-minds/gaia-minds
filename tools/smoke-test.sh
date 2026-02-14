@@ -81,6 +81,33 @@ run_smoke_suite() {
     [[ \"\$listed\" == *\"Smoke task capture\"* ]]
   "
 
+  run_test "feedback_record_and_list" bash -lc "
+    chat_out=\$(printf 'feedback smoke\\n/exit\\n' | \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" chat 2>&1) &&
+    session_id=\$(printf '%s' \"\$chat_out\" | sed -n 's/^Started session: //p' | head -n1) &&
+    [[ -n \"\$session_id\" ]] &&
+    trace_json=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" traces --type chat_turn --last 1 --json) &&
+    trace_id=\$(printf '%s' \"\$trace_json\" | python3 -c \"import json,sys; data=json.load(sys.stdin); print(data[-1].get('id', '') if data else '')\") &&
+    [[ -n \"\$trace_id\" ]] &&
+    feedback_json=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" feedback record --label 'not helpful' --session-id \"\$session_id\" --trace-id \"\$trace_id\" --correction 'Prefer concise actionable bullets.' --json) &&
+    feedback_id=\$(printf '%s' \"\$feedback_json\" | python3 -c \"import json,sys; payload=json.load(sys.stdin); print(payload.get('id', ''))\") &&
+    [[ -n \"\$feedback_id\" ]] &&
+    listed=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" feedback list --label 'not helpful' --session-id \"\$session_id\" --trace-id \"\$trace_id\") &&
+    [[ \"\$listed\" == *\"\$feedback_id\"* ]] &&
+    [[ \"\$listed\" == *\"not helpful\"* ]] &&
+    trace_check=\$(\"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" traces --type feedback_record --last 1 --json) &&
+    [[ \"\$trace_check\" == *\"feedback_id\"* ]]
+  "
+
+  run_test "feedback_invalid_label_rejected" bash -lc "
+    set +e
+    \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" feedback record --label maybe --session-id last >/tmp/feedback-invalid-label-smoke.out 2>&1
+    rc=\$?
+    set -e
+    [[ \$rc -ne 0 ]] &&
+    out=\$(cat /tmp/feedback-invalid-label-smoke.out) &&
+    [[ \"\$out\" == *\"Invalid feedback label\"* ]]
+  "
+
   run_test "memory_crud_and_filters" bash -lc "
     \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory add --type user_long --subject smoke-user --content 'Smoke memory content' --summary 'Smoke memory summary' --consent-scope user --retention-ttl P30D >/tmp/memory-add-smoke.out &&
     memory_id=\$(awk 'NR==1 {print \$1}' /tmp/memory-add-smoke.out) &&

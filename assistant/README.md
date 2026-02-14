@@ -438,6 +438,54 @@ Memory traces:
 - `memory_delete`
 - `memory_export`
 
+## Feedback Loop Runtime
+
+Feedback commands capture explicit user quality signals for assistant responses
+without changing model behavior automatically.
+
+```bash
+# capture positive feedback linked to the latest session
+gaia feedback record --label helpful --session-id last
+
+# capture corrective feedback linked to a specific response trace
+gaia feedback record \
+  --label "not helpful" \
+  --session-id last \
+  --trace-id <trace-id> \
+  --correction "Use concise bullet points and include concrete next steps."
+
+# list and filter feedback records
+gaia feedback list --label "not helpful" --with-correction --limit 20
+gaia feedback list --session-id last --json
+```
+
+Feedback record contract:
+
+- `id`
+- `label` (`helpful` or `not-helpful`)
+- `correction` (optional free text)
+- `session_id` and/or `trace_id` linkage
+- `created_at`, `updated_at`, `source`, `schema_version`
+
+Retention and privacy boundaries:
+
+- Local-only storage: `~/.gaia-assistant/data/feedback.json`
+- Deterministic retention cap: latest 500 records are kept
+- No external telemetry upload in this flow
+- No automatic model/self-update from captured feedback in this phase
+- Delete path: remove `feedback.json` locally to clear stored feedback
+
+Feedback traces:
+
+- `feedback_record`
+- `feedback_list`
+
+Planned use in future improvement cycles:
+
+- feed profile/summarization tuning and memory distillation prioritization
+- drive explicit before/after evaluations in hypothesis/reliability workflows
+- remain human-reviewable and policy-gated before any automation path is added
+
 ## Skills Runtime
 
 Skills runtime commands provide deterministic discovery and inspection of

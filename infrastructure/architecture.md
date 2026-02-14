@@ -742,6 +742,56 @@ Lane: `Hard token-budget enforcement per cycle and track` (`#95`)
 - Added CI gate:
   `.github/workflows/token-budget-enforcement.yml`
 
+## Phase 3 Delta: Feedback Loop Capture (2026-02-14)
+
+Lane: `Feedback loop capture and correction records` (`#96`)
+
+### Runtime and data contract changes
+
+- Added feedback command surface in assistant launcher:
+  - `gaia feedback record`
+  - `gaia feedback list`
+- Feedback labels are normalized to:
+  - `helpful`
+  - `not-helpful` (CLI accepts `not helpful` and `not_helpful` aliases)
+- Record contract includes deterministic quality signal + linkage fields:
+  - `id`, `label`, optional `correction`
+  - `session_id` and/or `trace_id`
+  - timestamps and schema metadata
+
+### Persistence and privacy boundaries
+
+- Added local feedback store:
+  - `~/.gaia-assistant/data/feedback.json`
+- Retention boundary is deterministic and bounded:
+  - newest 500 records retained
+- No external telemetry upload path is added in this lane.
+- No automatic model/self-evolution behavior changes from feedback in this
+  lane; feedback remains reviewable input for future cycles.
+
+### Trace and observability changes
+
+- Added feedback action traces:
+  - `feedback_record`
+  - `feedback_list`
+- Trace metadata includes:
+  - `feedback_id`
+  - `feedback_label`
+  - linkage (`session_id`, `linked_trace_id`)
+  - correction presence/length and list query context
+
+### Deterministic quality coverage
+
+- Expanded smoke suite:
+  - `feedback_record_and_list`
+  - `feedback_invalid_label_rejected`
+- Expanded deterministic UAT suite with matching scenarios and invalid-input
+  assertions.
+- Updated UAT feature-governance mapping for new command paths:
+  - `feedback`
+  - `feedback record`
+  - `feedback list`
+
 ---
 
 ## Open Technical Questions

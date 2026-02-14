@@ -52,6 +52,18 @@
       "command": "node ./bin/gaia.js note --task 'UAT task capture' >/dev/null && listed=$(node ./bin/gaia.js tasks --status all) && [[ \"$listed\" == *\"UAT task capture\"* ]]"
     },
     {
+      "id": "feedback_record_and_list",
+      "description": "Feedback capture persists helpful/not-helpful records with session+trace linkage",
+      "expect_exit": 0,
+      "command": "chat_out=$(printf 'feedback uat\\n/exit\\n' | node ./bin/gaia.js chat 2>&1) && session_id=$(printf '%s' \"$chat_out\" | sed -n 's/^Started session: //p' | head -n1) && [[ -n \"$session_id\" ]] && trace_json=$(node ./bin/gaia.js traces --type chat_turn --last 1 --json) && trace_id=$(printf '%s' \"$trace_json\" | python3 -c \"import json,sys; data=json.load(sys.stdin); print(data[-1].get('id', '') if data else '')\") && [[ -n \"$trace_id\" ]] && feedback_json=$(node ./bin/gaia.js feedback record --label 'not helpful' --session-id \"$session_id\" --trace-id \"$trace_id\" --correction 'Prefer concise actionable bullets.' --json) && feedback_id=$(printf '%s' \"$feedback_json\" | python3 -c \"import json,sys; payload=json.load(sys.stdin); print(payload.get('id', ''))\") && [[ -n \"$feedback_id\" ]] && listed=$(node ./bin/gaia.js feedback list --label 'not helpful' --session-id \"$session_id\" --trace-id \"$trace_id\") && [[ \"$listed\" == *\"$feedback_id\"* ]] && [[ \"$listed\" == *\"not helpful\"* ]] && trace_check=$(node ./bin/gaia.js traces --type feedback_record --last 1 --json) && [[ \"$trace_check\" == *\"feedback_id\"* ]]"
+    },
+    {
+      "id": "feedback_invalid_label_rejected",
+      "description": "Feedback capture rejects invalid labels deterministically",
+      "expect_exit": 0,
+      "command": "set +e; node ./bin/gaia.js feedback record --label maybe --session-id last >/tmp/feedback-invalid-label-uat.out 2>&1; rc=$?; set -e; [[ $rc -ne 0 ]] && out=$(cat /tmp/feedback-invalid-label-uat.out) && [[ \"$out\" == *\"Invalid feedback label\"* ]]"
+    },
+    {
       "id": "memory_crud_and_filters",
       "description": "Memory SQLite store supports deterministic add/get/list/update/delete flows",
       "expect_exit": 0,

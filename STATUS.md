@@ -39,19 +39,16 @@ See `ROADMAP.md` for full phase details and exit criteria.
 - `Phase 3 Reliability Baseline Checkpoint` - baseline thresholds + checkpoint tooling + triage workflow (`#87`, PR #91)
 - `Phase 3 Drift Detection` - deterministic checkpoint-history drift report + CI gate + triage linkage (`#93`)
 - `Phase 3 Canary Rollout Gate` - deterministic hypothesis rollout decision contract (`go|hold|rollback-required`) with CI fixture coverage (`#94`, PR #100)
+- `Phase 3 Token Budget Enforcement` - deterministic per-cycle/per-track hard token gate with explicit `allow|warn|defer|block` decisions (`#95`, PR #101)
+- `Phase 3 Feedback Loop Capture` - deterministic local feedback records with `helpful`/`not helpful`, correction text, and session/trace linkage (`#96`)
 
 ## In Progress
 
-- `#95` (`framework-track`) - Hard token-budget enforcement per cycle and track
-  - Owner: `codex-gpt5` (main role: `contributor`)
-  - Activated sub-roles: `gaia-security-reviewer`, `gaia-qa-evaluator`, `gaia-technical-writer`
-  - Scope: deterministic per-cycle/per-track token budget gate with policy-governed `warn|defer|block` decisions and trace evidence
+_Nothing in progress._
 
 ## Next Up (Kickoff Queue)
 
-1. `#96` (`assistant-track`) - Feedback loop capture and correction records
-   - Recommended owner role: contributor + `gaia-technical-writer`
-2. `#97` (`assistant-track`) - Personalized response profiles and memory summarization
+1. `#97` (`assistant-track`) - Personalized response profiles and memory summarization
    - Dependency: after `#96`
 
 ## Blocked
