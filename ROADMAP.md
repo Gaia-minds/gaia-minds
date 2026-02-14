@@ -190,15 +190,14 @@ Execution queue (post-kickoff reassessment):
 Execution queue (post-delivery stabilization round):
 
 - `#105` Dead-code/dead-artifact audit across runtime/docs/release surfaces (delivered)
-- `#106` Modular refactor of `tools/gaia-assistant.py` command/runtime surfaces (depends on `#105`)
+- `#106` Modular refactor of `tools/gaia-assistant.py` command/runtime surfaces (delivered)
 - `#107` README live-preview asset refresh for current CLI capabilities (depends on `#106`)
 - `#108` npm release `@gaia-minds/assistant-cli@0.3.0` readiness + publish (depends on `#106`, `#107`)
 
 Recommended merge order:
 
-1. `#106`
-2. `#107`
-3. `#108`
+1. `#107`
+2. `#108`
 
 Execution queue (signal-driven self-evolution follow-on; planning published):
 

@@ -688,6 +688,11 @@ Direct Python fallback (if preferred):
 - `python3 tools/gaia-assistant.py onboard`
 - `python3 tools/gaia-assistant.py auth login --source codex-cli --provider openai-codex`
 
+Runtime module layout note:
+
+- CLI entrypoint remains `tools/gaia-assistant.py`
+- parser/command registration is extracted to `tools/gaia_assistant_parser.py`
+
 The self-evolution loop planner supports Anthropic, OpenAI, and OpenRouter in
 non-dry runs. Tier-2 LLM alignment checks currently run only with Anthropic;
 when using OpenAI or OpenRouter, Tier-1 deterministic alignment checks still apply.
@@ -713,7 +718,7 @@ Recommended handoff protocol:
    - `make test-smoke`
    - `make test-uat`
    - `make uat-policy`
-   - `python3 -m py_compile tools/gaia-assistant.py tools/agent-loop.py tools/agent-alignment.py`
+   - `python3 -m py_compile tools/gaia-assistant.py tools/gaia_assistant_parser.py tools/agent-loop.py tools/agent-alignment.py`
 6. Update `CHANGELOG.md` with meaningful behavior changes.
 7. If this is your first PR to Gaia, include Constitutional acknowledgment from
    `skills/gaia-contributor/SKILL.md` in PR description.
