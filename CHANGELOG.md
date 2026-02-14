@@ -19,6 +19,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Hypothesis pipeline v1 deterministic tooling (`tools/hypothesis-pipeline.py`) with proposal validation, eval execution, and PR-ready evidence bundle generation (`#86`)
 - Deterministic canary rollout decision gate for hypothesis evidence with explicit `go|hold|rollback-required` outcomes and fallback-owner metadata (`tools/hypothesis-pipeline.py`, `#94`)
 - Deterministic hard token-budget enforcement gate for agent cycles with explicit `allow|warn|defer|block` decisions across assistant/framework tracks (`tools/agent-loop.py`, `tools/agent-config.yml`, `#95`)
+- Assistant feedback command surface for deterministic response-quality capture (`gaia feedback record/list`) with `helpful` / `not-helpful` labels, optional correction text, and session/trace linkage (`tools/gaia-assistant.py`, `#96`)
+- Local feedback persistence contract (`~/.gaia-assistant/data/feedback.json`) with deterministic retention cap (latest 500 records, local-only)
+- Deterministic smoke/UAT coverage for feedback capture and invalid-label rejection (`tools/smoke-test.sh`, `assistant/uat-scenarios.json`, `assistant/feature-catalog.json`)
+- UAT governance change record for feedback command-surface coverage (`docs/uat-changes/2026-02-14-feedback-surface.md`)
 - Token-budget fixture contract and deterministic checker for pass/warn/block/defer + threshold-edge coverage (`assistant/token-budget-fixtures.json`, `tools/token-budget-fixtures.py`)
 - Token-budget CI workflow and make target for regression gating (`.github/workflows/token-budget-enforcement.yml`, `make token-budget-fixtures`)
 - Hypothesis artifact contract documentation and reference proposal/failure fixtures (`infrastructure/hypothesis-pipeline-v1.md`, `assistant/hypotheses/*.json`, `assistant/hypotheses/README.md`)
@@ -117,6 +121,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Assistant architecture/docs now include memory retrieval stage/ranking contract and benchmark enforcement details (`infrastructure/architecture.md`, `assistant/README.md`, `assistant/benchmarking.md`)
 - Assistant architecture/docs now include memory policy/privacy capability model, consent/retention matrix, and delete/export evidence paths (`infrastructure/architecture.md`, `assistant/README.md`)
 - Assistant architecture/docs now include memory QA/red-team harness metrics, triage workflow, and failure-gate guidance (`infrastructure/architecture.md`, `assistant/README.md`, `assistant/benchmarking.md`, `assistant/uat-policy.md`)
+- Assistant architecture/docs now include Phase 3 feedback loop capture contract, persistence boundaries, and trace semantics (`infrastructure/architecture.md`, `assistant/README.md`, `README.md`)
 - Refreshed roadmap and sprint status priorities to remove closed-item drift and reference reassessment issue `#46`
 - Synced latest release references to `@gaia-minds/assistant-cli@0.2.0` across top-level and assistant contributor docs
 - Added contributor guidance to use the roadmap/backlog review issue template for reassessment work

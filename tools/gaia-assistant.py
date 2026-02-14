@@ -121,6 +121,12 @@ MEMORY_CONSENT_SCOPE_CHOICES = ("session", "user", "project", "audit")
 MEMORY_LIST_DEFAULT_LIMIT = 20
 MEMORY_LIST_MAX_LIMIT = 200
 MEMORY_RETENTION_TTL_RE = re.compile(r"^P([0-9]{1,4})D$")
+FEEDBACK_SCHEMA_VERSION = 1
+FEEDBACK_LABEL_CHOICES = ("helpful", "not-helpful")
+FEEDBACK_LIST_DEFAULT_LIMIT = 20
+FEEDBACK_LIST_MAX_LIMIT = 200
+FEEDBACK_CORRECTION_MAX_CHARS = 2000
+FEEDBACK_MAX_RECORDS = 500
 MEMORY_POLICY_RULES: Dict[str, Dict[str, int | str]] = {
     "session_short": {
         "consent_scope": "session",
@@ -715,6 +721,10 @@ def _tasks_path(storage_dir: Path) -> Path:
     return storage_dir / "tasks.json"
 
 
+def _feedback_path(storage_dir: Path) -> Path:
+    return storage_dir / "feedback.json"
+
+
 def _summaries_path(storage_dir: Path) -> Path:
     return storage_dir / "summaries.json"
 
@@ -861,6 +871,43 @@ def _create_task_record(text: str, source: str) -> Dict[str, Any]:
         "updated_at": now,
         "source": source,
     }
+
+
+def _normalize_feedback_label(raw: str) -> str:
+    value = str(raw).strip().lower()
+    normalized = re.sub(r"\s+", "-", value.replace("_", "-"))
+    if normalized == "nothelpful":
+        normalized = "not-helpful"
+    if normalized not in FEEDBACK_LABEL_CHOICES:
+        raise ValueError(
+            f"Invalid feedback label '{raw}'. "
+            f"Expected one of: {', '.join(FEEDBACK_LABEL_CHOICES)}."
+        )
+    return normalized
+
+
+def _feedback_label_display(label: str) -> str:
+    normalized = str(label).strip().lower()
+    if normalized == "not-helpful":
+        return "not helpful"
+    if normalized == "helpful":
+        return "helpful"
+    return normalized
+
+
+def _sort_feedback_records(items: List[Dict[str, Any]], descending: bool) -> List[Dict[str, Any]]:
+    return sorted(
+        items,
+        key=lambda item: (str(item.get("created_at", "")).strip(), str(item.get("id", "")).strip()),
+        reverse=descending,
+    )
+
+
+def _trim_feedback_records(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if len(items) <= FEEDBACK_MAX_RECORDS:
+        return items
+    ordered = _sort_feedback_records(items, descending=False)
+    return ordered[-FEEDBACK_MAX_RECORDS:]
 
 
 def _parse_since_date(raw: str) -> Optional[datetime]:
@@ -4855,6 +4902,409 @@ def cmd_tasks(args: argparse.Namespace) -> int:
         duration_ms=(time.perf_counter() - start) * 1000,
         permission_level=permission_level,
     )
+    return 0
+
+
+def _feedback_trace_metadata(
+    *,
+    feedback_id: Optional[str] = None,
+    label: Optional[str] = None,
+    session_id: Optional[str] = None,
+    trace_id: Optional[str] = None,
+    correction_present: Optional[bool] = None,
+    correction_length: Optional[int] = None,
+    result_count: Optional[int] = None,
+    limit: Optional[int] = None,
+    with_correction: Optional[bool] = None,
+) -> Dict[str, Any]:
+    metadata: Dict[str, Any] = {}
+    if feedback_id:
+        metadata["feedback_id"] = feedback_id
+    if label:
+        metadata["feedback_label"] = label
+    if session_id:
+        metadata["session_id"] = session_id
+    if trace_id:
+        metadata["linked_trace_id"] = trace_id
+    if correction_present is not None:
+        metadata["correction_present"] = bool(correction_present)
+    if correction_length is not None:
+        metadata["correction_length"] = int(correction_length)
+    if result_count is not None:
+        metadata["result_count"] = int(result_count)
+    if limit is not None:
+        metadata["limit"] = int(limit)
+    if with_correction is not None:
+        metadata["with_correction"] = bool(with_correction)
+    return _with_trace_metadata(metadata=metadata)
+
+
+def _resolve_feedback_session_id(session_dir: Path, session_ref: Optional[str]) -> Tuple[str, Optional[str]]:
+    requested = str(session_ref or "").strip()
+    if not requested:
+        return "", None
+    if requested.lower() == "last":
+        resolved = _resolve_resume_session_id(session_dir, "last")
+        if not resolved:
+            return "", "No session available to resolve --session-id last."
+        requested = resolved
+    if _load_session(session_dir, requested) is None:
+        return "", f"Session not found: {requested}"
+    return requested, None
+
+
+def _latest_feedback_session_id(session_dir: Path) -> str:
+    resolved = _resolve_resume_session_id(session_dir, "last")
+    if not resolved:
+        return ""
+    if _load_session(session_dir, resolved) is None:
+        return ""
+    return resolved
+
+
+def _trace_id_exists(trace_dir: Path, trace_id: str) -> bool:
+    wanted = str(trace_id).strip()
+    if not wanted:
+        return False
+    traces = _read_action_traces(trace_dir)
+    return any(str(item.get("id", "")).strip() == wanted for item in traces)
+
+
+def _normalize_feedback_records(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    normalized: List[Dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        record_id = str(item.get("id", "")).strip()
+        if not record_id:
+            continue
+        try:
+            label = _normalize_feedback_label(str(item.get("label", "")))
+        except ValueError:
+            continue
+        correction = str(item.get("correction", "")).strip()
+        created_at = str(item.get("created_at", "")).strip()
+        raw_schema = item.get("schema_version", FEEDBACK_SCHEMA_VERSION)
+        schema_version = FEEDBACK_SCHEMA_VERSION
+        try:
+            schema_version = int(raw_schema)
+        except (TypeError, ValueError):
+            schema_version = FEEDBACK_SCHEMA_VERSION
+        normalized.append(
+            {
+                "id": record_id,
+                "label": label,
+                "correction": correction,
+                "session_id": str(item.get("session_id", "")).strip(),
+                "trace_id": str(item.get("trace_id", "")).strip(),
+                "created_at": created_at,
+                "updated_at": str(item.get("updated_at", created_at)).strip(),
+                "source": str(item.get("source", "cli")).strip() or "cli",
+                "schema_version": schema_version,
+            }
+        )
+    return normalized
+
+
+def cmd_feedback_record(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    session_dir = _resolve_session_dir(cfg, args.session_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    raw_label = str(args.label).strip()
+    try:
+        label = _normalize_feedback_label(raw_label)
+    except ValueError as exc:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="feedback_record",
+            input_summary=f"label={raw_label}",
+            output_summary=str(exc),
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+            status="error",
+        )
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    correction = str(args.correction or "").strip()
+    if len(correction) > FEEDBACK_CORRECTION_MAX_CHARS:
+        message = (
+            f"Correction text exceeds {FEEDBACK_CORRECTION_MAX_CHARS} characters "
+            f"(got {len(correction)})."
+        )
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="feedback_record",
+            input_summary=f"label={label}",
+            output_summary=message,
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+            status="error",
+            metadata=_feedback_trace_metadata(label=label),
+        )
+        print(message, file=sys.stderr)
+        return 1
+
+    session_id, session_error = _resolve_feedback_session_id(session_dir, args.session_id)
+    if session_error:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="feedback_record",
+            input_summary=f"label={label}",
+            output_summary=session_error,
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+            status="error",
+            metadata=_feedback_trace_metadata(label=label),
+        )
+        print(session_error, file=sys.stderr)
+        return 1
+    if not session_id:
+        session_id = _latest_feedback_session_id(session_dir)
+
+    trace_id = str(args.trace_id or "").strip()
+    if trace_id and not _trace_id_exists(trace_dir, trace_id):
+        message = f"Trace not found: {trace_id}"
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="feedback_record",
+            input_summary=f"label={label}",
+            output_summary=message,
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+            status="error",
+            metadata=_feedback_trace_metadata(label=label, session_id=session_id, trace_id=trace_id),
+        )
+        print(message, file=sys.stderr)
+        return 1
+
+    if not session_id and not trace_id:
+        message = "Feedback requires --session-id or --trace-id linkage."
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="feedback_record",
+            input_summary=f"label={label}",
+            output_summary=message,
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+            status="error",
+            metadata=_feedback_trace_metadata(label=label),
+        )
+        print(message, file=sys.stderr)
+        return 1
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="memory_write",
+        input_summary=f"feedback record label={label}",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="feedback_record",
+            input_summary=f"label={label}",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+            metadata=_feedback_trace_metadata(label=label, session_id=session_id, trace_id=trace_id),
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    now = datetime.now(timezone.utc).isoformat()
+    record = {
+        "id": _new_record_id("fb"),
+        "label": label,
+        "correction": correction,
+        "session_id": session_id,
+        "trace_id": trace_id,
+        "created_at": now,
+        "updated_at": now,
+        "source": "cli",
+        "schema_version": FEEDBACK_SCHEMA_VERSION,
+    }
+    path = _feedback_path(storage_dir)
+    items = _normalize_feedback_records(_load_records(path))
+    items.append(record)
+    items = _trim_feedback_records(items)
+    _save_records(path, items)
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="feedback_record",
+        input_summary=(
+            f"label={label} session={session_id or '-'} trace={trace_id or '-'} "
+            f"correction_len={len(correction)}"
+        ),
+        output_summary=f"saved {record['id']}",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata=_feedback_trace_metadata(
+            feedback_id=record["id"],
+            label=label,
+            session_id=session_id,
+            trace_id=trace_id,
+            correction_present=bool(correction),
+            correction_length=len(correction),
+        ),
+    )
+
+    if args.as_json:
+        print(json.dumps(record, indent=2))
+    else:
+        print(
+            f"{record['id']} {_feedback_label_display(label)} "
+            f"session={session_id or '-'} trace={trace_id or '-'}"
+        )
+    return 0
+
+
+def cmd_feedback_list(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    session_dir = _resolve_session_dir(cfg, args.session_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    label_filter = ""
+    if args.label:
+        try:
+            label_filter = _normalize_feedback_label(str(args.label))
+        except ValueError as exc:
+            _write_action_trace(
+                trace_dir=trace_dir,
+                action_type="feedback_list",
+                input_summary=f"label={args.label}",
+                output_summary=str(exc),
+                duration_ms=(time.perf_counter() - start) * 1000,
+                permission_level="safe",
+                status="error",
+            )
+            print(str(exc), file=sys.stderr)
+            return 1
+
+    session_id_filter, session_error = _resolve_feedback_session_id(session_dir, args.session_id)
+    if session_error:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="feedback_list",
+            input_summary=f"session={args.session_id}",
+            output_summary=session_error,
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+            status="error",
+            metadata=_feedback_trace_metadata(label=label_filter),
+        )
+        print(session_error, file=sys.stderr)
+        return 1
+
+    limit = int(args.limit)
+    if limit < 1 or limit > FEEDBACK_LIST_MAX_LIMIT:
+        message = (
+            f"Invalid --limit value {limit}. "
+            f"Expected 1..{FEEDBACK_LIST_MAX_LIMIT}."
+        )
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="feedback_list",
+            input_summary=f"limit={limit}",
+            output_summary=message,
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+            status="error",
+            metadata=_feedback_trace_metadata(label=label_filter),
+        )
+        print(message, file=sys.stderr)
+        return 1
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="memory_read",
+        input_summary="feedback list",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="feedback_list",
+            input_summary="feedback list",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+            metadata=_feedback_trace_metadata(
+                label=label_filter,
+                session_id=session_id_filter,
+                trace_id=str(args.trace_id or "").strip(),
+                with_correction=bool(args.with_correction),
+            ),
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    trace_id_filter = str(args.trace_id or "").strip()
+    records = _normalize_feedback_records(_load_records(_feedback_path(storage_dir)))
+    records = _sort_feedback_records(records, descending=True)
+    if label_filter:
+        records = [item for item in records if str(item.get("label", "")).strip().lower() == label_filter]
+    if session_id_filter:
+        records = [item for item in records if str(item.get("session_id", "")).strip() == session_id_filter]
+    if trace_id_filter:
+        records = [item for item in records if str(item.get("trace_id", "")).strip() == trace_id_filter]
+    if args.with_correction:
+        records = [item for item in records if str(item.get("correction", "")).strip()]
+    selected = records[:limit]
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="feedback_list",
+        input_summary=(
+            f"label={label_filter or '-'} session={session_id_filter or '-'} "
+            f"trace={trace_id_filter or '-'} with_correction={bool(args.with_correction)} limit={limit}"
+        ),
+        output_summary=f"{len(selected)} records",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata=_feedback_trace_metadata(
+            label=label_filter,
+            session_id=session_id_filter,
+            trace_id=trace_id_filter,
+            result_count=len(selected),
+            limit=limit,
+            with_correction=bool(args.with_correction),
+        ),
+    )
+
+    if args.as_json:
+        print(json.dumps(selected, indent=2))
+        return 0
+
+    if not selected:
+        print("No feedback records found.")
+        return 0
+
+    for record in selected:
+        line = (
+            f"{record['id']} {_feedback_label_display(str(record.get('label', ''))):<11} "
+            f"{str(record.get('created_at', '?')).strip()} "
+            f"session={str(record.get('session_id', '')).strip() or '-'} "
+            f"trace={str(record.get('trace_id', '')).strip() or '-'}"
+        )
+        correction = str(record.get("correction", "")).strip()
+        if correction:
+            line += f" correction={_summarize_text(correction, max_chars=72)}"
+        print(line)
     return 0
 
 
@@ -9165,6 +9615,39 @@ def build_parser() -> argparse.ArgumentParser:
     tasks.add_argument("--since", default=None, help="Filter tasks created since YYYY-MM-DD")
     tasks.add_argument("--status", choices=["open", "done", "all"], default="open", help="Filter by task status")
     tasks.set_defaults(func=cmd_tasks)
+
+    feedback = sub.add_parser("feedback", help="Record and review user feedback on assistant responses")
+    feedback_sub = feedback.add_subparsers(dest="feedback_command", required=True)
+
+    feedback_record = feedback_sub.add_parser("record", help="Record one feedback event")
+    feedback_record.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    feedback_record.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    feedback_record.add_argument("--session-dir", default=None, help="Session directory override")
+    feedback_record.add_argument("--trace-dir", default=None, help="Trace directory override")
+    feedback_record.add_argument("--label", required=True, help="Feedback label (helpful or not-helpful)")
+    feedback_record.add_argument("--correction", default="", help="Optional correction note")
+    feedback_record.add_argument("--session-id", default=None, help="Session id linkage (supports 'last')")
+    feedback_record.add_argument("--trace-id", default=None, help="Trace id linkage")
+    feedback_record.add_argument("--json", dest="as_json", action="store_true", help="Emit feedback JSON")
+    feedback_record.set_defaults(func=cmd_feedback_record)
+
+    feedback_list = feedback_sub.add_parser("list", help="List feedback records")
+    feedback_list.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    feedback_list.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    feedback_list.add_argument("--session-dir", default=None, help="Session directory override")
+    feedback_list.add_argument("--trace-dir", default=None, help="Trace directory override")
+    feedback_list.add_argument("--label", default=None, help="Filter by label")
+    feedback_list.add_argument("--session-id", default=None, help="Filter by session id (supports 'last')")
+    feedback_list.add_argument("--trace-id", default=None, help="Filter by trace id")
+    feedback_list.add_argument("--with-correction", action="store_true", help="Only include entries with correction text")
+    feedback_list.add_argument(
+        "--limit",
+        type=int,
+        default=FEEDBACK_LIST_DEFAULT_LIMIT,
+        help=f"Max rows to return (1..{FEEDBACK_LIST_MAX_LIMIT})",
+    )
+    feedback_list.add_argument("--json", dest="as_json", action="store_true", help="Emit feedback list JSON")
+    feedback_list.set_defaults(func=cmd_feedback_list)
 
     memory = sub.add_parser("memory", help="Manage structured long-term memory records")
     memory_sub = memory.add_subparsers(dest="memory_command", required=True)
