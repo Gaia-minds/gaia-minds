@@ -3,7 +3,7 @@ name: provenance-complete
 description: Deterministic fixture with complete provenance metadata for admission checks.
 capabilities:
   - file_read
-source_repo: https://github.com/example/provenance-complete
+source_repo: https://github.com/Gaia-minds/gaia-minds
 source_commit: 0123456789abcdef0123456789abcdef01234567
 source_tree: fedcba9876543210fedcba9876543210fedcba98
 attestation_ref: provenance.intoto.jsonl
