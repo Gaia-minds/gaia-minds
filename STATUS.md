@@ -49,19 +49,19 @@ See `ROADMAP.md` for full phase details and exit criteria.
 - `Phase 3 Privacy-Preserving Unmet-Intent Signals` - derived-only unmet-intent signal runtime (`gaia signals extract/list/export/clear`) with default-on collection, explicit opt-out, 90-day retention, bounded storage, and privacy/QA gate coverage (`#111`)
 - `Phase 3 Skill-Import Security Research` - continuous security-validation synthesis for broad-source skill imports with execution-ready hardening lanes seeded (`#115`, PR `#124`)
 - `Phase 3 Skill Provenance Admission Gate` - deterministic source pin/attestation/source-health policy checks for `gaia skills validate` with pass/warn/fail regression coverage (`#122`, PR `#125`)
+- `Phase 3 Obfuscation-Aware Skill Validation Hardening` - canonicalization-aware blocking for encoded/hidden/split-token prompt-injection and sensitive-exfiltration payloads with deterministic fixture/smoke/UAT coverage (`#123`, PR `#126`)
+- `Phase 3 Skill-First Unmet-Intent Triage` - deterministic `gaia signals triage` classification (`existing-skill-enable` / `skill-import-candidate` / `core-feature-gap` / `out-of-scope-or-rejected`) with security-gated import-candidate routing and validation-aware skill enablement (`#112`, PR pending)
 
 ## In Progress
 
-- `#123` `[Phase 3][Framework]` Obfuscation-aware skill validation hardening for prompt-injection patterns - owner: `@TonyThePredictor / Codex` (branch `feat/p3-skill-obfuscation-validation-hardening-v1`)
+_Nothing currently in progress._
 
 ## Next Up (Post-Phase-3 Delivery Queue)
 
-_No queued stabilization lanes. Next queue continues with signal-driven follow-on (`#123`, `#112`, `#113`)._
+_Signal-driven follow-on queue continues with `#113` after `#112` merge._
 
 ## Planned Next Wave (Signal-Driven Evolution Follow-On)
 
-- `#123` `[Phase 3][Framework]` Obfuscation-aware skill validation hardening for prompt-injection patterns (seeded by `#115`; supports `#112`)
-- `#112` `[Phase 3][Framework]` Skill-first triage for unmet-intent signals (`existing-skill-enable` / `skill-import-candidate` / `core-feature-gap`) with broad-source import candidates gated by security validation (depends on `#111`, informed by `#115`)
 - `#113` `[Phase 3][Framework]` Integrate unmet-intent signals into hypothesis candidate generation (depends on `#111` + `#112`)
 
 ## Blocked

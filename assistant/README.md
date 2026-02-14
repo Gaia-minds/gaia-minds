@@ -548,6 +548,7 @@ gaia config set signals_enabled false
 # derive + inspect local signals
 gaia signals extract --json
 gaia signals list --limit 20
+gaia signals triage --source all --limit 20 --json
 
 # local export + clear controls
 gaia capability set memory_export safe
@@ -562,12 +563,29 @@ Derived signal record contract:
 - `first_seen_at`, `last_seen_at`
 - `source_event_ids` (feedback/trace IDs only, no raw transcript copy)
 
+Triage output contract (`gaia signals triage`):
+
+- deterministic triage classes:
+  - `existing-skill-enable`
+  - `skill-import-candidate`
+  - `core-feature-gap`
+  - `out-of-scope-or-rejected`
+- per-signal rationale + confidence:
+  - `triage_class`, `triage_confidence`, `rationale`, `follow_up_action`
+- security gate evidence:
+  - `security_gate.status`, `security_gate.reason`, `security_gate.required_checks`
+- optional skill match metadata:
+  - `matched_skill.skill_id`, `matched_skill.validation_status`, `matched_skill.validation_report_id`
+- class aggregate:
+  - `class_summary` counts for all deterministic triage classes
+
 Privacy and retention boundaries:
 
 - collection default: on, with explicit opt-out via `signals_enabled`
 - derived-signal retention default: 90 days
 - deterministic bounded storage cap: `signals_max_records`
 - local-only ledger path: `~/.gaia-assistant/data/unmet-intent-signals.json`
+- local-only triage ledger path: `~/.gaia-assistant/data/unmet-intent-signal-triage.json`
 - export event ledger: `~/.gaia-assistant/data/unmet-intent-signal-exports.jsonl`
 - no external telemetry upload in this flow
 

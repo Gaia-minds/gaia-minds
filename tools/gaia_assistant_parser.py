@@ -87,6 +87,7 @@ def build_parser(ctx: Dict[str, Any]) -> argparse.ArgumentParser:
     cmd_signals_export = ctx["cmd_signals_export"]
     cmd_signals_extract = ctx["cmd_signals_extract"]
     cmd_signals_list = ctx["cmd_signals_list"]
+    cmd_signals_triage = ctx["cmd_signals_triage"]
     cmd_skills_inspect = ctx["cmd_skills_inspect"]
     cmd_skills_list = ctx["cmd_skills_list"]
     cmd_skills_validate = ctx["cmd_skills_validate"]
@@ -364,6 +365,33 @@ def build_parser(ctx: Dict[str, Any]) -> argparse.ArgumentParser:
     signals_extract.add_argument("--trace-dir", default=None, help="Trace directory override")
     signals_extract.add_argument("--json", dest="as_json", action="store_true", help="Emit extraction payload JSON")
     signals_extract.set_defaults(func=cmd_signals_extract)
+
+    signals_triage = signals_sub.add_parser(
+        "triage",
+        help="Classify unmet-intent signals into skill/core/rejected follow-up buckets",
+    )
+    signals_triage.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    signals_triage.add_argument("--storage-dir", default=None, help="Data storage directory override")
+    signals_triage.add_argument("--trace-dir", default=None, help="Trace directory override")
+    signals_triage.add_argument(
+        "--source",
+        choices=list(SKILL_SOURCE_CHOICES),
+        default="all",
+        help="Skill source filter used when matching existing skills",
+    )
+    signals_triage.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Refresh signal ledger from local artifacts before triage",
+    )
+    signals_triage.add_argument(
+        "--limit",
+        type=int,
+        default=SIGNALS_LIST_DEFAULT_LIMIT,
+        help=f"Max triage rows to print in table output (1-{SIGNALS_LIST_MAX_LIMIT})",
+    )
+    signals_triage.add_argument("--json", dest="as_json", action="store_true", help="Emit triage payload JSON")
+    signals_triage.set_defaults(func=cmd_signals_triage)
 
     signals_list = signals_sub.add_parser("list", help="List derived unmet-intent signals")
     signals_list.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")

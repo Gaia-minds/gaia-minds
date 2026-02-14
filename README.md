@@ -50,7 +50,7 @@ See `assistant/README.md` for full runtime and release docs.
 - Assistant feedback loop supports deterministic local capture of `helpful` / `not helpful` signals with optional correction notes and trace/session linkage
 - Chat supports deterministic response profiles (`auto`, `concise`, `balanced`, `detailed`) with config + override selection
 - Memory summarization supports traceable profile-aware compaction via `gaia memory summarize`
-- Unmet-intent signal runtime supports privacy-preserving derived-signal extraction (`gaia signals extract/list/export/clear`) with default-on collection, explicit opt-out, 90-day retention, and bounded local storage
+- Unmet-intent signal runtime supports privacy-preserving derived-signal extraction + skill-first triage (`gaia signals extract/list/triage/export/clear`) with default-on collection, explicit opt-out, 90-day retention, bounded local storage, and security-gated import-candidate routing
 - Skills validation includes provenance admission controls for broad-source imports (`skills_provenance_mode`, `skills_attestation_mode`, `skills_source_health_mode`) with deterministic pass/warn/fail evidence in validation reports
 - Skills validation includes obfuscation-aware static analysis for encoded/hidden/split-token prompt-injection and sensitive-exfiltration directives, with detection-stage metadata in reports for explainability
 

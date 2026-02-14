@@ -166,10 +166,18 @@ FEEDBACK_CORRECTION_MAX_CHARS = 2000
 FEEDBACK_MAX_RECORDS = 500
 SIGNALS_SCHEMA_VERSION = 1
 SIGNALS_LEDGER_SCHEMA_VERSION = 1
+SIGNALS_TRIAGE_SCHEMA_VERSION = 1
+SIGNALS_TRIAGE_LEDGER_SCHEMA_VERSION = 1
 SIGNALS_TYPE_CHOICES = (
     "feedback_not_helpful",
     "feedback_correction_pattern",
     "command_failure",
+)
+SIGNALS_TRIAGE_CLASS_CHOICES = (
+    "existing-skill-enable",
+    "skill-import-candidate",
+    "core-feature-gap",
+    "out-of-scope-or-rejected",
 )
 SIGNALS_LIST_DEFAULT_LIMIT = 20
 SIGNALS_LIST_MAX_LIMIT = 200
@@ -213,6 +221,30 @@ SIGNALS_CORRECTION_TAG_KEYWORDS: Dict[str, Tuple[str, ...]] = {
         "doesn't support",
     ),
 }
+SIGNALS_TRIAGE_DANGEROUS_MARKERS: Tuple[str, ...] = (
+    "reverse_shell",
+    "prompt_injection",
+    "prompt-injection",
+    "jailbreak",
+    "bypass",
+    "exfiltration",
+    "delete_files",
+    "send_email",
+    "external_messaging",
+)
+SIGNALS_TRIAGE_CORE_PREFIXES: Tuple[str, ...] = (
+    "response_style.",
+    "response_quality.",
+    "memory.",
+)
+SIGNALS_TRIAGE_SKILLISH_PREFIXES: Tuple[str, ...] = (
+    "skills.",
+    "sandbox.",
+    "policy.",
+    "capability.",
+    "auth.",
+    "command.",
+)
 MEMORY_POLICY_RULES: Dict[str, Dict[str, int | str]] = {
     "session_short": {
         "consent_scope": "session",
@@ -993,6 +1025,10 @@ def _memory_summary_events_path(storage_dir: Path) -> Path:
 
 def _signals_path(storage_dir: Path) -> Path:
     return storage_dir / "unmet-intent-signals.json"
+
+
+def _signals_triage_path(storage_dir: Path) -> Path:
+    return storage_dir / "unmet-intent-signal-triage.json"
 
 
 def _signals_export_events_path(storage_dir: Path) -> Path:
@@ -6633,6 +6669,350 @@ def _extract_unmet_intent_signals(
     return ledger
 
 
+def _signal_intent_tokens(raw: str) -> List[str]:
+    tokens = [token for token in re.split(r"[^a-z0-9]+", str(raw).strip().lower()) if token]
+    return tokens
+
+
+def _signal_capability_hints(intent_tag: str) -> List[str]:
+    normalized = str(intent_tag).strip().lower().replace(".", "_").replace("-", "_")
+    hints: List[str] = []
+    for capability in POLICY_TOOL_CHOICES:
+        if capability in normalized:
+            hints.append(capability)
+    return sorted(set(hints))
+
+
+def _skill_contract_tokens(contract: Dict[str, Any]) -> List[str]:
+    tokens: List[str] = []
+    for field in (
+        contract.get("skill_id"),
+        contract.get("slug"),
+        contract.get("name"),
+        contract.get("description"),
+    ):
+        tokens.extend(_signal_intent_tokens(str(field or "")))
+    for capability in contract.get("capabilities", []):
+        tokens.extend(_signal_intent_tokens(str(capability)))
+    return sorted(set(tokens))
+
+
+def _latest_validation_reports_by_skill_id(trace_dir: Path) -> Dict[str, Dict[str, Any]]:
+    report_dir = _skill_validation_reports_dir(trace_dir)
+    if not report_dir.exists() or not report_dir.is_dir():
+        return {}
+
+    reports: Dict[str, Dict[str, Any]] = {}
+    for report_path in sorted(report_dir.glob("*.json"), reverse=True):
+        payload = _load_json(report_path)
+        if not isinstance(payload, dict):
+            continue
+        target = payload.get("target", {})
+        if not isinstance(target, dict):
+            continue
+        skill_id = str(target.get("skill_id", "")).strip()
+        if not skill_id or skill_id in reports:
+            continue
+        summary = payload.get("summary", {})
+        blocking_count = 0
+        if isinstance(summary, dict):
+            blocking_count = _normalize_int_default(
+                summary.get("blocking_count", 0),
+                default_value=0,
+                min_value=0,
+                max_value=1_000_000,
+            )
+        reports[skill_id] = {
+            "status": str(payload.get("status", "")).strip().lower(),
+            "blocking_count": blocking_count,
+            "report_id": str(payload.get("report_id", "")).strip(),
+            "generated_at": str(payload.get("generated_at", "")).strip(),
+            "report_path": _display_runtime_path(report_path),
+        }
+    return reports
+
+
+def _match_signal_skill_candidate(
+    *,
+    signal: Dict[str, Any],
+    contracts: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    intent_tag = str(signal.get("intent_tag", "")).strip().lower()
+    if not intent_tag:
+        return None
+    intent_tokens = set(_signal_intent_tokens(intent_tag))
+    capability_hints = _signal_capability_hints(intent_tag)
+
+    best: Optional[Dict[str, Any]] = None
+    for contract in contracts:
+        if not isinstance(contract, dict):
+            continue
+        capabilities = [
+            str(item).strip().lower()
+            for item in contract.get("capabilities", [])
+            if str(item).strip()
+        ]
+        capability_hits = [cap for cap in capability_hints if cap in capabilities]
+        contract_tokens = set(_skill_contract_tokens(contract))
+        overlap = sorted(intent_tokens.intersection(contract_tokens))
+        score = (len(capability_hits) * 5) + len(overlap)
+
+        skill_slug = str(contract.get("slug", "")).strip().lower()
+        skill_name = str(contract.get("name", "")).strip().lower()
+        if skill_slug and skill_slug.replace("-", "_") in intent_tag.replace("-", "_"):
+            score += 2
+        if skill_name and skill_name.replace("-", "_") in intent_tag.replace("-", "_"):
+            score += 2
+
+        if score <= 0:
+            continue
+        candidate = {
+            "contract": contract,
+            "score": score,
+            "overlap_tokens": overlap[:12],
+            "capability_hits": capability_hits,
+        }
+        if best is None or int(candidate["score"]) > int(best["score"]):
+            best = candidate
+
+    if best is None:
+        return None
+    if int(best["score"]) < 3:
+        return None
+    return best
+
+
+def _triage_signal_record(
+    *,
+    signal: Dict[str, Any],
+    contracts: List[Dict[str, Any]],
+    validation_index: Dict[str, Dict[str, Any]],
+    capability_policy: Dict[str, str],
+) -> Dict[str, Any]:
+    signal_id = str(signal.get("signal_id", "")).strip()
+    signal_type = str(signal.get("signal_type", "")).strip().lower()
+    intent_tag = _normalize_signal_intent_tag(str(signal.get("intent_tag", "")))
+    signal_confidence = round(
+        min(max(float(signal.get("confidence", 0.5) or 0.5), 0.0), 1.0),
+        3,
+    )
+    intent_lower = intent_tag.lower()
+    dangerous = any(marker in intent_lower for marker in SIGNALS_TRIAGE_DANGEROUS_MARKERS)
+    core_feature = any(intent_lower.startswith(prefix) for prefix in SIGNALS_TRIAGE_CORE_PREFIXES)
+    skillish = signal_type == "command_failure" or any(
+        intent_lower.startswith(prefix) for prefix in SIGNALS_TRIAGE_SKILLISH_PREFIXES
+    )
+
+    match = _match_signal_skill_candidate(signal=signal, contracts=contracts)
+    triage_class = "out-of-scope-or-rejected"
+    rationale = "Signal does not map to a trusted deterministic remediation path."
+    follow_up_action = "reject_without_action"
+    security_gate: Dict[str, Any] = {
+        "status": "not-required",
+        "required_checks": [],
+        "reason": "not_applicable",
+    }
+    matched_skill: Dict[str, Any] = {}
+    triage_confidence = signal_confidence
+
+    if dangerous:
+        triage_class = "out-of-scope-or-rejected"
+        rationale = "Intent tag matches safety-restricted markers and is rejected by policy."
+        follow_up_action = "reject_unsafe_request"
+        security_gate = {
+            "status": "blocked",
+            "required_checks": [],
+            "reason": "dangerous_intent",
+        }
+        triage_confidence = max(0.05, signal_confidence - 0.25)
+    elif isinstance(match, dict):
+        contract = match.get("contract", {})
+        contract = contract if isinstance(contract, dict) else {}
+        skill_id = str(contract.get("skill_id", "")).strip()
+        skill_name = str(contract.get("name", "")).strip()
+        capabilities = [
+            str(item).strip().lower()
+            for item in contract.get("capabilities", [])
+            if str(item).strip()
+        ]
+        forbidden_caps = sorted([cap for cap in capabilities if capability_policy.get(cap, "safe") == "forbidden"])
+        validation = validation_index.get(skill_id, {})
+        validation_status = str(validation.get("status", "")).strip().lower()
+        validation_blocking = _normalize_int_default(
+            validation.get("blocking_count", 0),
+            default_value=0,
+            min_value=0,
+            max_value=1_000_000,
+        )
+        matched_skill = {
+            "skill_id": skill_id,
+            "name": skill_name,
+            "source": str(contract.get("source", "")).strip(),
+            "score": int(match.get("score", 0)),
+            "capability_hits": list(match.get("capability_hits", [])),
+            "overlap_tokens": list(match.get("overlap_tokens", [])),
+            "validation_status": validation_status or "missing",
+            "validation_blocking_count": validation_blocking,
+            "validation_report_id": str(validation.get("report_id", "")).strip(),
+            "validation_report_path": str(validation.get("report_path", "")).strip(),
+        }
+
+        if forbidden_caps:
+            triage_class = "out-of-scope-or-rejected"
+            rationale = (
+                f"Matched skill '{skill_id}' declares forbidden capabilities "
+                f"({', '.join(forbidden_caps)})."
+            )
+            follow_up_action = "reject_skill_enablement"
+            security_gate = {
+                "status": "blocked",
+                "required_checks": [],
+                "reason": "forbidden_capability",
+            }
+            triage_confidence = max(0.05, signal_confidence - 0.20)
+        elif validation_status == "fail" or validation_blocking > 0:
+            triage_class = "out-of-scope-or-rejected"
+            rationale = (
+                f"Matched skill '{skill_id}' has blocking validation findings "
+                f"(status={validation_status or 'fail'}, blocking={validation_blocking})."
+            )
+            follow_up_action = "reject_until_skill_hardening"
+            security_gate = {
+                "status": "blocked",
+                "required_checks": [
+                    f"gaia skills validate {skill_id} --json",
+                    "Resolve high/critical findings before activation.",
+                ],
+                "reason": "validation_failed",
+            }
+            triage_confidence = max(0.05, signal_confidence - 0.18)
+        elif validation_status == "pass":
+            triage_class = "existing-skill-enable"
+            rationale = f"Matched validated skill '{skill_id}' with deterministic token/capability overlap."
+            follow_up_action = f"enable_skill:{skill_id}"
+            security_gate = {
+                "status": "satisfied",
+                "required_checks": [f"latest skill validation report pass ({skill_id})"],
+                "reason": "validated_existing_skill",
+            }
+            triage_confidence = min(0.99, signal_confidence + 0.20)
+        else:
+            triage_class = "existing-skill-enable"
+            rationale = (
+                f"Matched existing skill '{skill_id}' but no recent validation report was found; "
+                "enablement requires validation first."
+            )
+            follow_up_action = f"validate_then_enable:{skill_id}"
+            security_gate = {
+                "status": "required",
+                "required_checks": [
+                    f"gaia skills validate {skill_id} --json",
+                    "Require pass with zero blocking findings before activation.",
+                ],
+                "reason": "missing_validation_evidence",
+            }
+            triage_confidence = min(0.99, signal_confidence + 0.10)
+    elif core_feature:
+        triage_class = "core-feature-gap"
+        rationale = "Intent maps to assistant core behavior quality/style surface."
+        follow_up_action = "open_core_feature_followup"
+        security_gate = {
+            "status": "not-required",
+            "required_checks": [],
+            "reason": "core_runtime_evolution",
+        }
+        triage_confidence = min(0.99, signal_confidence + 0.08)
+    elif skillish:
+        triage_class = "skill-import-candidate"
+        rationale = "Intent appears workflow/tooling-oriented and no trusted local skill match was found."
+        follow_up_action = "source_and_validate_skill_candidate"
+        security_gate = {
+            "status": "required",
+            "required_checks": [
+                "gaia config set skills_provenance_mode enforce",
+                "gaia config set skills_attestation_mode enforce",
+                "gaia config set skills_source_health_mode enforce",
+                "gaia skills validate <candidate-skill-path> --json",
+                "gaia policy evaluate --tool <candidate-capability> --source local --scope standard",
+            ],
+            "reason": "candidate_import_requires_security_gates",
+        }
+        triage_confidence = max(0.05, signal_confidence - 0.05)
+
+    triage_confidence = round(min(max(triage_confidence, 0.05), 0.99), 3)
+    return {
+        "signal_id": signal_id,
+        "signal_type": signal_type,
+        "intent_tag": intent_tag,
+        "signal_confidence": signal_confidence,
+        "triage_class": triage_class,
+        "triage_confidence": triage_confidence,
+        "rationale": rationale,
+        "follow_up_action": follow_up_action,
+        "security_gate": security_gate,
+        "matched_skill": matched_skill,
+        "count": _normalize_int_default(
+            signal.get("count", 1),
+            default_value=1,
+            min_value=1,
+            max_value=1_000_000,
+        ),
+        "first_seen_at": str(signal.get("first_seen_at", "")).strip(),
+        "last_seen_at": str(signal.get("last_seen_at", "")).strip(),
+        "source_event_count": _normalize_int_default(
+            signal.get("source_event_count", signal.get("count", 1)),
+            default_value=1,
+            min_value=0,
+            max_value=1_000_000,
+        ),
+    }
+
+
+def _triage_class_summary(items: List[Dict[str, Any]]) -> Dict[str, int]:
+    summary = {name: 0 for name in SIGNALS_TRIAGE_CLASS_CHOICES}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        triage_class = str(item.get("triage_class", "")).strip().lower()
+        if triage_class in summary:
+            summary[triage_class] += 1
+    return summary
+
+
+def _build_signal_triage_ledger(
+    *,
+    cfg: Dict[str, Any],
+    trace_dir: Path,
+    source_filter: str,
+    signals: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    contracts, scanned_roots = _load_skill_contracts(cfg, source_filter=source_filter)
+    validation_index = _latest_validation_reports_by_skill_id(trace_dir)
+    capability_policy = _capability_registry(cfg)
+    triaged = [
+        _triage_signal_record(
+            signal=signal,
+            contracts=contracts,
+            validation_index=validation_index,
+            capability_policy=capability_policy,
+        )
+        for signal in signals
+        if isinstance(signal, dict)
+    ]
+    summary = _triage_class_summary(triaged)
+    return {
+        "schema_version": SIGNALS_TRIAGE_LEDGER_SCHEMA_VERSION,
+        "generated_at": _isoformat_utc(datetime.now(timezone.utc)),
+        "source_signal_count": len(signals),
+        "triage_count": len(triaged),
+        "skill_source_filter": source_filter,
+        "scanned_skill_roots": scanned_roots,
+        "validation_reports_indexed": len(validation_index),
+        "class_summary": summary,
+        "items": triaged,
+    }
+
+
 def cmd_feedback_record(args: argparse.Namespace) -> int:
     cfg_path = Path(args.config).expanduser()
     cfg = _ensure_config_exists(cfg_path)
@@ -6950,15 +7330,19 @@ def cmd_feedback_list(args: argparse.Namespace) -> int:
 def _signals_trace_metadata(
     *,
     signal_count: Optional[int] = None,
+    triage_count: Optional[int] = None,
     written: Optional[bool] = None,
     collection_enabled: Optional[bool] = None,
     export_id: Optional[str] = None,
     export_path: Optional[str] = None,
+    class_summary: Optional[Dict[str, int]] = None,
     cleared: Optional[bool] = None,
 ) -> Dict[str, Any]:
     metadata: Dict[str, Any] = {}
     if signal_count is not None:
         metadata["signal_count"] = int(signal_count)
+    if triage_count is not None:
+        metadata["triage_count"] = int(triage_count)
     if written is not None:
         metadata["written"] = bool(written)
     if collection_enabled is not None:
@@ -6967,6 +7351,15 @@ def _signals_trace_metadata(
         metadata["export_id"] = export_id
     if export_path:
         metadata["export_path"] = export_path
+    if isinstance(class_summary, dict):
+        summary: Dict[str, int] = {}
+        for triage_class, count in class_summary.items():
+            label = str(triage_class).strip().lower()
+            if label not in SIGNALS_TRIAGE_CLASS_CHOICES:
+                continue
+            summary[label] = _normalize_int_default(count, default_value=0, min_value=0, max_value=1_000_000)
+        if summary:
+            metadata["triage_class_summary"] = summary
     if cleared is not None:
         metadata["cleared"] = bool(cleared)
     return _with_trace_metadata(metadata=metadata)
@@ -7041,6 +7434,122 @@ def cmd_signals_extract(args: argparse.Namespace) -> int:
         f"{signal_count} written={str(written).lower()} "
         f"retention_days={result.get('retention_days')} max_records={result.get('max_records')}"
     )
+    return 0
+
+
+def cmd_signals_triage(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    cfg = _ensure_config_exists(cfg_path)
+    trace_dir = _resolve_trace_dir(cfg, args.trace_dir)
+    storage_dir = _resolve_storage_dir(cfg, args.storage_dir)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    start = time.perf_counter()
+
+    limit = int(args.limit)
+    if limit < 1 or limit > SIGNALS_LIST_MAX_LIMIT:
+        message = (
+            f"Invalid --limit value {limit}. "
+            f"Expected 1..{SIGNALS_LIST_MAX_LIMIT}."
+        )
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="signals_triage",
+            input_summary=f"limit={limit}",
+            output_summary=message,
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level="safe",
+            status="error",
+        )
+        print(message, file=sys.stderr)
+        return 1
+
+    allowed, permission_level = _enforce_capability(
+        cfg=cfg,
+        capability="memory_write",
+        input_summary="signals triage",
+        trace_dir=trace_dir,
+        non_interactive=False,
+    )
+    if not allowed:
+        _write_action_trace(
+            trace_dir=trace_dir,
+            action_type="signals_triage",
+            input_summary="signals triage",
+            output_summary="blocked by permission policy",
+            duration_ms=(time.perf_counter() - start) * 1000,
+            permission_level=permission_level,
+            status="blocked",
+        )
+        print("Action blocked by capability policy.", file=sys.stderr)
+        return 1
+
+    refreshed = False
+    if bool(args.refresh):
+        _extract_unmet_intent_signals(
+            cfg=cfg,
+            storage_dir=storage_dir,
+            trace_dir=trace_dir,
+            persist=True,
+        )
+        refreshed = True
+
+    signals_ledger = _load_signals_ledger(storage_dir, cfg)
+    records = _normalize_signals_records(signals_ledger.get("signals", []))
+    triage_ledger = _build_signal_triage_ledger(
+        cfg=cfg,
+        trace_dir=trace_dir,
+        source_filter=str(args.source),
+        signals=records,
+    )
+    triage_path = _signals_triage_path(storage_dir)
+    _write_json(triage_path, triage_ledger)
+
+    triage_count = _normalize_int_default(
+        triage_ledger.get("triage_count", 0),
+        default_value=0,
+        min_value=0,
+        max_value=1_000_000,
+    )
+    class_summary = triage_ledger.get("class_summary", {})
+    class_summary = class_summary if isinstance(class_summary, dict) else {}
+
+    _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="signals_triage",
+        input_summary=f"source={args.source} refresh={refreshed}",
+        output_summary=f"triaged {triage_count} signals",
+        duration_ms=(time.perf_counter() - start) * 1000,
+        permission_level=permission_level,
+        metadata=_signals_trace_metadata(
+            signal_count=len(records),
+            triage_count=triage_count,
+            class_summary=class_summary,
+            collection_enabled=bool(signals_ledger.get("collection_enabled", True)),
+            written=True,
+        ),
+    )
+
+    if args.as_json:
+        print(json.dumps(triage_ledger, indent=2))
+        return 0
+
+    print(
+        f"triage_count={triage_count} source_signals={len(records)} "
+        f"path={triage_path} refresh={str(refreshed).lower()}"
+    )
+    items = triage_ledger.get("items", [])
+    if not isinstance(items, list):
+        items = []
+    for item in items[:limit]:
+        if not isinstance(item, dict):
+            continue
+        print(
+            f"{str(item.get('signal_id', '?')).strip()} "
+            f"class={str(item.get('triage_class', '')).strip()} "
+            f"confidence={float(item.get('triage_confidence', 0.0)):.3f} "
+            f"intent={str(item.get('intent_tag', '')).strip()} "
+            f"action={str(item.get('follow_up_action', '')).strip()}"
+        )
     return 0
 
 

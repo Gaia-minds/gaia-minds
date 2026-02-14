@@ -198,6 +198,10 @@ PY
     [[ ! -f \"\$ledger_path\" ]]
   "
 
+  run_test "signals_skill_first_triage_matrix" bash -lc "
+    bash \"${ROOT_DIR}/tools/signal-triage-check.sh\"
+  "
+
   run_test "memory_crud_and_filters" bash -lc "
     \"${GAIA_CMD[0]}\" \"${GAIA_CMD[1]}\" memory add --type user_long --subject smoke-user --content 'Smoke memory content' --summary 'Smoke memory summary' --consent-scope user --retention-ttl P30D >/tmp/memory-add-smoke.out &&
     memory_id=\$(awk 'NR==1 {print \$1}' /tmp/memory-add-smoke.out) &&
