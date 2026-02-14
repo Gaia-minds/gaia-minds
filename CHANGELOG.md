@@ -107,6 +107,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Next Phase 3 execution queue issue set for drift detection, canary gate, token-budget enforcement, feedback capture, and profile/summarization follow-on (`#93`, `#94`, `#95`, `#96`, `#97`)
 - Post-Phase-3-delivery stabilization planning-round artifact with refactor/docs/release sequencing and dead-artifact triage scope (`infrastructure/planning-round-2026-02-14-post-phase3-delivery-stabilization.md`, `#104`)
 - Post-Phase-3-delivery issue set for dead-code audit, assistant modular refactor, live-preview refresh, and npm release `0.3.0` (`#105`, `#106`, `#107`, `#108`)
+- User-intent signal architecture planning-round artifact for privacy-preserving self-evolution inputs and skill-first gap routing (`infrastructure/planning-round-2026-02-14-user-intent-signal-architecture.md`, `#110`)
+- Signal-driven self-evolution follow-on issue set for unmet-intent extraction, skill-first triage, and hypothesis integration (`#111`, `#112`, `#113`)
 
 ### Changed
 - PR template now includes explicit self-evolution applicability gating and required evidence fields (`.github/pull_request_template.md`)
@@ -149,6 +151,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Refreshed roadmap/status to reflect completed Phase 2 delivery and queued Phase 3 kickoff priorities (`ROADMAP.md`, `STATUS.md`)
 - Refreshed roadmap/status to reflect Phase 3 kickoff completion (`#87` / PR `#91`) and the newly published post-kickoff queue (`#93`-`#97`) (`ROADMAP.md`, `STATUS.md`)
 - Refreshed roadmap/status to reflect the post-delivery stabilization queue and merge order (`#105`-`#108`) (`ROADMAP.md`, `STATUS.md`)
+- Refreshed roadmap/status with a post-release signal-driven evolution queue (`#111`-`#113`) and privacy rule for derived user-intent signals only (`ROADMAP.md`, `STATUS.md`)
 
 ### Planned
 - Additional resource documentation

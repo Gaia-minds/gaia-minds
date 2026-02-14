@@ -201,6 +201,25 @@ Recommended merge order:
 3. `#107`
 4. `#108`
 
+Execution queue (signal-driven self-evolution follow-on; planning published):
+
+- `#110` Planning lane for user-intent signal architecture and queue decomposition
+- `#111` Privacy-preserving unmet-intent signal extraction from local interaction artifacts
+- `#112` Skill-first triage for unmet-intent signals (`existing-skill-enable` / `skill-import-candidate` / `core-feature-gap`)
+- `#113` Integrate unmet-intent signal aggregates into hypothesis candidate generation
+
+Recommended merge order:
+
+1. `#111`
+2. `#112`
+3. `#113`
+
+Privacy/architecture rule for this queue:
+
+- only derived/sanitized interaction signals may feed self-evolution inputs;
+  raw conversation transcripts must not be exported into hypothesis/evidence
+  artifacts.
+
 Exit criteria:
 
 - Three consecutive releases with measurable quality gain.

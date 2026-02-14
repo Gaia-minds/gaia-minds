@@ -31,3 +31,4 @@ Technical foundations and operational guidance.
 - [Security Review Template](security-review-template.md) — Updated: February 8, 2026
 - [Self-Evolution PR Evidence Rubric](self-evolution-evidence-rubric.md) — Updated: February 13, 2026
 - [Skill Contract v1](skill-contract-v1.md) — Updated: February 13, 2026
+- [User-Intent Signal Architecture Planning Round - 2026-02-14](planning-round-2026-02-14-user-intent-signal-architecture.md) — Updated: February 14, 2026 Coordinator: Codex (planner main role) Activated sub-roles: `gaia-planner`, `gaia-researcher`...
