@@ -32,14 +32,14 @@ Owner: @TonyThePredictor / Codex
 | Source | Date | Claim Supported | Notes |
 | --- | --- | --- | --- |
 | OWASP GenAI Top 10, LLM01 Prompt Injection | 2025 (accessed 2026-02-14) | Prompt injection remains a primary risk class for LLM apps and agents. | https://genai.owasp.org/llmrisk/llm01-prompt-injection/ |
-| OWASP GenAI Top 10, LLM03 Supply Chain | 2025 (accessed 2026-02-14) | Third-party components/plugins/agents create supply-chain risk requiring integrity controls. | https://genai.owasp.org/llmrisk/llm03-supply-chain/ |
+| OWASP GenAI Top 10, LLM03 Supply Chain | 2025 (accessed 2026-02-14) | Third-party components/plugins/agents create supply-chain risk requiring integrity controls. | https://genai.owasp.org/llmrisk/llm032025-supply-chain/ |
 | NIST AI RMF 1.0 | 2023-01-26 | AI risk management should be governed with continuous measurement + controls, not one-off checks. | https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-ai-rmf-10 |
 | NIST SP 800-218 (SSDF) | 2022-02-04 | Secure software practice requires integrity, provenance, and repeatable verification in SDLC. | https://csrc.nist.gov/pubs/sp/800/218/final |
-| Microsoft Learn: Secure your AI app from prompt injection attacks | accessed 2026-02-14 | Defense-in-depth controls are needed (input controls, privilege minimization, monitoring). | https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-injection |
+| Microsoft Learn: Responsible AI for Azure OpenAI in Azure AI Foundry Models | accessed 2026-02-14 | Defense-in-depth controls are needed (input controls, privilege minimization, monitoring). | https://learn.microsoft.com/en-us/azure/ai-foundry/responsible-ai/openai/overview |
 | Anthropic docs: Mitigate prompt injection | accessed 2026-02-14 | Treat tool-bound instructions as untrusted and apply layered mitigations for indirect injection. | https://docs.anthropic.com/en/docs/test-and-evaluate/strengthen-guardrails/mitigate-prompt-injection |
-| OpenAI Codex docs: Internet access & prompt-injection risk notes | accessed 2026-02-14 | When external content is fetched, prompt-injection risk must be explicitly mitigated and bounded. | https://developers.openai.com/codex/cloud/environments/internet-access |
-| SLSA v1.1 approval | 2024-04-16 | Provenance/attestation frameworks are available and mature enough for practical adoption. | https://slsa.dev/blog/2024/04/16/slsa-v1.1/ |
-| in-toto specification | accessed 2026-02-14 | Supply-chain metadata/attestation model supports integrity verification in automation pipelines. | https://in-toto.io/docs/in-toto/ |
+| OpenAI docs: Building agents guardrails guidance | accessed 2026-02-14 | When external content/tools are involved, guardrails and least-privilege controls are required. | https://developers.openai.com/tracks/building-agents/#guardrails |
+| SLSA specification v1.0 | accessed 2026-02-14 | Provenance/attestation frameworks are available and mature enough for practical adoption. | https://slsa.dev/spec/v1.0/ |
+| in-toto documentation | accessed 2026-02-14 | Supply-chain metadata/attestation model supports integrity verification in automation pipelines. | https://in-toto.io/docs/ |
 | arXiv: StruQ (structured-query defense) | 2024-02-09 | Data/instruction separation improves prompt-injection resistance with minimal utility loss in tested setups. | https://arxiv.org/abs/2402.06363 |
 | arXiv: SecAlign (preference-optimization defense) | 2024-10-07 | Training-based defenses can materially reduce injection success under benchmark conditions. | https://arxiv.org/abs/2410.05451 |
 | arXiv: ZEDD (embedding-drift detector) | 2026-01-18 | Lightweight runtime detection can provide high detection performance across models in benchmarked settings. | https://arxiv.org/abs/2601.12359 |
