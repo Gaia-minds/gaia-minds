@@ -960,6 +960,46 @@ Lane: `Provenance admission gate for broad-source skill imports` (`#122`)
 - Expanded smoke/UAT coverage:
   - `skills_provenance_admission_modes`
 
+## Phase 3 Delta: Obfuscation-Aware Skill Validation Hardening (2026-02-14)
+
+Lane: `Obfuscation-aware skill validation hardening for prompt-injection patterns`
+(`#123`)
+
+### Runtime validation changes
+
+- Extended `gaia skills validate` with deterministic canonicalization-aware scan
+  stages in static validation path:
+  - unicode/entity normalization with zero-width stripping
+  - URL-decoded payload inspection
+  - hidden HTML/comment extraction
+  - bounded base64 payload hint decoding
+  - split-token collapsed text inspection for bypass patterns
+- Obfuscation scan remains bounded by candidate/decode limits to preserve
+  deterministic runtime cost and avoid unbounded payload expansion.
+
+### Validation report changes
+
+- Validation findings now include optional detection-stage metadata for
+  explainability:
+  - `detection.mode`
+  - `detection.source`
+  - `detection.candidate_stage`
+- Per-file scan provenance now includes canonicalization summary evidence:
+  - `provenance.scanned_files[].canonicalization`
+    (`candidate_count`, `decoded_candidates`, `hit_count`, `source_counts`,
+    `truncated`)
+
+### Deterministic fixture and gate coverage
+
+- Added fixture set for obfuscation bypass and false-positive guardrails:
+  - `malicious-obfuscated-prompt-injection`
+  - `malicious-obfuscated-exfiltration`
+  - `benign-obfuscation-control`
+- Added reusable deterministic regression check script:
+  - `tools/skill-obfuscation-check.sh`
+- Expanded smoke/UAT coverage:
+  - `skills_obfuscation_validation_hardening`
+
 ## Phase 3 Delta: Assistant Parser Modularization (2026-02-14)
 
 Lane: `Refactor tools/gaia-assistant.py into modular command packages` (`#106`)

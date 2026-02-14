@@ -148,6 +148,12 @@
       "command": "bash ./tools/skill-provenance-check.sh"
     },
     {
+      "id": "skills_obfuscation_validation_hardening",
+      "description": "Skills validator catches obfuscated prompt-injection/exfiltration payloads while preserving benign controls",
+      "expect_exit": 0,
+      "command": "bash ./tools/skill-obfuscation-check.sh"
+    },
+    {
       "id": "sandbox_profile_and_escalation",
       "description": "Sandbox profiles are listed and escalation gate is enforced deterministically",
       "expect_exit": 0,

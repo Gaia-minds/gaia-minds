@@ -48,18 +48,18 @@ See `ROADMAP.md` for full phase details and exit criteria.
 - npm release `@gaia-minds/assistant-cli@0.3.0` readiness + publish workflow (`#108`, tag `v0.3.0`)
 - `Phase 3 Privacy-Preserving Unmet-Intent Signals` - derived-only unmet-intent signal runtime (`gaia signals extract/list/export/clear`) with default-on collection, explicit opt-out, 90-day retention, bounded storage, and privacy/QA gate coverage (`#111`)
 - `Phase 3 Skill-Import Security Research` - continuous security-validation synthesis for broad-source skill imports with execution-ready hardening lanes seeded (`#115`, PR `#124`)
+- `Phase 3 Skill Provenance Admission Gate` - deterministic source pin/attestation/source-health policy checks for `gaia skills validate` with pass/warn/fail regression coverage (`#122`, PR `#125`)
 
 ## In Progress
 
-- `#122` `[Phase 3][Framework]` Provenance admission gate for broad-source skill imports - owner: `@TonyThePredictor / Codex` (branch `feat/p3-skill-provenance-admission-gate-v1`)
+- `#123` `[Phase 3][Framework]` Obfuscation-aware skill validation hardening for prompt-injection patterns - owner: `@TonyThePredictor / Codex` (branch `feat/p3-skill-obfuscation-validation-hardening-v1`)
 
 ## Next Up (Post-Phase-3 Delivery Queue)
 
-_No queued stabilization lanes. Next queue continues with signal-driven follow-on (`#122`, `#123`, `#112`, `#113`)._
+_No queued stabilization lanes. Next queue continues with signal-driven follow-on (`#123`, `#112`, `#113`)._
 
 ## Planned Next Wave (Signal-Driven Evolution Follow-On)
 
-- `#122` `[Phase 3][Framework]` Provenance admission gate for broad-source skill imports (seeded by `#115`; supports `#112`)
 - `#123` `[Phase 3][Framework]` Obfuscation-aware skill validation hardening for prompt-injection patterns (seeded by `#115`; supports `#112`)
 - `#112` `[Phase 3][Framework]` Skill-first triage for unmet-intent signals (`existing-skill-enable` / `skill-import-candidate` / `core-feature-gap`) with broad-source import candidates gated by security validation (depends on `#111`, informed by `#115`)
 - `#113` `[Phase 3][Framework]` Integrate unmet-intent signals into hypothesis candidate generation (depends on `#111` + `#112`)

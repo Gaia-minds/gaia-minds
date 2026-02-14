@@ -641,6 +641,16 @@ Expected provenance metadata (frontmatter or `provenance.json`):
 per-check decisions (`source_pinning`, `attestation`, `source_health`) and an
 overall decision (`pass|warn|fail|skipped`).
 
+Validator hardening also includes obfuscation-aware static analysis for encoded
+and hidden directives:
+
+- canonicalization sources include URL-decoding, base64 payload hints, hidden
+  HTML blocks/comments, and split-token collapsed views
+- findings may include `stage=canonicalized` with `detection` metadata
+  (`mode`, `source`, `candidate_stage`) for explainability
+- per-file scan records now include
+  `provenance.scanned_files[].canonicalization` summary counts
+
 ## Sandbox
 
 Sandbox commands provide explicit execution profiles and escalation approval

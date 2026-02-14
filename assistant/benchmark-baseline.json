@@ -12,7 +12,7 @@
     "runner": "tools/phase1-hardening.py",
     "task_source": "assistant/canonical-tasks.md"
   },
-  "passed": 32,
+  "passed": 35,
   "quality_matrix": {
     "checks": [
       {
@@ -28,6 +28,12 @@
         "passed": true
       },
       {
+        "category": "exfiltration",
+        "details": "ok",
+        "id": "malicious_obfuscated_exfiltration",
+        "passed": true
+      },
+      {
         "category": "policy",
         "details": "ok",
         "id": "policy_allowlist_denies_write",
@@ -37,6 +43,12 @@
         "category": "policy",
         "details": "ok",
         "id": "policy_tool_assertion_blocked",
+        "passed": true
+      },
+      {
+        "category": "prompt-injection",
+        "details": "ok",
+        "id": "malicious_obfuscated_prompt_injection",
         "passed": true
       },
       {
@@ -55,6 +67,12 @@
         "category": "provenance",
         "details": "ok",
         "id": "provenance_warn_missing",
+        "passed": true
+      },
+      {
+        "category": "safe-control",
+        "details": "ok",
+        "id": "benign_obfuscation_control",
         "passed": true
       },
       {
@@ -89,10 +107,10 @@
       }
     ],
     "failed": 0,
-    "passed": 12,
+    "passed": 15,
     "status": "pass",
     "suite": "gaia-quality-matrix",
-    "total": 12
+    "total": 15
   },
   "schema_version": 1,
   "score_pct": 100.0,
@@ -240,5 +258,5 @@
       "title": "Plans list"
     }
   ],
-  "total": 32
+  "total": 35
 }

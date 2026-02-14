@@ -21,6 +21,7 @@ import sqlite3
 import subprocess
 import sys
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -86,6 +87,9 @@ SKILL_VALIDATION_BLOCKING_SEVERITIES = {"high", "critical"}
 SKILL_VALIDATION_MAX_SCAN_FILES = 120
 SKILL_VALIDATION_MAX_SCAN_FILE_BYTES = 512 * 1024
 SKILL_VALIDATION_MAX_HITS_PER_RULE = 8
+SKILL_VALIDATION_MAX_CANONICAL_CANDIDATES = 80
+SKILL_VALIDATION_MAX_BASE64_CANDIDATES = 24
+SKILL_VALIDATION_MAX_BASE64_TOKEN_CHARS = 4096
 SANDBOX_PROFILE_CHOICES = ("read-only", "workspace-write")
 SANDBOX_DEFAULT_PROFILE = "read-only"
 POLICY_DECISION_CHOICES = ("allow", "confirm", "deny")
@@ -1903,6 +1907,39 @@ def _sorted_validation_findings(findings: List[Dict[str, Any]]) -> List[Dict[str
     )
 
 
+def _sanitize_detection_metadata(payload: Dict[str, Any]) -> Dict[str, Any]:
+    sanitized: Dict[str, Any] = {}
+    for raw_key, raw_value in payload.items():
+        key = str(raw_key).strip()
+        if not key:
+            continue
+        if isinstance(raw_value, bool):
+            sanitized[key] = raw_value
+            continue
+        if isinstance(raw_value, (int, float)):
+            sanitized[key] = raw_value
+            continue
+        if isinstance(raw_value, str):
+            text = raw_value.strip()
+            if text:
+                sanitized[key] = _summarize_text(text, max_chars=220)
+            continue
+        if isinstance(raw_value, list):
+            items: List[Any] = []
+            for item in raw_value[:8]:
+                if isinstance(item, bool):
+                    items.append(item)
+                elif isinstance(item, (int, float)):
+                    items.append(item)
+                else:
+                    token = str(item).strip()
+                    if token:
+                        items.append(_summarize_text(token, max_chars=120))
+            if items:
+                sanitized[key] = items
+    return sanitized
+
+
 def _add_skill_validation_finding(
     findings: List[Dict[str, Any]],
     *,
@@ -1914,6 +1951,7 @@ def _add_skill_validation_finding(
     line: Optional[int] = None,
     evidence: Optional[str] = None,
     recommendation: Optional[str] = None,
+    detection: Optional[Dict[str, Any]] = None,
 ) -> None:
     normalized = severity.strip().lower()
     if normalized not in SKILL_VALIDATION_SEVERITY_ORDER:
@@ -1933,6 +1971,10 @@ def _add_skill_validation_finding(
         finding["evidence"] = _summarize_text(evidence, max_chars=220)
     if recommendation:
         finding["recommendation"] = recommendation.strip()
+    if isinstance(detection, dict):
+        sanitized_detection = _sanitize_detection_metadata(detection)
+        if sanitized_detection:
+            finding["detection"] = sanitized_detection
     findings.append(finding)
 
 
@@ -2106,6 +2148,362 @@ def _risk_pattern_rules() -> List[Dict[str, Any]]:
     ]
 
 
+def _obfuscation_compact_rules() -> List[Dict[str, Any]]:
+    return [
+        {
+            "code": "high_prompt_injection_directive",
+            "severity": "high",
+            "pattern": re.compile(
+                r"(ignore|disregard|bypass)"
+                r"(previous|prior|system|developer)"
+                r"(instruction|instructions|prompt|guardrail|policy|policies)",
+                re.IGNORECASE,
+            ),
+            "message": "Detected obfuscated prompt-injection directive after canonicalization.",
+            "recommendation": "Remove hidden/obfuscated guardrail bypass directives.",
+        },
+        {
+            "code": "high_sensitive_exfiltration",
+            "severity": "high",
+            "pattern": re.compile(
+                r"(curl|wget|scp|sftp|nc).{0,240}"
+                r"(etcpasswd|sshidrsa|gaiaassistantsecretsjson|gaiaassistantauthprofilesjson|"
+                r"gaiaassistanthomesecretsjson|gaiaassistanthomeauthprofilesjson)|"
+                r"(etcpasswd|sshidrsa|gaiaassistantsecretsjson|gaiaassistantauthprofilesjson|"
+                r"gaiaassistanthomesecretsjson|gaiaassistanthomeauthprofilesjson).{0,240}"
+                r"(curl|wget|scp|sftp|nc)",
+                re.IGNORECASE,
+            ),
+            "message": "Detected obfuscated sensitive data exfiltration pattern after canonicalization.",
+            "recommendation": "Remove obfuscated network transfer commands targeting sensitive credential paths.",
+        },
+    ]
+
+
+def _normalize_obfuscation_text(text: str) -> str:
+    normalized = unicodedata.normalize("NFKC", html.unescape(text))
+    return re.sub(r"[\u200b\u200c\u200d\u2060\ufeff]", "", normalized)
+
+
+def _compact_obfuscation_text(text: str) -> str:
+    return re.sub(r"[^a-z0-9/$._-]+", "", text.lower())
+
+
+def _line_number_for_offset(text: str, offset: int) -> int:
+    if offset <= 0:
+        return 1
+    return text.count("\n", 0, offset) + 1
+
+
+def _decode_base64_obfuscation_candidate(token: str) -> str:
+    if not token or len(token) > SKILL_VALIDATION_MAX_BASE64_TOKEN_CHARS:
+        return ""
+    padded = token + ("=" * ((4 - (len(token) % 4)) % 4))
+    try:
+        decoded = base64.b64decode(padded, validate=True)
+    except (ValueError, TypeError):
+        return ""
+    if len(decoded) < 12 or len(decoded) > SKILL_VALIDATION_MAX_SCAN_FILE_BYTES:
+        return ""
+    text = decoded.decode("utf-8", errors="replace").strip()
+    if not text:
+        return ""
+    printable = sum(1 for ch in text if ch.isprintable())
+    ratio = float(printable) / float(len(text)) if text else 0.0
+    if ratio < 0.85:
+        return ""
+    return text
+
+
+def _collect_obfuscation_candidates(text: str) -> Dict[str, Any]:
+    candidates: List[Dict[str, Any]] = []
+    truncated = False
+    decoded_count = 0
+    seen = set()
+    risk_markers = (
+        "ignore",
+        "disregard",
+        "bypass",
+        "system",
+        "developer",
+        "instruction",
+        "prompt",
+        "guardrail",
+        "policy",
+        "curl",
+        "wget",
+        "scp",
+        "sftp",
+        "etcpasswd",
+        "sshidrsa",
+        "gaiaassistant",
+        "secretsjson",
+        "authprofilesjson",
+    )
+
+    def add_candidate(*, value: str, line: int, source: str, mode: str, evidence: str) -> None:
+        nonlocal truncated
+        if len(candidates) >= SKILL_VALIDATION_MAX_CANONICAL_CANDIDATES:
+            truncated = True
+            return
+        text_value = value.strip()
+        if not text_value:
+            return
+        fingerprint = (source, mode, line, text_value[:180])
+        if fingerprint in seen:
+            return
+        seen.add(fingerprint)
+        candidates.append(
+            {
+                "text": text_value,
+                "line": line,
+                "source": source,
+                "mode": mode,
+                "evidence": _summarize_text(evidence.strip() or text_value, max_chars=220),
+            }
+        )
+
+    normalized_text = _normalize_obfuscation_text(text)
+    original_lines = text.splitlines()
+    normalized_lines = normalized_text.splitlines()
+    line_total = max(len(original_lines), len(normalized_lines))
+
+    for idx in range(1, line_total + 1):
+        original_line = original_lines[idx - 1] if idx - 1 < len(original_lines) else ""
+        normalized_line = normalized_lines[idx - 1] if idx - 1 < len(normalized_lines) else ""
+        if normalized_line and normalized_line != original_line:
+            add_candidate(
+                value=normalized_line,
+                line=idx,
+                source="unicode-normalized",
+                mode="text",
+                evidence=normalized_line,
+            )
+        if re.search(r"%[0-9a-fA-F]{2}", normalized_line):
+            decoded_line = urllib.parse.unquote(normalized_line)
+            if decoded_line != normalized_line:
+                add_candidate(
+                    value=decoded_line,
+                    line=idx,
+                    source="url-decoded",
+                    mode="text",
+                    evidence=normalized_line,
+                )
+
+        compact_line = _compact_obfuscation_text(normalized_line)
+        if (
+            compact_line
+            and compact_line != _compact_obfuscation_text(original_line)
+            and any(marker in compact_line for marker in risk_markers)
+        ):
+            add_candidate(
+                value=compact_line,
+                line=idx,
+                source="split-token-collapsed",
+                mode="compact",
+                evidence=normalized_line,
+            )
+
+    for match in re.finditer(r"<!--(.*?)-->", normalized_text, flags=re.IGNORECASE | re.DOTALL):
+        snippet = match.group(1).strip()
+        if not snippet:
+            continue
+        line = _line_number_for_offset(normalized_text, match.start())
+        add_candidate(
+            value=snippet,
+            line=line,
+            source="html-comment",
+            mode="text",
+            evidence=snippet,
+        )
+        compact_snippet = _compact_obfuscation_text(snippet)
+        if compact_snippet and any(marker in compact_snippet for marker in risk_markers):
+            add_candidate(
+                value=compact_snippet,
+                line=line,
+                source="html-comment-collapsed",
+                mode="compact",
+                evidence=snippet,
+            )
+
+    hidden_attr = re.compile(
+        r"(display\s*:\s*none|visibility\s*:\s*hidden|\shidden(?:[\s=>])|aria-hidden\s*=\s*['\"]?true)",
+        re.IGNORECASE,
+    )
+    hidden_block = re.compile(
+        r"<(?P<tag>[a-z0-9]+)(?P<attrs>[^>]*)>(?P<body>.*?)</(?P=tag)>",
+        re.IGNORECASE | re.DOTALL,
+    )
+    for match in hidden_block.finditer(normalized_text):
+        attrs = str(match.group("attrs") or "")
+        if not hidden_attr.search(attrs):
+            continue
+        body = str(match.group("body") or "")
+        body_text = re.sub(r"<[^>]+>", " ", body).strip()
+        if not body_text:
+            continue
+        line = _line_number_for_offset(normalized_text, match.start())
+        add_candidate(
+            value=body_text,
+            line=line,
+            source="hidden-html",
+            mode="text",
+            evidence=body_text,
+        )
+        compact_body = _compact_obfuscation_text(body_text)
+        if compact_body and any(marker in compact_body for marker in risk_markers):
+            add_candidate(
+                value=compact_body,
+                line=line,
+                source="hidden-html-collapsed",
+                mode="compact",
+                evidence=body_text,
+            )
+
+    token_pattern = re.compile(r"(?<![A-Za-z0-9+/=])([A-Za-z0-9+/]{24,}={0,2})(?![A-Za-z0-9+/=])")
+    for match in token_pattern.finditer(normalized_text):
+        if decoded_count >= SKILL_VALIDATION_MAX_BASE64_CANDIDATES:
+            truncated = True
+            break
+        token = str(match.group(1) or "")
+        decoded_text = _decode_base64_obfuscation_candidate(token)
+        if not decoded_text:
+            continue
+        compact_decoded = _compact_obfuscation_text(decoded_text)
+        if not any(marker in compact_decoded for marker in risk_markers):
+            continue
+        decoded_count += 1
+        line = _line_number_for_offset(normalized_text, match.start(1))
+        add_candidate(
+            value=decoded_text,
+            line=line,
+            source="base64-decoded",
+            mode="text",
+            evidence=f"{token[:64]}...",
+        )
+        if compact_decoded:
+            add_candidate(
+                value=compact_decoded,
+                line=line,
+                source="base64-decoded-collapsed",
+                mode="compact",
+                evidence=decoded_text,
+            )
+
+    return {
+        "candidates": candidates,
+        "truncated": truncated,
+        "decoded_candidates": decoded_count,
+    }
+
+
+def _scan_obfuscation_candidates(
+    *,
+    text: str,
+    display_path: str,
+    findings: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    candidate_payload = _collect_obfuscation_candidates(text)
+    candidates = candidate_payload.get("candidates", [])
+    if not isinstance(candidates, list):
+        candidates = []
+    truncated = bool(candidate_payload.get("truncated"))
+    decoded_candidates = int(candidate_payload.get("decoded_candidates", 0))
+
+    source_counts: Dict[str, int] = {}
+    hit_count = 0
+    existing_signatures = {
+        (
+            str(item.get("code", "")).strip().lower(),
+            str(item.get("path", "")).strip(),
+            int(item.get("line", 0)) if isinstance(item.get("line"), int) else 0,
+        )
+        for item in findings
+        if isinstance(item, dict)
+    }
+
+    rule_by_code = {str(rule.get("code", "")).strip().lower(): rule for rule in _risk_pattern_rules()}
+    canonical_rules = [
+        rule
+        for code in ("high_prompt_injection_directive", "high_sensitive_exfiltration")
+        for rule in [rule_by_code.get(code)]
+        if isinstance(rule, dict)
+    ]
+    compact_rules = _obfuscation_compact_rules()
+
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        candidate_text = str(candidate.get("text", "")).strip()
+        if not candidate_text:
+            continue
+        source = str(candidate.get("source", "")).strip() or "canonicalized"
+        mode = str(candidate.get("mode", "")).strip().lower() or "text"
+        line_value = int(candidate.get("line", 0)) if isinstance(candidate.get("line"), int) else 0
+        source_counts[source] = source_counts.get(source, 0) + 1
+
+        rules = compact_rules if mode == "compact" else canonical_rules
+        for rule in rules:
+            pattern = rule.get("pattern")
+            if not isinstance(pattern, re.Pattern):
+                continue
+            if not pattern.search(candidate_text):
+                continue
+            code = str(rule.get("code", "")).strip().lower()
+            signature = (code, display_path, line_value if line_value > 0 else 0)
+            if signature in existing_signatures:
+                continue
+            _add_skill_validation_finding(
+                findings,
+                severity=str(rule.get("severity", "high")),
+                stage="canonicalized",
+                code=code,
+                message=str(rule.get("message", "Detected obfuscated risk pattern.")),
+                path=display_path,
+                line=line_value if line_value > 0 else None,
+                evidence=str(candidate.get("evidence", candidate_text)),
+                recommendation=str(rule.get("recommendation", "")),
+                detection={
+                    "mode": mode,
+                    "source": source,
+                    "candidate_stage": "canonicalized",
+                    "rule_scope": "obfuscation-aware",
+                },
+            )
+            existing_signatures.add(signature)
+            hit_count += 1
+
+    if truncated:
+        _add_skill_validation_finding(
+            findings,
+            severity="warn",
+            stage="canonicalized",
+            code="canonicalization_scan_truncated",
+            message=(
+                "Obfuscation-aware scan candidate budget was reached; only a bounded subset "
+                "was analyzed."
+            ),
+            path=display_path,
+            recommendation=(
+                "Reduce payload size/complexity or run targeted manual review for additional "
+                "encoded/hidden content."
+            ),
+            detection={
+                "candidate_limit": SKILL_VALIDATION_MAX_CANONICAL_CANDIDATES,
+                "decoded_limit": SKILL_VALIDATION_MAX_BASE64_CANDIDATES,
+                "rule_scope": "obfuscation-aware",
+            },
+        )
+
+    return {
+        "candidate_count": len(candidates),
+        "decoded_candidates": decoded_candidates,
+        "hit_count": hit_count,
+        "truncated": truncated,
+        "source_counts": source_counts,
+    }
+
+
 def _collect_skill_files(skill_dir: Path, entrypoint: Path) -> Tuple[List[Path], bool]:
     discovered: List[Path] = []
     truncated = False
@@ -2231,10 +2629,21 @@ def _validate_skill_assets(
                     line=idx,
                     evidence=line.strip(),
                     recommendation=str(rule["recommendation"]),
+                    detection={
+                        "mode": "raw-line",
+                        "source": "file-text",
+                        "candidate_stage": "static",
+                    },
                 )
                 hits += 1
                 if hits >= SKILL_VALIDATION_MAX_HITS_PER_RULE:
                     break
+
+        obfuscation_scan = _scan_obfuscation_candidates(
+            text=text,
+            display_path=display_path,
+            findings=findings,
+        )
 
         scanned_report.append(
             {
@@ -2242,6 +2651,7 @@ def _validate_skill_assets(
                 "size_bytes": size_bytes,
                 "sha256": hashlib.sha256(raw).hexdigest(),
                 "scanned": True,
+                "canonicalization": obfuscation_scan,
             }
         )
     return scanned_report
