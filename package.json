@@ -22,6 +22,7 @@
   "files": [
     "bin/gaia.js",
     "tools/gaia-assistant.py",
+    "tools/gaia_assistant_parser.py",
     "tools/agent-actions.py",
     "tools/agent-alignment.py",
     "tools/agent_actions.py",

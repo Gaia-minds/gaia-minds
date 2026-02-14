@@ -858,6 +858,32 @@ Lane: `Personalized response profiles and memory summarization` (`#97`)
 - Updated UAT feature-governance mapping for new command path:
   - `memory summarize`
 
+## Phase 3 Delta: Assistant Parser Modularization (2026-02-14)
+
+Lane: `Refactor tools/gaia-assistant.py into modular command packages` (`#106`)
+
+### Runtime/module boundary changes
+
+- Extracted CLI parser construction into dedicated module:
+  - `tools/gaia_assistant_parser.py`
+- `tools/gaia-assistant.py` remains the stable runtime entrypoint and now
+  delegates parser construction through a context-bound wrapper:
+  - `build_parser()` -> `build_modular_parser(globals())`
+- Command registration behavior and CLI surface remain unchanged; this lane
+  targets internal maintainability and command-family boundary clarity.
+
+### Packaging and entrypoint compatibility
+
+- npm package payload now explicitly includes the extracted parser module:
+  - `package.json` -> `files[]` includes `tools/gaia_assistant_parser.py`
+- Existing launcher path remains unchanged:
+  - `bin/gaia.js` still executes `tools/gaia-assistant.py`
+
+### Safety/quality notes
+
+- No policy or capability model changes were introduced in this lane.
+- Parser behavior parity is validated through smoke/UAT/check gates before merge.
+
 ---
 
 ## Open Technical Questions

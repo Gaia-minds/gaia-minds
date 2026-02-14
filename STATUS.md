@@ -43,6 +43,7 @@ See `ROADMAP.md` for full phase details and exit criteria.
 - `Phase 3 Feedback Loop Capture` - deterministic local feedback records with `helpful`/`not helpful`, correction text, and session/trace linkage (`#96`)
 - `Phase 3 Personalized Response Profiles + Memory Summarization` - deterministic profile-aware chat style selection, `gaia memory summarize` with source traceability ledger, and summarize benchmark gate (`#97`)
 - `Phase 3 Dead-Code/Dead-Artifact Audit` - repository-wide keep/remove/defer audit artifact with high-confidence runtime cleanup of unused assistant helpers (`#105`)
+- `Phase 3 Assistant Modular Refactor` - extracted CLI parser construction into dedicated module with stable entrypoint/package compatibility and no command-surface regression (`#106`)
 
 ## In Progress
 
@@ -50,7 +51,6 @@ _Nothing in progress._
 
 ## Next Up (Post-Phase-3 Delivery Queue)
 
-- `#106` `[Phase 3][Framework]` Refactor `tools/gaia-assistant.py` into modular command packages (depends on `#105`)
 - `#107` `[Phase 3][Assistant]` Refresh README live preview assets for current CLI capabilities (depends on `#106`)
 - `#108` `[Phase 3][Release]` Prepare and publish npm release `@gaia-minds/assistant-cli@0.3.0` (depends on `#106` + `#107`)
 
