@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "suite": "gaia-signal-triage",
+  "fixtures": [
+    {
+      "signal_id": "sig-existing-skill",
+      "signal_type": "command_failure",
+      "intent_tag": "capability.file_read.blocked",
+      "confidence": 0.72,
+      "count": 3,
+      "expect_class": "existing-skill-enable"
+    },
+    {
+      "signal_id": "sig-import-candidate",
+      "signal_type": "command_failure",
+      "intent_tag": "command.automation_pipeline_missing",
+      "confidence": 0.66,
+      "count": 2,
+      "expect_class": "skill-import-candidate"
+    },
+    {
+      "signal_id": "sig-core-gap",
+      "signal_type": "feedback_correction_pattern",
+      "intent_tag": "response_style.concise",
+      "confidence": 0.77,
+      "count": 4,
+      "expect_class": "core-feature-gap"
+    },
+    {
+      "signal_id": "sig-unsafe-skill",
+      "signal_type": "command_failure",
+      "intent_tag": "skills.unsafe_import_candidate",
+      "confidence": 0.71,
+      "count": 2,
+      "expect_class": "out-of-scope-or-rejected"
+    }
+  ]
+}

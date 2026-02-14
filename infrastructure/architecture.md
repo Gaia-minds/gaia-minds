@@ -868,6 +868,7 @@ Lane: `Privacy-preserving unmet-intent signal extraction from user interactions`
 - Added unmet-intent signal commands in assistant launcher:
   - `gaia signals extract`
   - `gaia signals list`
+  - `gaia signals triage`
   - `gaia signals export`
   - `gaia signals clear`
 - Added explicit config controls through existing `gaia config set/get`:
@@ -892,6 +893,8 @@ Lane: `Privacy-preserving unmet-intent signal extraction from user interactions`
   - `~/.gaia-assistant/data/unmet-intent-signals.json`
 - Added local signal export event log:
   - `~/.gaia-assistant/data/unmet-intent-signal-exports.jsonl`
+- Added local signal triage ledger:
+  - `~/.gaia-assistant/data/unmet-intent-signal-triage.json`
 - Product lock implemented:
   - collection default: on
   - explicit opt-out: `signals_enabled=false`
@@ -903,6 +906,7 @@ Lane: `Privacy-preserving unmet-intent signal extraction from user interactions`
 - Added structured trace events for signal operations:
   - `signals_extract`
   - `signals_list`
+  - `signals_triage`
   - `signals_export`
   - `signals_clear`
 - Capability gates enforce local policy model:
@@ -921,8 +925,57 @@ Lane: `Privacy-preserving unmet-intent signal extraction from user interactions`
   - `signals`
   - `signals extract`
   - `signals list`
+  - `signals triage`
   - `signals export`
   - `signals clear`
+
+## Phase 3 Delta: Skill-First Triage for Unmet-Intent Signals (2026-02-14)
+
+Lane: `Skill-first triage for unmet-intent signals` (`#112`)
+
+### Runtime triage surface
+
+- Added deterministic triage command:
+  - `gaia signals triage --source <all|project|local> [--refresh] [--limit N] [--json]`
+- Triage consumes the existing signal ledger and skill runtime metadata to
+  classify every signal into one of four deterministic classes:
+  - `existing-skill-enable`
+  - `skill-import-candidate`
+  - `core-feature-gap`
+  - `out-of-scope-or-rejected`
+
+### Skill/runtime integration
+
+- Triage integrates with loaded skill contracts from approved sources and latest
+  local validation reports (`skills validate`) to produce:
+  - class assignment
+  - rationale
+  - follow-up action
+  - security gate requirements
+- Existing-skill enablement is blocked when capability policy or validation
+  evidence fails.
+- Import candidates are explicitly gated with required checks before activation
+  (provenance, attestation, source health, validator pass, policy evaluation).
+
+### Security and privacy behavior
+
+- Triage operates on derived signal fields only; no raw transcript expansion is
+  introduced.
+- Unsafe or policy-restricted intent markers are mapped to
+  `out-of-scope-or-rejected` with explicit gate reasons.
+- Triage output includes per-class aggregate counts for deterministic downstream
+  hypothesis-routing consumption.
+
+### Deterministic quality coverage
+
+- Added fixture matrix for expected class routing:
+  - `assistant/signal-triage-fixtures.json`
+- Added deterministic reusable triage regression script:
+  - `tools/signal-triage-check.sh`
+- Expanded smoke/UAT coverage:
+  - `signals_skill_first_triage_matrix`
+- Updated UAT feature-governance mapping:
+  - `signals triage`
 
 ## Phase 3 Delta: Skill Provenance Admission Gate (2026-02-14)
 

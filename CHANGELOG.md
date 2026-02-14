@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Detection-stage metadata on skill validation findings (`detection.mode/source/candidate_stage`) and per-file canonicalization scan summaries in report provenance (`tools/gaia-assistant.py`, `#123`)
 - Obfuscation fixture set for malicious bypass and benign false-positive guard coverage (`assistant/fixtures/skills/malicious-obfuscated-prompt-injection/SKILL.md`, `assistant/fixtures/skills/malicious-obfuscated-exfiltration/SKILL.md`, `assistant/fixtures/skills/benign-obfuscation-control/SKILL.md`, `assistant/fixtures/skills/manifest.json`, `#123`)
 - Reusable obfuscation hardening regression script and smoke/UAT scenario coverage (`tools/skill-obfuscation-check.sh`, `tools/smoke-test.sh`, `assistant/uat-scenarios.json`, `assistant/feature-catalog.json`, `#123`)
+- Skill-first unmet-intent triage command surface (`gaia signals triage`) with deterministic class routing (`existing-skill-enable`, `skill-import-candidate`, `core-feature-gap`, `out-of-scope-or-rejected`) and persisted triage ledger output (`tools/gaia-assistant.py`, `tools/gaia_assistant_parser.py`, `#112`)
+- Validation-aware skill matching and security-gate evidence in triage output (`rationale`, `follow_up_action`, `security_gate`, `matched_skill`, `class_summary`) with blocked paths for dangerous intents, forbidden capabilities, or failed validation evidence (`tools/gaia-assistant.py`, `#112`)
+- Deterministic triage fixture matrix + reusable check harness (`assistant/signal-triage-fixtures.json`, `tools/signal-triage-check.sh`) with smoke/UAT coverage and feature-governance mappings (`tools/smoke-test.sh`, `assistant/uat-scenarios.json`, `assistant/feature-catalog.json`, `#112`)
+- UAT governance change record for unmet-intent triage command-surface coverage (`docs/uat-changes/2026-02-14-signals-triage-surface.md`, `#112`)
 - Skill provenance admission policy controls for validation workflow (`skills_provenance_mode`, `skills_attestation_mode`, `skills_source_health_mode`, `skills_source_health_min_score`) (`tools/gaia-assistant.py`, `#122`)
 - Deterministic provenance admission evidence in skill validation reports (`provenance_admission`) and `skills_validate` trace metadata (`tools/gaia-assistant.py`, `#122`)
 - Provenance fixture set for skill validation quality checks (`assistant/fixtures/skills/provenance-complete/*`, `assistant/fixtures/skills/provenance-missing/SKILL.md`, `assistant/fixtures/skills/manifest.json`, `#122`)
@@ -29,9 +33,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Follow-on hardening issue set seeded from `#115`: provenance admission gate (`#122`) and obfuscation-aware validator/fixture expansion (`#123`)
 
 ### Changed
+- Top-level roadmap/status state now marks `#123` delivered and advances signal-driven queue sequencing with `#112` triage delivery evidence (`STATUS.md`, `ROADMAP.md`)
 - Top-level roadmap/status state now marks `#122` delivered and advances active queue ownership to `#123` (`STATUS.md`, `ROADMAP.md`)
 - UAT policy checker now enforces command-path coverage across both assistant CLI sources after parser modularization (`tools/gaia-assistant.py` + `tools/gaia_assistant_parser.py`) (`tools/check-uat-policy.py`, `assistant/uat-policy.md`)
-- Assistant/runtime architecture docs now include unmet-intent signal privacy boundaries, retention/cap behavior, and command usage (`README.md`, `assistant/README.md`, `infrastructure/architecture.md`, `#111`)
+- Assistant/runtime architecture docs now include unmet-intent skill-first triage behavior, triage artifact paths, and command usage updates (`README.md`, `assistant/README.md`, `infrastructure/architecture.md`, `#112`)
 
 ### Removed
 - _Nothing yet._

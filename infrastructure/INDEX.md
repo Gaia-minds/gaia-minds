@@ -24,6 +24,7 @@ Technical foundations and operational guidance.
 - [Privacy and Memory Review - Unmet-Intent Signals (2026-02-14)](privacy-memory-review-2026-02-14-unmet-intent-signals.md) — 1. Scope
 - [Privacy and Memory Review Template](privacy-memory-review-template.md) — Updated: February 8, 2026
 - [QA Evaluation - Unmet-Intent Signals (2026-02-14)](qa-evaluation-2026-02-14-unmet-intent-signals.md) — 1. Evaluation Scope
+- [QA Evaluation Report](qa-evaluation-2026-02-14-signals-skill-triage.md) — Updated: 2026-02-14
 - [QA Evaluation Report](qa-evaluation-2026-02-14-skill-provenance-admission.md) — Updated: 2026-02-14
 - [QA Evaluation Report](qa-evaluation-2026-02-14-skills-obfuscation-hardening.md) — Updated: 2026-02-14
 - [QA Evaluation Report: Release v0.3.0](qa-evaluation-2026-02-14-v0.3.0.md) — Date: February 14, 2026 Issue: `#108` Evaluator: Codex (`gaia-qa-evaluator` sub-role)
@@ -35,6 +36,7 @@ Technical foundations and operational guidance.
 - [Research Task Template](research-task-template.md) — Updated: February 8, 2026
 - [Sandbox Contract v1](sandbox-contract-v1.md) — Updated: February 13, 2026
 - [Security Guidelines](security.md) — This document outlines security practices for the Gaia Minds project.
+- [Security Review Report](security-review-2026-02-14-signals-skill-triage.md) — Updated: 2026-02-14
 - [Security Review Report](security-review-2026-02-14-skill-provenance-admission.md) — Updated: 2026-02-14
 - [Security Review Report](security-review-2026-02-14-skills-obfuscation-hardening.md) — Updated: 2026-02-14
 - [Security Review Template](security-review-template.md) — Updated: February 8, 2026
