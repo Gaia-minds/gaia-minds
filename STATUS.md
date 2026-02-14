@@ -26,16 +26,15 @@ current active sprint window.
 
 ## In Progress
 
-_Nothing currently in progress._
+- `#129` Governance/state sync reset (autonomous onboarding prompt + role-resolution protocol alignment) — owner `@TonyThePredictor`.
 
 ## Next Up (Ordered Queue)
 
 1. `#134` Fix OAuth onboarding activation + provider dependency preflight for `gaia run`.
-2. `#129` Governance/state sync reset for README + CONTRIBUTING + STATUS/ROADMAP/CHANGELOG alignment.
-3. `#131` Refactor onboarding/auth surfaces out of `tools/gaia-assistant.py`.
-4. `#130` Add Claude Code OAuth onboarding in `gaia onboard` / `gaia auth`.
-5. `#132` Rebuild live preview from reproducible real Gaia interaction traces.
-6. `#133` Prepare next npm release after stabilization lanes merge.
+2. `#131` Refactor onboarding/auth surfaces out of `tools/gaia-assistant.py`.
+3. `#130` Add Claude Code OAuth onboarding in `gaia onboard` / `gaia auth`.
+4. `#132` Rebuild live preview from reproducible real Gaia interaction traces.
+5. `#133` Prepare next npm release after stabilization lanes merge.
 
 ## Planned Next Wave
 
