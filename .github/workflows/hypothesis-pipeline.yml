@@ -91,6 +91,9 @@ jobs:
           print("failure fixture validated: rollback recommendation required=true and canary decision=rollback-required")
           PY
 
+      - name: Validate signal-derived candidate generation fixture
+        run: make hypothesis-signals-candidate-fixture
+
       - name: Upload hypothesis artifacts
         if: always()
         uses: actions/upload-artifact@v4

@@ -21,9 +21,11 @@ Technical foundations and operational guidance.
 - [Post-Phase-2 Reassessment Planning Round - 2026-02-13](planning-round-2026-02-13-post-phase2-reassessment.md) — Updated: February 13, 2026 Coordinator: Codex (planner main role) Activated sub-roles: `gaia-integration-coordinator`, `gaia-technical-writer`...
 - [Post-Phase-3-Delivery Stabilization + Release Planning Round - 2026-02-14](planning-round-2026-02-14-post-phase3-delivery-stabilization.md) — Updated: February 14, 2026 Coordinator: Codex (planner main role) Activated sub-roles: `gaia-planner`, `gaia-researcher`...
 - [Post-Phase-3-Kickoff Reassessment Planning Round - 2026-02-13](planning-round-2026-02-13-post-phase3-kickoff-reassessment.md) — Updated: February 13, 2026 Coordinator: Codex (planner main role) Activated sub-roles: `gaia-planner`, `gaia-integration-coordinator`...
+- [Privacy and Memory Review](privacy-memory-review-2026-02-14-signal-hypothesis-candidates.md) — Updated: 2026-02-14
 - [Privacy and Memory Review - Unmet-Intent Signals (2026-02-14)](privacy-memory-review-2026-02-14-unmet-intent-signals.md) — 1. Scope
 - [Privacy and Memory Review Template](privacy-memory-review-template.md) — Updated: February 8, 2026
 - [QA Evaluation - Unmet-Intent Signals (2026-02-14)](qa-evaluation-2026-02-14-unmet-intent-signals.md) — 1. Evaluation Scope
+- [QA Evaluation Report](qa-evaluation-2026-02-14-signal-hypothesis-candidates.md) — Updated: 2026-02-14
 - [QA Evaluation Report](qa-evaluation-2026-02-14-signals-skill-triage.md) — Updated: 2026-02-14
 - [QA Evaluation Report](qa-evaluation-2026-02-14-skill-provenance-admission.md) — Updated: 2026-02-14
 - [QA Evaluation Report](qa-evaluation-2026-02-14-skills-obfuscation-hardening.md) — Updated: 2026-02-14
