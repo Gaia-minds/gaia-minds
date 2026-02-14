@@ -22,6 +22,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -75,6 +76,10 @@ REMINDER_DEFAULT_CADENCE_MINUTES = 24 * 60
 REMINDER_DEFAULT_WINDOW_MINUTES = 30
 SKILL_CONTRACT_SCHEMA_VERSION = 1
 SKILL_SOURCE_CHOICES = ("project", "local", "all")
+SKILL_PROVENANCE_MODE_CHOICES = ("off", "warn", "enforce")
+SKILL_PROVENANCE_SOURCE_HEALTH_MIN_SCORE_DEFAULT = 7
+SKILL_PROVENANCE_SOURCE_HEALTH_MIN_SCORE_MIN = 0
+SKILL_PROVENANCE_SOURCE_HEALTH_MIN_SCORE_MAX = 10
 SKILL_VALIDATION_REPORT_SCHEMA_VERSION = 1
 SKILL_VALIDATION_SEVERITY_ORDER = ("info", "warn", "high", "critical")
 SKILL_VALIDATION_BLOCKING_SEVERITIES = {"high", "critical"}
@@ -137,6 +142,10 @@ PROFILE_KEY_MAP = {
     "signal_collection": ("signals", "enabled"),
     "signals_retention_days": ("signals", "retention_days"),
     "signals_max_records": ("signals", "max_records"),
+    "skills_provenance_mode": ("skills", "provenance_mode"),
+    "skills_attestation_mode": ("skills", "attestation_mode"),
+    "skills_source_health_mode": ("skills", "source_health_mode"),
+    "skills_source_health_min_score": ("skills", "source_health_min_score"),
 }
 
 MEMORY_STORE_SCHEMA_VERSION = 1
@@ -286,6 +295,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "skills": {
         "local_dir": str(DEFAULT_HOME / "skills"),
+        "provenance_mode": "warn",
+        "attestation_mode": "warn",
+        "source_health_mode": "warn",
+        "source_health_min_score": SKILL_PROVENANCE_SOURCE_HEALTH_MIN_SCORE_DEFAULT,
     },
     "sandbox": {
         "default_profile": SANDBOX_DEFAULT_PROFILE,
@@ -469,6 +482,33 @@ def _normalize_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     local_skills_dir = str(skills.get("local_dir", "")).strip()
     if not local_skills_dir:
         skills["local_dir"] = str(DEFAULT_HOME / "skills")
+    default_skills = DEFAULT_CONFIG.get("skills", {})
+    provenance_mode = str(skills.get("provenance_mode", default_skills.get("provenance_mode", "warn"))).strip().lower()
+    if provenance_mode not in SKILL_PROVENANCE_MODE_CHOICES:
+        provenance_mode = "warn"
+    skills["provenance_mode"] = provenance_mode
+    attestation_mode = str(skills.get("attestation_mode", default_skills.get("attestation_mode", "warn"))).strip().lower()
+    if attestation_mode not in SKILL_PROVENANCE_MODE_CHOICES:
+        attestation_mode = "warn"
+    skills["attestation_mode"] = attestation_mode
+    source_health_mode = str(
+        skills.get("source_health_mode", default_skills.get("source_health_mode", "warn"))
+    ).strip().lower()
+    if source_health_mode not in SKILL_PROVENANCE_MODE_CHOICES:
+        source_health_mode = "warn"
+    skills["source_health_mode"] = source_health_mode
+    skills["source_health_min_score"] = _normalize_int_default(
+        skills.get(
+            "source_health_min_score",
+            default_skills.get(
+                "source_health_min_score",
+                SKILL_PROVENANCE_SOURCE_HEALTH_MIN_SCORE_DEFAULT,
+            ),
+        ),
+        default_value=SKILL_PROVENANCE_SOURCE_HEALTH_MIN_SCORE_DEFAULT,
+        min_value=SKILL_PROVENANCE_SOURCE_HEALTH_MIN_SCORE_MIN,
+        max_value=SKILL_PROVENANCE_SOURCE_HEALTH_MIN_SCORE_MAX,
+    )
 
     sandbox = cfg.setdefault("sandbox", {})
     default_profile = str(sandbox.get("default_profile", SANDBOX_DEFAULT_PROFILE)).strip().lower()
@@ -639,6 +679,29 @@ def _normalize_config_value(key: str, value: str) -> Tuple[Optional[Any], Option
                 f"Expected {SIGNALS_MAX_RECORDS_MIN}..{SIGNALS_MAX_RECORDS_MAX}."
             )
         return count, None
+    if canonical_key in ("skills_provenance_mode", "skills_attestation_mode", "skills_source_health_mode"):
+        normalized = raw.lower()
+        if normalized not in SKILL_PROVENANCE_MODE_CHOICES:
+            return None, (
+                f"Invalid {canonical_key} value '{value}'. "
+                f"Expected one of: {', '.join(SKILL_PROVENANCE_MODE_CHOICES)}."
+            )
+        return normalized, None
+    if canonical_key == "skills_source_health_min_score":
+        try:
+            score = int(raw)
+        except ValueError:
+            return None, "Invalid skills_source_health_min_score value. Expected an integer."
+        if (
+            score < SKILL_PROVENANCE_SOURCE_HEALTH_MIN_SCORE_MIN
+            or score > SKILL_PROVENANCE_SOURCE_HEALTH_MIN_SCORE_MAX
+        ):
+            return None, (
+                "Invalid skills_source_health_min_score value. "
+                f"Expected {SKILL_PROVENANCE_SOURCE_HEALTH_MIN_SCORE_MIN}.."
+                f"{SKILL_PROVENANCE_SOURCE_HEALTH_MIN_SCORE_MAX}."
+            )
+        return score, None
     return None, f"Unsupported key: {key}"
 
 
@@ -2198,6 +2261,449 @@ def _skill_validation_summary(findings: List[Dict[str, Any]]) -> Dict[str, Any]:
         "blocking_count": blocking,
         "by_severity": counts,
     }
+
+
+def _skill_provenance_policy(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    skills_cfg = cfg.get("skills", {})
+    if not isinstance(skills_cfg, dict):
+        skills_cfg = {}
+    default_skills = DEFAULT_CONFIG.get("skills", {})
+
+    def _mode(key: str, fallback: str) -> str:
+        raw = str(skills_cfg.get(key, default_skills.get(key, fallback))).strip().lower()
+        return raw if raw in SKILL_PROVENANCE_MODE_CHOICES else fallback
+
+    return {
+        "provenance_mode": _mode("provenance_mode", "warn"),
+        "attestation_mode": _mode("attestation_mode", "warn"),
+        "source_health_mode": _mode("source_health_mode", "warn"),
+        "source_health_min_score": _normalize_int_default(
+            skills_cfg.get(
+                "source_health_min_score",
+                default_skills.get(
+                    "source_health_min_score",
+                    SKILL_PROVENANCE_SOURCE_HEALTH_MIN_SCORE_DEFAULT,
+                ),
+            ),
+            default_value=SKILL_PROVENANCE_SOURCE_HEALTH_MIN_SCORE_DEFAULT,
+            min_value=SKILL_PROVENANCE_SOURCE_HEALTH_MIN_SCORE_MIN,
+            max_value=SKILL_PROVENANCE_SOURCE_HEALTH_MIN_SCORE_MAX,
+        ),
+    }
+
+
+def _provenance_is_url(value: str) -> bool:
+    lowered = value.strip().lower()
+    return lowered.startswith("http://") or lowered.startswith("https://")
+
+
+def _provenance_valid_git_oid(value: str) -> bool:
+    token = value.strip()
+    return bool(re.fullmatch(r"[0-9a-fA-F]{40}", token))
+
+
+def _provenance_valid_repo(value: str) -> bool:
+    token = value.strip()
+    if not token:
+        return False
+    if token.startswith("git@"):
+        return True
+    parsed = urllib.parse.urlparse(token)
+    return parsed.scheme in ("https", "ssh") and bool(parsed.netloc)
+
+
+def _provenance_first_nonempty(
+    frontmatter: Dict[str, Any],
+    file_payload: Dict[str, Any],
+    keys: List[str],
+) -> str:
+    for key in keys:
+        value = frontmatter.get(key)
+        if value is not None:
+            text = str(value).strip()
+            if text:
+                return text
+    for key in keys:
+        value = file_payload.get(key)
+        if value is not None:
+            text = str(value).strip()
+            if text:
+                return text
+    return ""
+
+
+def _load_skill_provenance_payload(skill_dir: Path) -> Tuple[Dict[str, Any], Optional[Path]]:
+    payload_path = skill_dir / "provenance.json"
+    if not payload_path.exists() or not payload_path.is_file():
+        return {}, None
+    payload = _load_json(payload_path)
+    if not isinstance(payload, dict):
+        return {}, payload_path
+
+    if isinstance(payload.get("provenance"), dict):
+        merged = dict(payload)
+        for key, value in payload.get("provenance", {}).items():
+            if key not in merged:
+                merged[key] = value
+        payload = merged
+    return payload, payload_path
+
+
+def _extract_skill_provenance_metadata(
+    *,
+    skill_dir: Path,
+    frontmatter: Dict[str, Any],
+) -> Dict[str, Any]:
+    provenance_payload, provenance_path = _load_skill_provenance_payload(skill_dir)
+    frontmatter_keys = sorted(frontmatter.keys())
+
+    source_repo = _provenance_first_nonempty(
+        frontmatter,
+        provenance_payload,
+        ["source_repo", "provenance_repo", "repo_url", "repo"],
+    )
+    source_commit = _provenance_first_nonempty(
+        frontmatter,
+        provenance_payload,
+        ["source_commit", "source_commit_sha", "provenance_commit", "commit_sha", "commit"],
+    )
+    source_tree = _provenance_first_nonempty(
+        frontmatter,
+        provenance_payload,
+        ["source_tree", "source_tree_sha", "provenance_tree", "tree_sha", "tree"],
+    )
+    attestation_ref = _provenance_first_nonempty(
+        frontmatter,
+        provenance_payload,
+        ["attestation_ref", "source_attestation", "provenance_attestation", "attestation"],
+    )
+    attestation_sha256 = _provenance_first_nonempty(
+        frontmatter,
+        provenance_payload,
+        ["attestation_sha256", "source_attestation_sha256", "provenance_attestation_sha256"],
+    )
+    score_raw = _provenance_first_nonempty(
+        frontmatter,
+        provenance_payload,
+        ["source_health_score", "scorecard_score", "provenance_source_health_score"],
+    )
+    source_health_provider = _provenance_first_nonempty(
+        frontmatter,
+        provenance_payload,
+        ["source_health_provider", "scorecard_provider", "provenance_source_health_provider"],
+    )
+    source_health_checked_at = _provenance_first_nonempty(
+        frontmatter,
+        provenance_payload,
+        ["source_health_checked_at", "scorecard_checked_at", "provenance_source_health_checked_at"],
+    )
+
+    source_health_score: Optional[float] = None
+    if score_raw:
+        try:
+            source_health_score = float(score_raw)
+        except ValueError:
+            source_health_score = None
+
+    return {
+        "source_repo": source_repo,
+        "source_commit": source_commit,
+        "source_tree": source_tree,
+        "attestation_ref": attestation_ref,
+        "attestation_sha256": attestation_sha256.lower(),
+        "source_health_score": source_health_score,
+        "source_health_score_raw": score_raw,
+        "source_health_provider": source_health_provider,
+        "source_health_checked_at": source_health_checked_at,
+        "provenance_file": _display_runtime_path(provenance_path) if provenance_path else "",
+        "frontmatter_keys": frontmatter_keys,
+    }
+
+
+def _evaluate_skill_provenance_admission(
+    *,
+    cfg: Dict[str, Any],
+    source: str,
+    skill_dir: Path,
+    frontmatter: Dict[str, Any],
+    findings: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    policy = _skill_provenance_policy(cfg)
+    normalized_source = str(source).strip().lower()
+    metadata = _extract_skill_provenance_metadata(skill_dir=skill_dir, frontmatter=frontmatter)
+
+    result: Dict[str, Any] = {
+        "evaluated": False,
+        "source": normalized_source,
+        "policy": policy,
+        "metadata": metadata,
+        "checks": [],
+        "overall_decision": "skipped",
+    }
+
+    if normalized_source not in ("local", "path"):
+        result["checks"].append(
+            {
+                "name": "scope",
+                "mode": "off",
+                "decision": "skipped",
+                "reason": "provenance admission gate applies only to local/path sources",
+            }
+        )
+        return result
+
+    result["evaluated"] = True
+    overall_rank = 0  # 0=pass, 1=warn, 2=fail
+
+    def _record_check(
+        *,
+        name: str,
+        mode: str,
+        decision: str,
+        reason: str,
+        details: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        nonlocal overall_rank
+        if decision == "warn":
+            overall_rank = max(overall_rank, 1)
+        elif decision == "fail":
+            overall_rank = max(overall_rank, 2)
+        payload: Dict[str, Any] = {
+            "name": name,
+            "mode": mode,
+            "decision": decision,
+            "reason": reason,
+        }
+        if isinstance(details, dict) and details:
+            payload["details"] = details
+        result["checks"].append(payload)
+
+    def _finding_for_mode(
+        *,
+        mode: str,
+        code: str,
+        message: str,
+        recommendation: str,
+        evidence: Optional[str] = None,
+    ) -> str:
+        if mode == "off":
+            return "skipped"
+        severity = "high" if mode == "enforce" else "warn"
+        _add_skill_validation_finding(
+            findings,
+            severity=severity,
+            stage="provenance",
+            code=code,
+            message=message,
+            path=_display_runtime_path(skill_dir),
+            evidence=evidence,
+            recommendation=recommendation,
+        )
+        return "fail" if mode == "enforce" else "warn"
+
+    source_repo = str(metadata.get("source_repo", "")).strip()
+    source_commit = str(metadata.get("source_commit", "")).strip()
+    source_tree = str(metadata.get("source_tree", "")).strip()
+    pin_mode = str(policy.get("provenance_mode", "warn"))
+    if pin_mode == "off":
+        _record_check(
+            name="source_pinning",
+            mode=pin_mode,
+            decision="skipped",
+            reason="source pinning policy mode is off",
+        )
+    else:
+        repo_valid = _provenance_valid_repo(source_repo)
+        oid_valid = _provenance_valid_git_oid(source_commit) or _provenance_valid_git_oid(source_tree)
+        if repo_valid and oid_valid:
+            _record_check(
+                name="source_pinning",
+                mode=pin_mode,
+                decision="pass",
+                reason="source repository and immutable revision pin are present",
+                details={
+                    "source_repo": source_repo,
+                    "source_commit": source_commit,
+                    "source_tree": source_tree,
+                },
+            )
+        else:
+            decision = _finding_for_mode(
+                mode=pin_mode,
+                code="provenance_source_pin_missing",
+                message=(
+                    "Missing or invalid source pinning metadata. Expected source repo URL and "
+                    "a 40-character commit/tree hash."
+                ),
+                evidence=f"repo={source_repo or '<empty>'} commit={source_commit or '<empty>'} tree={source_tree or '<empty>'}",
+                recommendation=(
+                    "Provide source_repo and source_commit (or source_tree) in frontmatter "
+                    "or provenance.json."
+                ),
+            )
+            _record_check(
+                name="source_pinning",
+                mode=pin_mode,
+                decision=decision,
+                reason="source pinning metadata is incomplete or invalid",
+            )
+
+    attestation_mode = str(policy.get("attestation_mode", "warn"))
+    attestation_ref = str(metadata.get("attestation_ref", "")).strip()
+    attestation_sha256 = str(metadata.get("attestation_sha256", "")).strip().lower()
+    if attestation_mode == "off":
+        _record_check(
+            name="attestation",
+            mode=attestation_mode,
+            decision="skipped",
+            reason="attestation policy mode is off",
+        )
+    elif not attestation_ref:
+        decision = _finding_for_mode(
+            mode=attestation_mode,
+            code="provenance_attestation_missing",
+            message="No attestation reference provided for skill provenance.",
+            recommendation="Provide attestation_ref via frontmatter or provenance.json.",
+        )
+        _record_check(
+            name="attestation",
+            mode=attestation_mode,
+            decision=decision,
+            reason="attestation reference is missing",
+        )
+    elif _provenance_is_url(attestation_ref):
+        if attestation_mode == "enforce":
+            decision = _finding_for_mode(
+                mode=attestation_mode,
+                code="provenance_attestation_unverified_remote",
+                message="Attestation reference is remote and cannot be verified in deterministic local mode.",
+                evidence=attestation_ref,
+                recommendation="Use a locally available attestation artifact for enforce mode.",
+            )
+            _record_check(
+                name="attestation",
+                mode=attestation_mode,
+                decision=decision,
+                reason="remote attestation cannot be verified in enforce mode",
+            )
+        else:
+            decision = _finding_for_mode(
+                mode=attestation_mode,
+                code="provenance_attestation_remote_warn",
+                message="Attestation reference is remote and was not verified locally.",
+                evidence=attestation_ref,
+                recommendation="Prefer local attestation artifacts for deterministic verification.",
+            )
+            _record_check(
+                name="attestation",
+                mode=attestation_mode,
+                decision=decision,
+                reason="remote attestation reference not verified",
+            )
+    else:
+        attestation_path = Path(attestation_ref).expanduser()
+        if not attestation_path.is_absolute():
+            attestation_path = (skill_dir / attestation_path).resolve()
+        exists = attestation_path.exists() and attestation_path.is_file()
+        if not exists:
+            decision = _finding_for_mode(
+                mode=attestation_mode,
+                code="provenance_attestation_missing_file",
+                message=f"Attestation file not found: {_display_runtime_path(attestation_path)}",
+                recommendation="Provide a local attestation file or adjust attestation_ref.",
+            )
+            _record_check(
+                name="attestation",
+                mode=attestation_mode,
+                decision=decision,
+                reason="attestation file is missing",
+            )
+        else:
+            local_sha = _sha256_file(attestation_path).lower()
+            if attestation_sha256 and attestation_sha256 != local_sha:
+                decision = _finding_for_mode(
+                    mode=attestation_mode,
+                    code="provenance_attestation_hash_mismatch",
+                    message="Attestation SHA256 does not match attestation file.",
+                    evidence=f"expected={attestation_sha256} actual={local_sha}",
+                    recommendation="Update attestation_sha256 or refresh attestation artifact.",
+                )
+                _record_check(
+                    name="attestation",
+                    mode=attestation_mode,
+                    decision=decision,
+                    reason="attestation hash mismatch",
+                )
+            else:
+                _record_check(
+                    name="attestation",
+                    mode=attestation_mode,
+                    decision="pass",
+                    reason="attestation reference verified locally",
+                    details={
+                        "attestation_path": _display_runtime_path(attestation_path),
+                        "attestation_sha256": local_sha,
+                    },
+                )
+
+    source_health_mode = str(policy.get("source_health_mode", "warn"))
+    source_health_score = metadata.get("source_health_score")
+    min_score = int(policy.get("source_health_min_score", SKILL_PROVENANCE_SOURCE_HEALTH_MIN_SCORE_DEFAULT))
+    if source_health_mode == "off":
+        _record_check(
+            name="source_health",
+            mode=source_health_mode,
+            decision="skipped",
+            reason="source health policy mode is off",
+        )
+    elif not isinstance(source_health_score, (int, float)):
+        decision = _finding_for_mode(
+            mode=source_health_mode,
+            code="provenance_source_health_missing",
+            message="No numeric source health score was provided for this skill.",
+            recommendation=(
+                "Provide source_health_score in frontmatter or provenance.json "
+                "to support threshold gating."
+            ),
+        )
+        _record_check(
+            name="source_health",
+            mode=source_health_mode,
+            decision=decision,
+            reason="source health score missing",
+        )
+    elif float(source_health_score) < float(min_score):
+        decision = _finding_for_mode(
+            mode=source_health_mode,
+            code="provenance_source_health_below_threshold",
+            message=(
+                f"Source health score {float(source_health_score):.2f} is below configured threshold {min_score}."
+            ),
+            recommendation="Improve source health or reduce threshold only with explicit security review.",
+        )
+        _record_check(
+            name="source_health",
+            mode=source_health_mode,
+            decision=decision,
+            reason="source health score below threshold",
+            details={"score": float(source_health_score), "threshold": min_score},
+        )
+    else:
+        _record_check(
+            name="source_health",
+            mode=source_health_mode,
+            decision="pass",
+            reason="source health score meets threshold",
+            details={"score": float(source_health_score), "threshold": min_score},
+        )
+
+    if overall_rank == 2:
+        result["overall_decision"] = "fail"
+    elif overall_rank == 1:
+        result["overall_decision"] = "warn"
+    else:
+        result["overall_decision"] = "pass"
+    return result
 
 
 def _sandbox_default_profile(cfg: Dict[str, Any]) -> str:
@@ -8262,6 +8768,15 @@ def cmd_skills_validate(args: argparse.Namespace) -> int:
             recommendation="Land P2-E sandbox contract and re-run validation with --require-sandbox.",
         )
 
+    resolved_source = str(contract.get("source", resolved.get("resolution", ""))).strip().lower()
+    provenance_admission = _evaluate_skill_provenance_admission(
+        cfg=cfg,
+        source=resolved_source,
+        skill_dir=source_root,
+        frontmatter=frontmatter,
+        findings=findings,
+    )
+
     findings = _sorted_validation_findings(findings)
     summary = _skill_validation_summary(findings)
     status = "fail" if int(summary.get("blocking_count", 0)) > 0 else "pass"
@@ -8311,6 +8826,7 @@ def cmd_skills_validate(args: argparse.Namespace) -> int:
             ),
             "scanned_files": scanned_files,
         },
+        "provenance_admission": provenance_admission,
         "findings": findings,
     }
 
@@ -8349,6 +8865,16 @@ def cmd_skills_validate(args: argparse.Namespace) -> int:
                     for sev in ("critical", "high", "warn", "info")
                 )
             )
+        provenance_decision = str(provenance_admission.get("overall_decision", "skipped")).strip().lower()
+        provenance_policy = provenance_admission.get("policy", {}) if isinstance(provenance_admission, dict) else {}
+        if provenance_decision:
+            print(
+                "Provenance admission: "
+                f"{provenance_decision.upper()} "
+                f"(pin={provenance_policy.get('provenance_mode', 'off')}, "
+                f"attestation={provenance_policy.get('attestation_mode', 'off')}, "
+                f"source_health={provenance_policy.get('source_health_mode', 'off')})"
+            )
         if findings:
             print("Top findings:")
             for finding in findings[:12]:
@@ -8380,6 +8906,7 @@ def cmd_skills_validate(args: argparse.Namespace) -> int:
                 "report_path": str(report_path),
                 "status": status,
                 "summary": summary,
+                "provenance_decision": str(provenance_admission.get("overall_decision", "skipped")),
             },
             skill_id=str(contract.get("skill_id", "")),
             skill_source=str(contract.get("source", args.source)),

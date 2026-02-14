@@ -10,6 +10,20 @@
       "expect_codes": []
     },
     {
+      "id": "provenance_complete",
+      "category": "provenance",
+      "path": "provenance-complete/SKILL.md",
+      "expect_status": "pass",
+      "expect_codes": []
+    },
+    {
+      "id": "provenance_warn_missing",
+      "category": "provenance",
+      "path": "provenance-missing/SKILL.md",
+      "expect_status": "pass",
+      "expect_codes": ["provenance_source_pin_missing", "provenance_attestation_missing", "provenance_source_health_missing"]
+    },
+    {
       "id": "malicious_prompt_injection",
       "category": "prompt-injection",
       "path": "malicious-prompt-injection/SKILL.md",
