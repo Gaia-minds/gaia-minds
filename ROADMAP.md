@@ -196,22 +196,22 @@ Execution queue (post-delivery stabilization round):
 
 Recommended merge order:
 
-1. Stabilization round complete; signal-driven follow-on queue now proceeds with (`#122`, `#123`, `#112`, `#113`) after `#111` + `#115` delivery.
-2. Security hardening follow-ons seeded by `#115` (`#122`, `#123`) should run in parallel and feed stricter broad-source import policy for `#112`/future triage iterations.
+1. Stabilization round complete; signal-driven follow-on queue proceeds with (`#123`, `#112`, `#113`) after `#111`, `#115`, and `#122` delivery.
+2. Remaining security hardening from `#115` (`#123`) should feed stricter broad-source import policy for `#112`/future triage iterations.
 
 Execution queue (signal-driven self-evolution follow-on; planning published):
 
 - `#110` Planning lane for user-intent signal architecture and queue decomposition
 - `#111` Privacy-preserving unmet-intent signal extraction from local interaction artifacts (delivered)
 - `#115` Continuous security validation research for broad-source skill imports (delivered)
+- `#122` Provenance admission gate for broad-source skill imports (delivered)
 - `#112` Skill-first triage for unmet-intent signals (`existing-skill-enable` / `skill-import-candidate` / `core-feature-gap`) with broad-source import candidates gated by security validation
 - `#113` Integrate unmet-intent signal aggregates into hypothesis candidate generation
-- `#122` Provenance admission gate for broad-source skill imports (seeded by `#115`; supports `#112`)
 - `#123` Obfuscation-aware skill validation hardening for prompt-injection patterns (seeded by `#115`; supports `#112`)
 
 Recommended merge order:
 
-1. `#122` / `#123` (parallel security-hardening support lanes)
+1. `#123` (remaining security-hardening support lane)
 2. `#112`
 3. `#113`
 

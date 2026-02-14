@@ -31,6 +31,27 @@
       "expect_codes": ["high_prompt_injection_directive"]
     },
     {
+      "id": "malicious_obfuscated_prompt_injection",
+      "category": "prompt-injection",
+      "path": "malicious-obfuscated-prompt-injection/SKILL.md",
+      "expect_status": "fail",
+      "expect_codes": ["high_prompt_injection_directive"]
+    },
+    {
+      "id": "malicious_obfuscated_exfiltration",
+      "category": "exfiltration",
+      "path": "malicious-obfuscated-exfiltration/SKILL.md",
+      "expect_status": "fail",
+      "expect_codes": ["high_sensitive_exfiltration"]
+    },
+    {
+      "id": "benign_obfuscation_control",
+      "category": "safe-control",
+      "path": "benign-obfuscation-control/SKILL.md",
+      "expect_status": "pass",
+      "expect_codes": []
+    },
+    {
       "id": "malicious_unsafe_script",
       "category": "unsafe-script",
       "path": "malicious-unsafe-script/SKILL.md",
