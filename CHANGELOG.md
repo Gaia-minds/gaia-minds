@@ -16,6 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   - `~/.gaia-assistant/data/unmet-intent-signal-exports.jsonl`
 - Deterministic smoke/UAT coverage for signal extraction privacy controls, opt-out behavior, retention-window enforcement, bounded storage cap, and export/clear flows (`tools/smoke-test.sh`, `assistant/uat-scenarios.json`, `assistant/feature-catalog.json`, `#111`)
 - UAT governance change record for unmet-intent signal command-surface coverage (`docs/uat-changes/2026-02-14-signals-surface.md`)
+- Continuous security-validation research synthesis for broad-source skill imports with issue-linked implementation recommendations (`research/synthesis/2026-02-broad-source-skill-import-security-validation-loop.md`, `#115`)
+- Follow-on hardening issue set seeded from `#115`: provenance admission gate (`#122`) and obfuscation-aware validator/fixture expansion (`#123`)
 
 ### Changed
 - UAT policy checker now enforces command-path coverage across both assistant CLI sources after parser modularization (`tools/gaia-assistant.py` + `tools/gaia_assistant_parser.py`) (`tools/check-uat-policy.py`, `assistant/uat-policy.md`)

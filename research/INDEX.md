@@ -13,6 +13,7 @@ Short, curated entry points for research content.
 
 ### Synthesis
 
+- [Continuous Security Validation Strategy for Broad-Source Skill Imports (Phase 3 `#115`)](synthesis/2026-02-broad-source-skill-import-security-validation-loop.md) (2026-02) — Updated: 2026-02-14 Owner: @TonyThePredictor / Codex
 - [Gaia Memory Strategy and Tradeoffs (P2-I)](synthesis/2026-02-gaia-memory-strategy-and-tradeoffs.md) (2026-02) — Date: 2026-02-13 Issue: #60 Main role: contributor Sub-roles: gaia-researcher, gaia-privacy-memory-steward, gaia-qa-evaluator
 - [Roadmap and Backlog Research Playbook (2026-02)](synthesis/2026-02-roadmap-backlog-research-playbook.md) (2026-02) — Summary
 - [Skill Onboarding Security Validation (Phase 2 Input)](synthesis/2026-02-skill-onboarding-security-validation.md) (2026-02) — Summary

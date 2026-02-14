@@ -50,15 +50,17 @@ See `ROADMAP.md` for full phase details and exit criteria.
 
 ## In Progress
 
-_No active lane currently claimed in this branch snapshot._
+- `#115` `[Phase 3][Framework][Research]` Continuous security validation research for broad-source skill imports - owner: `@TonyThePredictor / Codex` (branch `feat/p3-skill-import-security-research-v1`)
 
 ## Next Up (Post-Phase-3 Delivery Queue)
 
-_No queued stabilization lanes. Next queue continues with signal-driven follow-on (`#115`, `#112`, `#113`)._
+_No queued stabilization lanes. Next queue continues with signal-driven follow-on (`#115`, `#122`, `#123`, `#112`, `#113`)._
 
 ## Planned Next Wave (Signal-Driven Evolution Follow-On)
 
 - `#115` `[Phase 3][Framework][Research]` Continuous security validation research for broad-source skill imports (parallel support lane)
+- `#122` `[Phase 3][Framework]` Provenance admission gate for broad-source skill imports (seeded by `#115`; supports `#112`)
+- `#123` `[Phase 3][Framework]` Obfuscation-aware skill validation hardening for prompt-injection patterns (seeded by `#115`; supports `#112`)
 - `#112` `[Phase 3][Framework]` Skill-first triage for unmet-intent signals (`existing-skill-enable` / `skill-import-candidate` / `core-feature-gap`) with broad-source import candidates gated by security validation (depends on `#111`, informed by `#115`)
 - `#113` `[Phase 3][Framework]` Integrate unmet-intent signals into hypothesis candidate generation (depends on `#111` + `#112`)
 
