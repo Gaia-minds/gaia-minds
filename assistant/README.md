@@ -56,6 +56,22 @@ npm install -g .
 gaia doctor
 ```
 
+## Live Preview Freshness Note
+
+README live-preview assets are refreshed to match current CLI behavior and are
+mapped to this source-of-truth command flow:
+
+1. `gaia doctor`
+2. `gaia chat --response-profile concise`
+3. `gaia feedback record --label not-helpful --session-id <session> --trace-id <trace> ...`
+4. `gaia memory summarize --subject user:preview --response-profile concise --json`
+5. `gaia traces --type feedback_record --last 1`
+
+Asset mapping:
+
+- Terminal snapshot: `assistant/assets/gaia-assistant-terminal.svg`
+- Animated walkthrough: `assistant/assets/gaia-assistant-demo-animated.svg`
+
 ## Provider Onboarding
 
 Run the guided onboarding wizard:

@@ -48,16 +48,21 @@ See `assistant/README.md` for full runtime and release docs.
 - Default token budget split: `80%` user service, `20%` self-improvement
 - Token budget enforcement includes deterministic per-cycle + per-track caps with explicit breach action (`warn`/`defer`/`block`)
 - Assistant feedback loop supports deterministic local capture of `helpful` / `not helpful` signals with optional correction notes and trace/session linkage
+- Chat supports deterministic response profiles (`auto`, `concise`, `balanced`, `detailed`) with config + override selection
+- Memory summarization supports traceable profile-aware compaction via `gaia memory summarize`
 
 ### Live Preview
 
-Terminal snapshot (current npm-based flow):
+Terminal snapshot (refreshed for current command surfaces on February 14, 2026):
 
 ![Gaia assistant terminal preview](assistant/assets/gaia-assistant-terminal.svg)
 
-Animated walkthrough:
+Animated walkthrough (same capability flow):
 
 ![Gaia assistant animated walkthrough](assistant/assets/gaia-assistant-demo-animated.svg)
+
+Source-of-truth mapping for these assets (command capture flow + file links):
+`assistant/README.md#live-preview-freshness-note`.
 
 ## What Gaia Is
 

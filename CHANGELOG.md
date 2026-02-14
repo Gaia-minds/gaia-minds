@@ -113,6 +113,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Continuous security-validation research lane for broad-source skill import hardening against prompt-injection and malicious instruction attacks (`#115`)
 - Dead-code/dead-artifact audit report with keep/remove/defer classification and follow-up mapping (`infrastructure/dead-code-artifact-audit-2026-02-14.md`, `#105`)
 - Assistant CLI parser modularization via extracted parser builder module (`tools/gaia_assistant_parser.py`) while preserving stable runtime entrypoint (`tools/gaia-assistant.py`) (`#106`)
+- Refreshed live-preview terminal/animated assets for current assistant command surfaces (response profiles, feedback capture, memory summarize, traces) (`assistant/assets/gaia-assistant-terminal.svg`, `assistant/assets/gaia-assistant-demo-animated.svg`, `#107`)
 
 ### Changed
 - PR template now includes explicit self-evolution applicability gating and required evidence fields (`.github/pull_request_template.md`)
@@ -159,6 +160,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Locked signal-driven queue decisions: broad-source skill candidates with security validation gates, default-on signal capture with opt-out, and 90-day derived-signal retention (`ROADMAP.md`, `STATUS.md`, `#111`, `#112`, `#113`)
 - Refreshed roadmap/status to reflect dead-code/dead-artifact audit delivery and remaining stabilization merge order (`ROADMAP.md`, `STATUS.md`, `#105`)
 - Assistant architecture/docs and package payload now declare parser module boundaries and npm compatibility for modular CLI parser construction (`infrastructure/architecture.md`, `assistant/README.md`, `package.json`, `#106`)
+- Refreshed root/assistant README live-preview references with explicit source-of-truth asset mapping for docs freshness (`README.md`, `assistant/README.md`, `#107`)
 
 ### Planned
 - Additional resource documentation
