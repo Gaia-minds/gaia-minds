@@ -34,7 +34,7 @@ See `assistant/README.md` for full runtime and release docs.
 
 ## Current Status (As Of February 14, 2026)
 
-- npm package is live: `@gaia-minds/assistant-cli@0.2.0`
+- npm package is live: `@gaia-minds/assistant-cli@0.3.0`
 - Global CLI (`gaia`) supports onboarding, auth status, doctor, and dry-run loop execution
 - `gaia onboard` now supports provider-guided setup:
   - OpenRouter (API key + model selection)

@@ -8,6 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- _Nothing yet._
+
+### Changed
+- _Nothing yet._
+
+### Removed
+- _Nothing yet._
+
+## [0.3.0] - 2026-02-14
+
 ### Removed
 - OpenClaw runtime integration, auth source, and all cross-repo references; Gaia is now fully standalone with Codex CLI as the sole OAuth path
 - `skills/gaia-assistant-builder/references/openclaw-boundary.md` boundary document
@@ -114,6 +125,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Dead-code/dead-artifact audit report with keep/remove/defer classification and follow-up mapping (`infrastructure/dead-code-artifact-audit-2026-02-14.md`, `#105`)
 - Assistant CLI parser modularization via extracted parser builder module (`tools/gaia_assistant_parser.py`) while preserving stable runtime entrypoint (`tools/gaia-assistant.py`) (`#106`)
 - Refreshed live-preview terminal/animated assets for current assistant command surfaces (response profiles, feedback capture, memory summarize, traces) (`assistant/assets/gaia-assistant-terminal.svg`, `assistant/assets/gaia-assistant-demo-animated.svg`, `#107`)
+- Release-readiness and QA evaluation evidence reports for npm `0.3.0` go/no-go and rollback-safe publish gating (`infrastructure/release-readiness-2026-02-14-v0.3.0.md`, `infrastructure/qa-evaluation-2026-02-14-v0.3.0.md`, `#108`)
 
 ### Changed
 - PR template now includes explicit self-evolution applicability gating and required evidence fields (`.github/pull_request_template.md`)
