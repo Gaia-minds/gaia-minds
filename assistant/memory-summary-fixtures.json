@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "description": "Deterministic fixtures for memory summarize profile + traceability benchmark.",
+  "records": [
+    {
+      "memory_id": "summary_seed_01",
+      "memory_type": "user_long",
+      "subject_id": "user:summary-bench",
+      "content": "Weekly updates should start with quick outcomes and next actions.",
+      "summary": "weekly update outcomes",
+      "consent_scope": "user",
+      "retention_ttl": "P60D",
+      "importance": 0.8
+    },
+    {
+      "memory_id": "summary_seed_02",
+      "memory_type": "user_long",
+      "subject_id": "user:summary-bench",
+      "content": "User prefers concise bullet updates for status communication.",
+      "summary": "concise bullets preference",
+      "consent_scope": "user",
+      "retention_ttl": "P60D",
+      "importance": 0.9
+    },
+    {
+      "memory_id": "summary_seed_03",
+      "memory_type": "user_long",
+      "subject_id": "user:summary-bench",
+      "content": "Action plans should include clear owners and follow-up dates.",
+      "summary": "owners and dates",
+      "consent_scope": "user",
+      "retention_ttl": "P60D",
+      "importance": 0.7
+    },
+    {
+      "memory_id": "summary_seed_04",
+      "memory_type": "user_long",
+      "subject_id": "user:summary-bench",
+      "content": "Meeting updates need a one-line risk callout before details.",
+      "summary": "risk callout first",
+      "consent_scope": "user",
+      "retention_ttl": "P60D",
+      "importance": 0.6
+    },
+    {
+      "memory_id": "summary_seed_05",
+      "memory_type": "user_long",
+      "subject_id": "user:summary-bench",
+      "content": "Preference: include one practical example in detailed updates.",
+      "summary": "detailed update example",
+      "consent_scope": "user",
+      "retention_ttl": "P60D",
+      "importance": 0.5
+    },
+    {
+      "memory_id": "summary_seed_06",
+      "memory_type": "user_long",
+      "subject_id": "user:summary-bench",
+      "content": "Roadmap updates should highlight blockers and mitigation options.",
+      "summary": "blockers and mitigation",
+      "consent_scope": "user",
+      "retention_ttl": "P60D",
+      "importance": 0.8
+    },
+    {
+      "memory_id": "summary_seed_07",
+      "memory_type": "user_long",
+      "subject_id": "user:summary-bench",
+      "content": "Deliverable updates should separate complete work from pending work.",
+      "summary": "complete vs pending split",
+      "consent_scope": "user",
+      "retention_ttl": "P60D",
+      "importance": 0.7
+    },
+    {
+      "memory_id": "summary_seed_08",
+      "memory_type": "user_long",
+      "subject_id": "user:summary-bench",
+      "content": "Communication updates should avoid filler and focus on decisions.",
+      "summary": "decision-focused updates",
+      "consent_scope": "user",
+      "retention_ttl": "P60D",
+      "importance": 0.9
+    },
+    {
+      "memory_id": "summary_seed_09",
+      "memory_type": "user_long",
+      "subject_id": "user:summary-bench",
+      "content": "Detailed briefings should include assumptions and fallback plans.",
+      "summary": "assumptions and fallback plans",
+      "consent_scope": "user",
+      "retention_ttl": "P60D",
+      "importance": 0.6
+    },
+    {
+      "memory_id": "summary_seed_10",
+      "memory_type": "user_long",
+      "subject_id": "user:summary-bench",
+      "content": "Status updates should conclude with one concrete next step.",
+      "summary": "concrete next step",
+      "consent_scope": "user",
+      "retention_ttl": "P60D",
+      "importance": 0.8
+    }
+  ],
+  "feedback": [
+    {
+      "id": "fb-summary-auto-01",
+      "label": "not-helpful",
+      "correction": "Responses are too long; keep concise bullet updates."
+    }
+  ],
+  "cases": [
+    {
+      "id": "summary_profile_concise",
+      "memory_type": "user_long",
+      "subject_id": "user:summary-bench",
+      "query": "updates",
+      "response_profile": "concise",
+      "expected_profile": "concise",
+      "summary_memory_type": "session_short",
+      "summary_subject_id": "user:summary-bench",
+      "min_selected_sources": 3,
+      "max_selected_sources": 3,
+      "min_content_words": 20,
+      "max_content_words": 140
+    },
+    {
+      "id": "summary_profile_balanced",
+      "memory_type": "user_long",
+      "subject_id": "user:summary-bench",
+      "query": "updates",
+      "response_profile": "balanced",
+      "expected_profile": "balanced",
+      "summary_memory_type": "session_short",
+      "summary_subject_id": "user:summary-bench",
+      "min_selected_sources": 5,
+      "max_selected_sources": 5,
+      "min_content_words": 30,
+      "max_content_words": 200
+    },
+    {
+      "id": "summary_profile_detailed",
+      "memory_type": "user_long",
+      "subject_id": "user:summary-bench",
+      "query": "updates",
+      "response_profile": "detailed",
+      "expected_profile": "detailed",
+      "summary_memory_type": "session_short",
+      "summary_subject_id": "user:summary-bench",
+      "min_selected_sources": 8,
+      "max_selected_sources": 8,
+      "min_content_words": 40,
+      "max_content_words": 320
+    },
+    {
+      "id": "summary_profile_auto_feedback",
+      "memory_type": "user_long",
+      "subject_id": "user:summary-bench",
+      "query": "updates",
+      "response_profile": "auto",
+      "expected_profile": "concise",
+      "summary_memory_type": "session_short",
+      "summary_subject_id": "user:summary-bench",
+      "min_selected_sources": 3,
+      "max_selected_sources": 3,
+      "min_content_words": 20,
+      "max_content_words": 160
+    }
+  ],
+  "thresholds": {
+    "case_pass_rate_min": 1.0,
+    "profile_match_rate_min": 1.0,
+    "traceability_rate_min": 1.0,
+    "p95_latency_ms_max": 1200.0,
+    "avg_selected_sources_max": 5.0,
+    "avg_summary_content_words_max": 220.0
+  }
+}

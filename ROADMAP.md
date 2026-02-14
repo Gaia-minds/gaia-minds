@@ -185,7 +185,7 @@ Execution queue (post-kickoff reassessment):
 - `#94` Canary gate for hypothesis rollout decisions (delivered)
 - `#95` Hard token-budget enforcement per cycle and track (delivered)
 - `#96` Feedback loop capture and correction records (delivered)
-- `#97` Personalized response profiles and memory summarization (next; after `#96`)
+- `#97` Personalized response profiles and memory summarization (delivered)
 
 Exit criteria:
 

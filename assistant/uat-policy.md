@@ -40,6 +40,8 @@ has an explicit mapping to scenario IDs.
   compatibility-matrix reproducibility
 - memory QA/red-team gate (`make memory-quality`) for poisoning/leakage
   regression checks
+- memory summarize benchmark gate (`make memory-summary-benchmark`) for profile
+  selection determinism and source-traceability thresholds
 
 ## Failure Diagnostics Bundle
 
@@ -84,6 +86,9 @@ make quality-matrix
 
 # Run memory QA/red-team gate
 make memory-quality
+
+# Run memory summarize benchmark gate
+make memory-summary-benchmark
 
 # Re-run one scenario
 python3 tools/uat-runner.py --run provider_twin_openai

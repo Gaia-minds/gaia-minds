@@ -23,6 +23,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Local feedback persistence contract (`~/.gaia-assistant/data/feedback.json`) with deterministic retention cap (latest 500 records, local-only)
 - Deterministic smoke/UAT coverage for feedback capture and invalid-label rejection (`tools/smoke-test.sh`, `assistant/uat-scenarios.json`, `assistant/feature-catalog.json`)
 - UAT governance change record for feedback command-surface coverage (`docs/uat-changes/2026-02-14-feedback-surface.md`)
+- Response profile preference contract for chat/summarization (`auto|concise|balanced|detailed`) with config aliases (`response_profile`, `response-style`, `style`) and per-chat override (`gaia chat --response-profile ...`) (`tools/gaia-assistant.py`, `#97`)
+- Memory summarization command surface with profile-aware deterministic compaction and source-traceable persistence (`gaia memory summarize`, `memory-summary-events.jsonl`) (`tools/gaia-assistant.py`, `#97`)
+- Deterministic memory summarize benchmark harness and fixtures with profile-selection + source-traceability thresholds (`tools/memory-summary-benchmark.py`, `assistant/memory-summary-fixtures.json`, `make memory-summary-benchmark`)
+- Deterministic smoke/UAT coverage for response-profile selection and memory summarize traceability thresholds (`tools/smoke-test.sh`, `assistant/uat-scenarios.json`, `assistant/feature-catalog.json`)
+- UAT governance change record for profile + memory summarize command-surface coverage (`docs/uat-changes/2026-02-14-profile-memory-summary-surface.md`)
 - Token-budget fixture contract and deterministic checker for pass/warn/block/defer + threshold-edge coverage (`assistant/token-budget-fixtures.json`, `tools/token-budget-fixtures.py`)
 - Token-budget CI workflow and make target for regression gating (`.github/workflows/token-budget-enforcement.yml`, `make token-budget-fixtures`)
 - Hypothesis artifact contract documentation and reference proposal/failure fixtures (`infrastructure/hypothesis-pipeline-v1.md`, `assistant/hypotheses/*.json`, `assistant/hypotheses/README.md`)
@@ -122,6 +127,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Assistant architecture/docs now include memory policy/privacy capability model, consent/retention matrix, and delete/export evidence paths (`infrastructure/architecture.md`, `assistant/README.md`)
 - Assistant architecture/docs now include memory QA/red-team harness metrics, triage workflow, and failure-gate guidance (`infrastructure/architecture.md`, `assistant/README.md`, `assistant/benchmarking.md`, `assistant/uat-policy.md`)
 - Assistant architecture/docs now include Phase 3 feedback loop capture contract, persistence boundaries, and trace semantics (`infrastructure/architecture.md`, `assistant/README.md`, `README.md`)
+- Assistant architecture/docs now include Phase 3 response-profile resolution and memory summarize traceability contract + benchmark gate (`infrastructure/architecture.md`, `assistant/README.md`, `assistant/uat-policy.md`)
 - Refreshed roadmap and sprint status priorities to remove closed-item drift and reference reassessment issue `#46`
 - Synced latest release references to `@gaia-minds/assistant-cli@0.2.0` across top-level and assistant contributor docs
 - Added contributor guidance to use the roadmap/backlog review issue template for reassessment work

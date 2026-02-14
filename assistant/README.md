@@ -33,6 +33,9 @@ make benchmark
 # Deterministic memory retrieval benchmark gate
 make memory-benchmark
 
+# Deterministic memory summarize benchmark gate
+make memory-summary-benchmark
+
 # Deterministic memory QA/red-team gate
 make memory-quality
 
@@ -168,6 +171,7 @@ Benchmark the 20 canonical Phase 1 tasks plus quality-matrix guardrails:
 ```bash
 make benchmark
 make memory-benchmark
+make memory-summary-benchmark
 make memory-quality
 make quality-matrix
 make benchmark-trend
@@ -177,6 +181,8 @@ make benchmark-trend
 - Baseline artifact: `assistant/benchmark-baseline.json`
 - Memory retrieval benchmark fixture: `assistant/memory-retrieval-fixtures.json`
 - Memory retrieval benchmark result: `assistant/memory-retrieval-benchmark-results.json`
+- Memory summarize benchmark fixture: `assistant/memory-summary-fixtures.json`
+- Memory summarize benchmark result: `assistant/memory-summary-benchmark-results.json`
 - Memory QA/red-team fixture: `assistant/memory-quality-fixtures.json`
 - Memory QA/red-team result: `assistant/memory-quality-results.json`
 - Quality matrix artifact: `assistant/quality-matrix-results.json`
@@ -373,6 +379,15 @@ Memory commands provide deterministic local SQLite CRUD and retrieval/ranking
 flows for structured long-term memory records.
 
 ```bash
+# optional response profile configuration for chat and memory summarize
+gaia config set response_profile balanced
+gaia config set response_profile auto
+
+# deterministic profile override per chat session
+gaia chat --response-profile concise
+gaia chat --response-profile detailed
+gaia chat --response-profile auto
+
 # add one memory record
 gaia memory add \
   --memory-id user_pref_concise \
@@ -388,6 +403,15 @@ gaia memory get <memory-id>
 gaia memory list --subject user:default --q concise --limit 20
 gaia memory retrieve --query "concise updates" --subject user:default --limit 5
 
+# summarize memory context into a compact traceable record
+gaia memory summarize \
+  --subject user:default \
+  --q concise \
+  --response-profile auto \
+  --summary-type session_short \
+  --summary-subject user:default \
+  --json
+
 # update and soft-delete
 gaia memory update <memory-id> --summary "concise style preference" --importance 0.9
 gaia memory delete <memory-id>
@@ -397,6 +421,9 @@ gaia memory export --subject user:default --path ./memory-export.json --json
 
 # run deterministic retrieval benchmark thresholds
 make memory-benchmark
+
+# run deterministic summarize benchmark thresholds
+make memory-summary-benchmark
 
 # run deterministic memory QA/red-team thresholds
 make memory-quality
@@ -428,20 +455,23 @@ Delete/export evidence artifacts:
 
 - Delete tombstones: `~/.gaia-assistant/data/memory-tombstones.jsonl`
 - Export event ledger: `~/.gaia-assistant/data/memory-export-events.jsonl`
+- Summary event ledger: `~/.gaia-assistant/data/memory-summary-events.jsonl`
 - Export payload files: `~/.gaia-assistant/data/memory-exports/`
 
 Memory traces:
 
 - `memory_capture`
 - `memory_retrieve`
+- `memory_summarize`
 - `memory_update`
 - `memory_delete`
 - `memory_export`
 
 ## Feedback Loop Runtime
 
-Feedback commands capture explicit user quality signals for assistant responses
-without changing model behavior automatically.
+Feedback commands capture explicit user quality signals for assistant responses.
+In this phase, feedback can drive deterministic `response_profile=auto`
+selection for `gaia chat` and `gaia memory summarize`.
 
 ```bash
 # capture positive feedback linked to the latest session
@@ -482,7 +512,6 @@ Feedback traces:
 
 Planned use in future improvement cycles:
 
-- feed profile/summarization tuning and memory distillation prioritization
 - drive explicit before/after evaluations in hypothesis/reliability workflows
 - remain human-reviewable and policy-gated before any automation path is added
 

@@ -41,6 +41,7 @@ See `ROADMAP.md` for full phase details and exit criteria.
 - `Phase 3 Canary Rollout Gate` - deterministic hypothesis rollout decision contract (`go|hold|rollback-required`) with CI fixture coverage (`#94`, PR #100)
 - `Phase 3 Token Budget Enforcement` - deterministic per-cycle/per-track hard token gate with explicit `allow|warn|defer|block` decisions (`#95`, PR #101)
 - `Phase 3 Feedback Loop Capture` - deterministic local feedback records with `helpful`/`not helpful`, correction text, and session/trace linkage (`#96`)
+- `Phase 3 Personalized Response Profiles + Memory Summarization` - deterministic profile-aware chat style selection, `gaia memory summarize` with source traceability ledger, and summarize benchmark gate (`#97`)
 
 ## In Progress
 
@@ -48,8 +49,7 @@ _Nothing in progress._
 
 ## Next Up (Kickoff Queue)
 
-1. `#97` (`assistant-track`) - Personalized response profiles and memory summarization
-   - Dependency: after `#96`
+_Nothing queued._
 
 ## Blocked
 
