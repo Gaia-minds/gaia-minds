@@ -54,6 +54,12 @@ _Nothing in progress._
 - `#107` `[Phase 3][Assistant]` Refresh README live preview assets for current CLI capabilities (depends on `#106`)
 - `#108` `[Phase 3][Release]` Prepare and publish npm release `@gaia-minds/assistant-cli@0.3.0` (depends on `#106` + `#107`)
 
+## Planned Next Wave (Signal-Driven Evolution Follow-On)
+
+- `#111` `[Phase 3][Framework]` Privacy-preserving unmet-intent signal extraction from user interactions (after `#108`)
+- `#112` `[Phase 3][Framework]` Skill-first triage for unmet-intent signals (`existing-skill-enable` / `skill-import-candidate` / `core-feature-gap`) (depends on `#111`)
+- `#113` `[Phase 3][Framework]` Integrate unmet-intent signals into hypothesis candidate generation (depends on `#111` + `#112`)
+
 ## Blocked
 
 _Nothing blocked._
