@@ -56,8 +56,9 @@ _Nothing in progress._
 
 ## Planned Next Wave (Signal-Driven Evolution Follow-On)
 
-- `#111` `[Phase 3][Framework]` Privacy-preserving unmet-intent signal extraction from user interactions (after `#108`)
-- `#112` `[Phase 3][Framework]` Skill-first triage for unmet-intent signals (`existing-skill-enable` / `skill-import-candidate` / `core-feature-gap`) (depends on `#111`)
+- `#111` `[Phase 3][Framework]` Privacy-preserving unmet-intent signal extraction from user interactions (default-on + opt-out, 90-day retention) (after `#108`)
+- `#115` `[Phase 3][Framework][Research]` Continuous security validation research for broad-source skill imports (parallel support lane)
+- `#112` `[Phase 3][Framework]` Skill-first triage for unmet-intent signals (`existing-skill-enable` / `skill-import-candidate` / `core-feature-gap`) with broad-source import candidates gated by security validation (depends on `#111`, informed by `#115`)
 - `#113` `[Phase 3][Framework]` Integrate unmet-intent signals into hypothesis candidate generation (depends on `#111` + `#112`)
 
 ## Blocked

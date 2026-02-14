@@ -109,6 +109,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Post-Phase-3-delivery issue set for dead-code audit, assistant modular refactor, live-preview refresh, and npm release `0.3.0` (`#105`, `#106`, `#107`, `#108`)
 - User-intent signal architecture planning-round artifact for privacy-preserving self-evolution inputs and skill-first gap routing (`infrastructure/planning-round-2026-02-14-user-intent-signal-architecture.md`, `#110`)
 - Signal-driven self-evolution follow-on issue set for unmet-intent extraction, skill-first triage, and hypothesis integration (`#111`, `#112`, `#113`)
+- Continuous security-validation research lane for broad-source skill import hardening against prompt-injection and malicious instruction attacks (`#115`)
 
 ### Changed
 - PR template now includes explicit self-evolution applicability gating and required evidence fields (`.github/pull_request_template.md`)
@@ -152,6 +153,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Refreshed roadmap/status to reflect Phase 3 kickoff completion (`#87` / PR `#91`) and the newly published post-kickoff queue (`#93`-`#97`) (`ROADMAP.md`, `STATUS.md`)
 - Refreshed roadmap/status to reflect the post-delivery stabilization queue and merge order (`#105`-`#108`) (`ROADMAP.md`, `STATUS.md`)
 - Refreshed roadmap/status with a post-release signal-driven evolution queue (`#111`-`#113`) and privacy rule for derived user-intent signals only (`ROADMAP.md`, `STATUS.md`)
+- Locked signal-driven queue decisions: broad-source skill candidates with security validation gates, default-on signal capture with opt-out, and 90-day derived-signal retention (`ROADMAP.md`, `STATUS.md`, `#111`, `#112`, `#113`)
 
 ### Planned
 - Additional resource documentation

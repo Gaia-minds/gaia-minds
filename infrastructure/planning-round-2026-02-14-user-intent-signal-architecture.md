@@ -44,6 +44,7 @@ Activated sub-roles: `gaia-planner`, `gaia-researcher`,
 - Issues/PRs:
   - planning lane published: `#110`
   - follow-on queue published: `#111`, `#112`, `#113`
+  - continuous security-research lane published: `#115`
 
 ## 3. Current State Snapshot
 
@@ -82,6 +83,10 @@ Activated sub-roles: `gaia-planner`, `gaia-researcher`,
     `intent-signals.jsonl`) under assistant local state.
   - add deterministic signal extraction pass over existing local artifacts.
   - expose signal inspection CLI path for user/human review.
+  - product decision lock:
+    - collection default is `on`
+    - explicit opt-out control is required
+    - retention default for derived signals is `90 days` with deterministic cap
 - Validation plan:
   - deterministic extraction fixtures
   - redaction/no-raw-transcript assertions
@@ -115,6 +120,10 @@ Activated sub-roles: `gaia-planner`, `gaia-researcher`,
   - add triage decision layer consuming `#111` signals + skills registry context.
   - emit triage artifacts with confidence and rationale.
   - add policy hooks for unsafe skill-candidate rejection.
+  - product decision lock:
+    - broader non-local skill sources are permitted as candidates
+    - all such candidates must pass security validation gates before activation
+    - prompt-injection and malicious-instruction checks are mandatory
 - Validation plan:
   - fixture-based decision matrix with expected classes
   - policy bypass/unsafe candidate rejection checks
@@ -144,6 +153,10 @@ Activated sub-roles: `gaia-planner`, `gaia-researcher`,
 - Architecture deltas:
   - extend hypothesis candidate generation inputs with intent-signal aggregates.
   - define contract fields linking candidate to signal evidence summary.
+  - enforce upstream product lock constraints:
+    - derived-signal-only input policy
+    - opt-out-aware candidate generation behavior
+    - evidence windows bounded by `90-day` retention policy
 - Validation plan:
   - deterministic candidate-generation fixtures
   - threshold behavior checks (`hold` when data is insufficient/noisy)
@@ -164,6 +177,32 @@ Activated sub-roles: `gaia-planner`, `gaia-researcher`,
     - `gaia-qa-evaluator`
     - self-evolution evidence rubric + CI check
 
+### Item `#115` - Continuous security validation research for broad-source skill imports
+
+- Scope and non-goals:
+  - Scope:
+    - maintain an ongoing research loop for skill-validation defenses against
+      prompt-injection and malicious-instruction attacks.
+    - publish actionable validation-rule deltas for contributor lanes.
+  - Non-goal:
+    - direct runtime rollout without linked implementation issue/PR.
+- Architecture deltas:
+  - no immediate runtime delta; research-to-implementation handoff contract.
+- Validation plan:
+  - periodic synthesis artifact publication and adversarial fixture proposals.
+- Evidence contract (self-evolution applicability):
+  - Not applicable unless research lane directly changes self-evolution runtime
+    behavior.
+- Rollback/fallback:
+  - if research findings are inconclusive, hold policy changes and keep current
+    validation thresholds.
+- Acceptance criteria:
+  - recurring security research outputs are linked into skill-triage/validation
+    lanes and reduce blind spots over time.
+- Owner recommendation:
+  - contributor with `gaia-researcher`; add `gaia-security-reviewer` when
+    findings trigger runtime/policy changes.
+
 ## 5. Dependencies and Merge Order
 
 - Shared contracts:
@@ -174,15 +213,18 @@ Activated sub-roles: `gaia-planner`, `gaia-researcher`,
   - memory privacy consent/retention controls
 - Item dependencies:
   - `#111` must land before downstream triage/generation.
-  - `#112` depends on `#111`.
+  - `#112` depends on `#111` and should consume `#115` research updates.
   - `#113` depends on `#111` + `#112`.
+  - `#115` runs in parallel and continuously informs `#112`/future skill-import
+    lanes.
 - Parallelization notes:
   - design/prototyping can run in parallel, but merge order should remain strict
     to avoid contract churn.
 - Recommended order:
   1. `#111`
-  2. `#112`
-  3. `#113`
+  2. `#115` (parallel supporting lane)
+  3. `#112`
+  4. `#113`
 
 ## 6. Unclear Items Requiring Research
 

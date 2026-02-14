@@ -205,20 +205,24 @@ Execution queue (signal-driven self-evolution follow-on; planning published):
 
 - `#110` Planning lane for user-intent signal architecture and queue decomposition
 - `#111` Privacy-preserving unmet-intent signal extraction from local interaction artifacts
-- `#112` Skill-first triage for unmet-intent signals (`existing-skill-enable` / `skill-import-candidate` / `core-feature-gap`)
+- `#112` Skill-first triage for unmet-intent signals (`existing-skill-enable` / `skill-import-candidate` / `core-feature-gap`) with broad-source import candidates gated by security validation
 - `#113` Integrate unmet-intent signal aggregates into hypothesis candidate generation
+- `#115` Continuous security validation research for broad-source skill imports (parallel support lane)
 
 Recommended merge order:
 
 1. `#111`
-2. `#112`
-3. `#113`
+2. `#115` (parallel support lane)
+3. `#112`
+4. `#113`
 
 Privacy/architecture rule for this queue:
 
 - only derived/sanitized interaction signals may feed self-evolution inputs;
   raw conversation transcripts must not be exported into hypothesis/evidence
   artifacts.
+- signal capture is default-on with explicit opt-out control.
+- derived-signal retention default is 90 days with deterministic bounded storage.
 
 Exit criteria:
 
