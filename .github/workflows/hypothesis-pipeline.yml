@@ -23,6 +23,43 @@ jobs:
       - name: Run deterministic hypothesis dry-run
         run: make hypothesis-dry-run
 
+      - name: Validate pass-path canary decision
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = Path("/tmp/gaia-hypothesis-evals/phase3-hypothesis-pipeline-v1/dry-run/evaluation-report.json")
+          if not report.exists():
+              raise SystemExit(f"missing report: {report}")
+          payload = json.loads(report.read_text(encoding="utf-8"))
+          canary = payload.get("canary_decision", {})
+          if payload.get("status") != "pass":
+              raise SystemExit(f"expected status=pass, got {payload.get('status')!r}")
+          if not isinstance(canary, dict) or canary.get("decision") != "go":
+              raise SystemExit(f"expected canary decision go, got {canary!r}")
+          print("pass-path canary decision validated: go")
+          PY
+
+      - name: Validate hold-path canary decision
+        run: |
+          make hypothesis-hold-fixture
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = Path("/tmp/gaia-hypothesis-evals/phase3-hypothesis-pipeline-v1-hold-fixture/hold-fixture/evaluation-report.json")
+          if not report.exists():
+              raise SystemExit(f"missing report: {report}")
+          payload = json.loads(report.read_text(encoding="utf-8"))
+          canary = payload.get("canary_decision", {})
+          if payload.get("status") != "pass":
+              raise SystemExit(f"expected status=pass for hold fixture, got {payload.get('status')!r}")
+          if not isinstance(canary, dict) or canary.get("decision") != "hold":
+              raise SystemExit(f"expected canary decision hold, got {canary!r}")
+          print("hold-path canary decision validated: hold")
+          PY
+
       - name: Validate failure rollback recommendation
         run: |
           set +e
@@ -41,11 +78,17 @@ jobs:
               raise SystemExit(f"missing report: {report}")
           payload = json.loads(report.read_text(encoding="utf-8"))
           rollback = payload.get("rollback_recommendation", {})
+          canary = payload.get("canary_decision", {})
           if not isinstance(rollback, dict) or not rollback.get("required", False):
               raise SystemExit("rollback recommendation was not marked required for failing fixture")
+          if not isinstance(canary, dict) or canary.get("decision") != "rollback-required":
+              raise SystemExit(
+                  "expected canary decision rollback-required, "
+                  f"got {canary!r}"
+              )
           if payload.get("status") != "fail":
               raise SystemExit(f"expected status=fail, got {payload.get('status')!r}")
-          print("failure fixture validated: rollback recommendation required=true")
+          print("failure fixture validated: rollback recommendation required=true and canary decision=rollback-required")
           PY
 
       - name: Upload hypothesis artifacts

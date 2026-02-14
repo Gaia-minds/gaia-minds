@@ -1,8 +1,8 @@
 # Hypothesis Pipeline v1 Contract
 
-Updated: February 13, 2026
+Updated: February 14, 2026
 
-Issue: `#86`  
+Issue: `#86`, `#94`  
 Track: `framework-track`  
 Risk: `high`
 
@@ -31,6 +31,7 @@ Required top-level fields:
 - `risk_level` (`low` | `medium` | `high`)
 - `rollback_criteria`
 - `evaluation`
+- `canary_gate` (optional; if omitted, rollout decision defaults to `hold`)
 - `expected_metric_movement` (non-empty array)
 
 ### `rollback_criteria`
@@ -49,6 +50,20 @@ Path templates may use:
 - `{hypothesis_id}`
 - `{output_dir}`
 - `{repo_root}`
+
+### `canary_gate`
+
+Canary gate configuration controls rollout decision evidence:
+
+- `window` (required string when provided; e.g., `24h`, `7d`)
+- `sample_size` (required positive integer when provided)
+- `pass_threshold` (required number in `[0,1]` when provided)
+- `rollback_threshold` (required number in `[0,1]` when provided)
+- `fallback_owner` (required string when provided)
+
+Validation rule:
+
+`pass_threshold >= rollback_threshold`
 
 ### `expected_metric_movement[]`
 
@@ -106,6 +121,18 @@ Generated artifacts:
   - `rollback_recommendation.reason`
   - `rollback_recommendation.recommended_action`
   - `rollback_recommendation.commands`
+- `evaluation-report.json` now includes explicit canary decision evidence:
+  - `canary_decision.decision` (`go` | `hold` | `rollback-required`)
+  - `canary_decision.reason`
+  - `canary_decision.window`
+  - `canary_decision.sample_size_observed` / `sample_size_required`
+  - `canary_decision.thresholds.pass_threshold` / `rollback_threshold`
+  - `canary_decision.pass_rate`
+  - `canary_decision.fallback_owner`
+- Decision routing:
+  - `rollback-required` when required gates fail or pass rate breaches rollback threshold
+  - `hold` when sample is insufficient or pass rate does not clear `pass_threshold`
+  - `go` when sample is sufficient and pass rate clears `pass_threshold`
 
 ## Reference Artifacts
 
@@ -113,5 +140,7 @@ Generated artifacts:
   `assistant/hypotheses/phase3-hypothesis-pipeline-v1.json`
 - Failure fixture:
   `assistant/hypotheses/phase3-hypothesis-pipeline-v1-failure-fixture.json`
+- Hold fixture:
+  `assistant/hypotheses/phase3-hypothesis-pipeline-v1-hold-fixture.json`
 - Usage notes:
   `assistant/hypotheses/README.md`

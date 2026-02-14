@@ -7,6 +7,8 @@ This folder stores versioned Phase 3 hypothesis proposal artifacts consumed by
 
 - `phase3-hypothesis-pipeline-v1.json`:
   passing reference hypothesis contract for proposal -> eval -> evidence flow.
+- `phase3-hypothesis-pipeline-v1-hold-fixture.json`:
+  deterministic hold-decision fixture for canary sample insufficiency path.
 - `phase3-hypothesis-pipeline-v1-failure-fixture.json`:
   deterministic failure fixture for rollback recommendation validation.
 
@@ -34,6 +36,15 @@ Run deterministic failure fixture (expected non-zero):
 python3 tools/hypothesis-pipeline.py run \
   --hypothesis assistant/hypotheses/phase3-hypothesis-pipeline-v1-failure-fixture.json \
   --run-id failure-fixture \
+  --dry-run
+```
+
+Run deterministic hold fixture (expected zero, canary decision = `hold`):
+
+```bash
+python3 tools/hypothesis-pipeline.py run \
+  --hypothesis assistant/hypotheses/phase3-hypothesis-pipeline-v1-hold-fixture.json \
+  --run-id hold-fixture \
   --dry-run
 ```
 

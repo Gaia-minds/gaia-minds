@@ -1,6 +1,6 @@
 # Status
 
-Updated: February 13, 2026
+Updated: February 14, 2026
 
 ## Current Sprint
 
@@ -41,17 +41,18 @@ See `ROADMAP.md` for full phase details and exit criteria.
 
 ## In Progress
 
-_Nothing currently in progress._
+- `#94` (`framework-track`) - Canary gate for hypothesis rollout decisions
+  - Owner: `codex-gpt5` (main role: `contributor`)
+  - Activated sub-roles: `gaia-qa-evaluator`, `gaia-release-manager`, `gaia-technical-writer`
+  - Scope: deterministic canary decision evidence (`go|hold|rollback-required`) in hypothesis pipeline artifacts and CI fixtures
 
 ## Next Up (Kickoff Queue)
 
 1. `#95` (`framework-track`) - Hard token-budget enforcement per cycle and track
    - Recommended owner role: contributor + `gaia-security-reviewer` + `gaia-qa-evaluator`
-2. `#94` (`framework-track`) - Canary gate for hypothesis rollout decisions
-   - Dependency: after `#93`
-3. `#96` (`assistant-track`) - Feedback loop capture and correction records
+2. `#96` (`assistant-track`) - Feedback loop capture and correction records
    - Recommended owner role: contributor + `gaia-technical-writer`
-4. `#97` (`assistant-track`) - Personalized response profiles and memory summarization
+3. `#97` (`assistant-track`) - Personalized response profiles and memory summarization
    - Dependency: after `#96`
 
 ## Blocked

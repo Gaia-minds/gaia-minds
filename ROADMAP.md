@@ -1,6 +1,6 @@
 # Gaia Minds Roadmap
 
-Updated: February 13, 2026
+Updated: February 14, 2026
 
 This roadmap is now optimized for fast execution.
 
@@ -183,7 +183,7 @@ Execution queue (post-kickoff reassessment):
 
 - `#93` Drift detection automation against reliability baselines (delivered)
 - `#95` Hard token-budget enforcement per cycle and track
-- `#94` Canary gate for hypothesis rollout decisions (after `#93`)
+- `#94` Canary gate for hypothesis rollout decisions (in progress)
 - `#96` Feedback loop capture and correction records
 - `#97` Personalized response profiles and memory summarization (after `#96`)
 
