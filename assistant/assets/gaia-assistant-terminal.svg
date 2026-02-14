@@ -1,35 +1,53 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760" fill="none">
-  <rect width="1280" height="760" rx="20" fill="#0B1220"/>
-  <rect x="34" y="28" width="1212" height="704" rx="16" fill="#101A2E" stroke="#2A3C64"/>
-  <rect x="34" y="28" width="1212" height="54" rx="16" fill="#172440"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="820" viewBox="0 0 1280 820" fill="none">
+  <defs>
+    <style>
+      .frame { fill: #0B1220; }
+      .panel { fill: #101A2E; stroke: #2A3C64; }
+      .titlebar { fill: #172440; }
+      .title { fill: #D8E5FF; font-size: 20px; font-family: monospace; }
+      .cmd { fill: #8CE99A; font-size: 19px; font-family: monospace; }
+      .ok { fill: #8CE99A; font-size: 17px; font-family: monospace; }
+      .warn { fill: #F7D070; font-size: 17px; font-family: monospace; }
+      .text { fill: #CBD9F8; font-size: 17px; font-family: monospace; }
+      .meta { fill: #9AB6E9; font-size: 16px; font-family: monospace; }
+    </style>
+  </defs>
+
+  <rect class="frame" width="1280" height="820" rx="20"/>
+  <rect class="panel" x="34" y="28" width="1212" height="764" rx="16"/>
+  <rect class="titlebar" x="34" y="28" width="1212" height="54" rx="16"/>
   <circle cx="72" cy="55" r="8" fill="#FF5F57"/>
   <circle cx="100" cy="55" r="8" fill="#FEBC2E"/>
   <circle cx="128" cy="55" r="8" fill="#28C840"/>
-  <text x="160" y="62" fill="#D8E5FF" font-size="20" font-family="monospace">gaia-assistant live preview (npm global CLI)</text>
+  <text x="160" y="62" class="title">gaia assistant live preview (current CLI capability surfaces)</text>
 
-  <text x="64" y="126" fill="#8CE99A" font-size="20" font-family="monospace">$ npm install -g @gaia-minds/assistant-cli</text>
-  <text x="64" y="156" fill="#CBD9F8" font-size="18" font-family="monospace">changed 1 package in 261ms</text>
+  <text x="64" y="122" class="cmd">$ gaia doctor</text>
+  <text x="64" y="150" class="ok">[ok]</text>
+  <text x="118" y="150" class="text">required command found: python3</text>
+  <text x="64" y="176" class="ok">[ok]</text>
+  <text x="118" y="176" class="text">optional command found: codex</text>
+  <text x="64" y="202" class="warn">[warn]</text>
+  <text x="136" y="202" class="text">launcher config not found yet - run `gaia init` or `gaia onboard`</text>
 
-  <text x="64" y="202" fill="#8CE99A" font-size="20" font-family="monospace">$ GAIA_ASSISTANT_HOME=/tmp/gaia-assistant-demo gaia doctor</text>
-  <text x="64" y="232" fill="#CBD9F8" font-size="18" font-family="monospace">Gaia assistant doctor</text>
-  <text x="64" y="258" fill="#8CE99A" font-size="18" font-family="monospace">[ok]</text>
-  <text x="118" y="258" fill="#CBD9F8" font-size="18" font-family="monospace">required command found: python3</text>
-  <text x="64" y="284" fill="#8CE99A" font-size="18" font-family="monospace">[ok]</text>
-  <text x="118" y="284" fill="#CBD9F8" font-size="18" font-family="monospace">required command found: git</text>
-  <text x="64" y="310" fill="#F7D070" font-size="18" font-family="monospace">[warn]</text>
-  <text x="136" y="310" fill="#CBD9F8" font-size="18" font-family="monospace">no linked OAuth profile in launcher config</text>
-  <text x="64" y="336" fill="#CBD9F8" font-size="18" font-family="monospace">run `gaia onboard`</text>
+  <text x="64" y="248" class="cmd">$ gaia chat --response-profile concise</text>
+  <text x="64" y="276" class="text">Started session: s20260214162721-fe6476</text>
+  <text x="64" y="302" class="text">Response profile: concise (override)</text>
+  <text x="64" y="328" class="text">gaia&gt; [local-openai][profile=concise] Need concise updates</text>
 
-  <text x="64" y="386" fill="#8CE99A" font-size="20" font-family="monospace">$ GAIA_ASSISTANT_HOME=/tmp/gaia-assistant-demo gaia run --mode single --dry-run</text>
-  <text x="64" y="416" fill="#CBD9F8" font-size="18" font-family="monospace">17:02:14 [INFO] Loaded config: gaia-agent v0.1.0</text>
-  <text x="64" y="442" fill="#CBD9F8" font-size="18" font-family="monospace">17:02:14 [INFO] Active track: assistant (service=80%, self_improvement=20%)</text>
-  <text x="64" y="468" fill="#CBD9F8" font-size="18" font-family="monospace">17:02:14 [INFO] No actions proposed this cycle.</text>
-  <text x="64" y="494" fill="#8CE99A" font-size="18" font-family="monospace">17:02:14 [INFO] Cycle 1 complete: 0 succeeded, 0 failed</text>
-  <text x="64" y="520" fill="#CBD9F8" font-size="18" font-family="monospace">Running Gaia assistant in single mode</text>
+  <text x="64" y="374" class="cmd">$ gaia feedback record --label not-helpful --session-id &lt;session&gt; --trace-id &lt;trace&gt;</text>
+  <text x="64" y="402" class="text">feedback_id=fb20260214162721-bfb4e2 label=not-helpful session+trace linked</text>
 
-  <rect x="64" y="560" width="1150" height="138" rx="12" fill="#0D1628" stroke="#33507E"/>
-  <text x="88" y="598" fill="#C3D6FF" font-size="20" font-family="monospace">Current status</text>
-  <text x="88" y="630" fill="#D8E5FF" font-size="18" font-family="monospace">- npm package is live: @gaia-minds/assistant-cli@0.2.0</text>
-  <text x="88" y="658" fill="#D8E5FF" font-size="18" font-family="monospace">- Global gaia CLI runs doctor/onboard/run without repository checkout</text>
-  <text x="88" y="686" fill="#8CE99A" font-size="20" font-family="monospace">$ gaia onboard</text>
+  <text x="64" y="448" class="cmd">$ gaia memory summarize --subject user:preview --response-profile concise --json</text>
+  <text x="64" y="476" class="text">summary_memory_id=m20260214162722-42e55a selected_source_count=2</text>
+  <text x="64" y="502" class="text">response_profile=concise summary_event_id=ms20260214162722-a61fea</text>
+
+  <text x="64" y="548" class="cmd">$ gaia traces --type feedback_record --last 1</text>
+  <text x="64" y="576" class="text">2026-02-14T16:27:21Z | feedback_record | safe | ok | saved fb20260214162721-bfb4e2</text>
+
+  <rect x="64" y="616" width="1150" height="148" rx="12" fill="#0D1628" stroke="#33507E"/>
+  <text x="88" y="652" class="title">Capability coverage shown</text>
+  <text x="88" y="680" class="meta">- chat response profiles (auto/concise/balanced/detailed)</text>
+  <text x="88" y="706" class="meta">- deterministic feedback capture (`gaia feedback record/list`) with session + trace linkage</text>
+  <text x="88" y="732" class="meta">- memory summarize workflow (`gaia memory summarize`) with source-count metadata</text>
+  <text x="88" y="758" class="meta">- trace inspection for governance/audit (`gaia traces` filters)</text>
 </svg>
