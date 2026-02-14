@@ -154,7 +154,7 @@ Integration order is intentionally light:
 ## Phase 3: Framework Self-Evolution v1
 
 Timeline: February 13 to March 21, 2026
-Status: In Progress (kickoff complete as of February 13, 2026)
+Status: In Progress (kickoff queue delivered; stabilization queue published as of February 14, 2026)
 
 Assistant track outcomes:
 
@@ -186,6 +186,20 @@ Execution queue (post-kickoff reassessment):
 - `#95` Hard token-budget enforcement per cycle and track (delivered)
 - `#96` Feedback loop capture and correction records (delivered)
 - `#97` Personalized response profiles and memory summarization (delivered)
+
+Execution queue (post-delivery stabilization round):
+
+- `#105` Dead-code/dead-artifact audit across runtime/docs/release surfaces
+- `#106` Modular refactor of `tools/gaia-assistant.py` command/runtime surfaces (depends on `#105`)
+- `#107` README live-preview asset refresh for current CLI capabilities (depends on `#106`)
+- `#108` npm release `@gaia-minds/assistant-cli@0.3.0` readiness + publish (depends on `#106`, `#107`)
+
+Recommended merge order:
+
+1. `#105`
+2. `#106`
+3. `#107`
+4. `#108`
 
 Exit criteria:
 
