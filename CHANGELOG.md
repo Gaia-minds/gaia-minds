@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Removed
 - OpenClaw runtime integration, auth source, and all cross-repo references; Gaia is now fully standalone with Codex CLI as the sole OAuth path
 - `skills/gaia-assistant-builder/references/openclaw-boundary.md` boundary document
+- Unused auth-profile helper functions from assistant runtime (`_collect_provider_profiles`, `_pick_profile_id`) after dead-code audit lane cleanup (`tools/gaia-assistant.py`, `#105`)
 
 ### Added
 - Self-evolution PR evidence rubric contract with required fields (`baseline`, `delta`, `thresholds/guardrails`, `rollback/fallback`, `risk notes`) and applicability rules (`infrastructure/self-evolution-evidence-rubric.md`, `#85`)
@@ -110,6 +111,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - User-intent signal architecture planning-round artifact for privacy-preserving self-evolution inputs and skill-first gap routing (`infrastructure/planning-round-2026-02-14-user-intent-signal-architecture.md`, `#110`)
 - Signal-driven self-evolution follow-on issue set for unmet-intent extraction, skill-first triage, and hypothesis integration (`#111`, `#112`, `#113`)
 - Continuous security-validation research lane for broad-source skill import hardening against prompt-injection and malicious instruction attacks (`#115`)
+- Dead-code/dead-artifact audit report with keep/remove/defer classification and follow-up mapping (`infrastructure/dead-code-artifact-audit-2026-02-14.md`, `#105`)
 
 ### Changed
 - PR template now includes explicit self-evolution applicability gating and required evidence fields (`.github/pull_request_template.md`)
@@ -154,6 +156,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Refreshed roadmap/status to reflect the post-delivery stabilization queue and merge order (`#105`-`#108`) (`ROADMAP.md`, `STATUS.md`)
 - Refreshed roadmap/status with a post-release signal-driven evolution queue (`#111`-`#113`) and privacy rule for derived user-intent signals only (`ROADMAP.md`, `STATUS.md`)
 - Locked signal-driven queue decisions: broad-source skill candidates with security validation gates, default-on signal capture with opt-out, and 90-day derived-signal retention (`ROADMAP.md`, `STATUS.md`, `#111`, `#112`, `#113`)
+- Refreshed roadmap/status to reflect dead-code/dead-artifact audit delivery and remaining stabilization merge order (`ROADMAP.md`, `STATUS.md`, `#105`)
 
 ### Planned
 - Additional resource documentation

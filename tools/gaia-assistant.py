@@ -3547,31 +3547,6 @@ def _format_expiry(credential: Dict[str, Any]) -> str:
         return "unknown"
 
 
-def _collect_provider_profiles(profiles: Dict[str, Any], provider: str) -> Dict[str, Dict[str, Any]]:
-    out: Dict[str, Dict[str, Any]] = {}
-    for profile_id, credential in profiles.items():
-        if not isinstance(credential, dict):
-            continue
-        if credential.get("provider") != provider:
-            continue
-        out[profile_id] = credential
-    return out
-
-
-def _pick_profile_id(profiles: Dict[str, Dict[str, Any]]) -> Optional[str]:
-    if not profiles:
-        return None
-
-    ranked: List[Tuple[int, int, str]] = []
-    for profile_id, credential in profiles.items():
-        expires = credential.get("expires")
-        exp = int(expires) if isinstance(expires, (int, float)) else 0
-        expired = 1 if _is_expired(credential) else 0
-        ranked.append((expired, -exp, profile_id))
-    ranked.sort()
-    return ranked[0][2]
-
-
 def _profile_id_for_credential(provider: str, credential: Dict[str, Any]) -> str:
     email = credential.get("email")
     if isinstance(email, str) and email.strip():

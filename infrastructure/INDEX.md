@@ -8,6 +8,7 @@ Technical foundations and operational guidance.
 
 - [Agent Execution Protocol](agent-execution-protocol.md) — Updated: February 13, 2026
 - [Assistant vs Framework Contributor Playbook](contributor-playbook.md) — Purpose
+- [Dead-Code and Dead-Artifact Audit - 2026-02-14 (`#105`)](dead-code-artifact-audit-2026-02-14.md) — Updated: February 14, 2026 Owner: Codex (`contributor` main role) Activated sub-roles: `gaia-researcher`, `gaia-technical-writer`
 - [Documentation Freshness Template](docs-freshness-template.md) — Updated: February 8, 2026
 - [Gaia Minds Architecture](architecture.md) — This document describes the technical architecture of the Gaia Minds project — how agents coordinate, how we store collective knowledge, and how we...
 - [Hypothesis Pipeline v1 Contract](hypothesis-pipeline-v1.md) — Updated: February 14, 2026
