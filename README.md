@@ -51,6 +51,7 @@ See `assistant/README.md` for full runtime and release docs.
 - Chat supports deterministic response profiles (`auto`, `concise`, `balanced`, `detailed`) with config + override selection
 - Memory summarization supports traceable profile-aware compaction via `gaia memory summarize`
 - Unmet-intent signal runtime supports privacy-preserving derived-signal extraction + skill-first triage (`gaia signals extract/list/triage/export/clear`) with default-on collection, explicit opt-out, 90-day retention, bounded local storage, and security-gated import-candidate routing
+- Hypothesis pipeline integrates derived signal+triage aggregates into deterministic candidate generation (`tools/hypothesis-pipeline.py signals-candidates`) with threshold gating, opt-out enforcement, and derived-signal-only redaction guards
 - Skills validation includes provenance admission controls for broad-source imports (`skills_provenance_mode`, `skills_attestation_mode`, `skills_source_health_mode`) with deterministic pass/warn/fail evidence in validation reports
 - Skills validation includes obfuscation-aware static analysis for encoded/hidden/split-token prompt-injection and sensitive-exfiltration directives, with detection-stage metadata in reports for explainability
 

@@ -17,6 +17,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Validation-aware skill matching and security-gate evidence in triage output (`rationale`, `follow_up_action`, `security_gate`, `matched_skill`, `class_summary`) with blocked paths for dangerous intents, forbidden capabilities, or failed validation evidence (`tools/gaia-assistant.py`, `#112`)
 - Deterministic triage fixture matrix + reusable check harness (`assistant/signal-triage-fixtures.json`, `tools/signal-triage-check.sh`) with smoke/UAT coverage and feature-governance mappings (`tools/smoke-test.sh`, `assistant/uat-scenarios.json`, `assistant/feature-catalog.json`, `#112`)
 - UAT governance change record for unmet-intent triage command-surface coverage (`docs/uat-changes/2026-02-14-signals-triage-surface.md`, `#112`)
+- Signal-derived hypothesis candidate generation flow in hypothesis pipeline (`tools/hypothesis-pipeline.py` `signals-candidates`) with deterministic threshold routing (`promote|hold|reject`) and triage-aware promotion classes (`#113`)
+- Opt-out and retention-window candidate controls honoring `signals.enabled` plus effective retention bounds, with derived-signal-only rejection for forbidden raw-text key classes (`#113`)
+- Optional promoted candidate hypothesis stub emission for downstream canary-gated pipeline use (`assistant/hypotheses/generated/*.json` via `--emit-hypotheses-dir`) (`#113`)
+- Deterministic signal-candidate fixture matrix + reusable check harness (`assistant/hypothesis-signal-candidate-fixtures.json`, `tools/hypothesis-signal-candidate-check.sh`, `make hypothesis-signals-candidate-fixture`) (`#113`)
+- Hypothesis pipeline CI coverage extension for signal-derived candidate generation fixture (`.github/workflows/hypothesis-pipeline.yml`, `#113`)
 - Skill provenance admission policy controls for validation workflow (`skills_provenance_mode`, `skills_attestation_mode`, `skills_source_health_mode`, `skills_source_health_min_score`) (`tools/gaia-assistant.py`, `#122`)
 - Deterministic provenance admission evidence in skill validation reports (`provenance_admission`) and `skills_validate` trace metadata (`tools/gaia-assistant.py`, `#122`)
 - Provenance fixture set for skill validation quality checks (`assistant/fixtures/skills/provenance-complete/*`, `assistant/fixtures/skills/provenance-missing/SKILL.md`, `assistant/fixtures/skills/manifest.json`, `#122`)
@@ -33,10 +38,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Follow-on hardening issue set seeded from `#115`: provenance admission gate (`#122`) and obfuscation-aware validator/fixture expansion (`#123`)
 
 ### Changed
+- Top-level roadmap/status state now marks `#113` delivered and the signal-driven follow-on queue complete pending next planning round (`STATUS.md`, `ROADMAP.md`)
 - Top-level roadmap/status state now marks `#123` delivered and advances signal-driven queue sequencing with `#112` triage delivery evidence (`STATUS.md`, `ROADMAP.md`)
 - Top-level roadmap/status state now marks `#122` delivered and advances active queue ownership to `#123` (`STATUS.md`, `ROADMAP.md`)
 - UAT policy checker now enforces command-path coverage across both assistant CLI sources after parser modularization (`tools/gaia-assistant.py` + `tools/gaia_assistant_parser.py`) (`tools/check-uat-policy.py`, `assistant/uat-policy.md`)
 - Assistant/runtime architecture docs now include unmet-intent skill-first triage behavior, triage artifact paths, and command usage updates (`README.md`, `assistant/README.md`, `infrastructure/architecture.md`, `#112`)
+- Hypothesis pipeline contract/docs now include signal-derived candidate integration, threshold semantics, and derived-signal-only guardrails (`assistant/README.md`, `assistant/hypotheses/README.md`, `infrastructure/hypothesis-pipeline-v1.md`, `infrastructure/architecture.md`, `#113`)
 
 ### Removed
 - _Nothing yet._

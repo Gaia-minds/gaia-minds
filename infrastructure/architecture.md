@@ -977,6 +977,60 @@ Lane: `Skill-first triage for unmet-intent signals` (`#112`)
 - Updated UAT feature-governance mapping:
   - `signals triage`
 
+## Phase 3 Delta: Signal-Derived Hypothesis Candidate Integration (2026-02-14)
+
+Lane: `Integrate unmet-intent signals into hypothesis candidate generation`
+(`#113`)
+
+### Runtime integration surface
+
+- Extended `tools/hypothesis-pipeline.py` with:
+  - `signals-candidates`
+- Candidate generation consumes only derived local artifacts:
+  - `~/.gaia-assistant/data/unmet-intent-signals.json`
+  - `~/.gaia-assistant/data/unmet-intent-signal-triage.json`
+- Generated candidate artifact path (repo-local default):
+  - `assistant/hypotheses/signal-candidates.json`
+- Optional promoted hypothesis stub emission:
+  - `assistant/hypotheses/generated/*.json`
+
+### Candidate contract and thresholds
+
+- Deterministic candidate status model:
+  - `promote`
+  - `hold`
+  - `reject`
+- Promotion is allowed only for triage classes:
+  - `existing-skill-enable`
+  - `skill-import-candidate`
+  - `core-feature-gap`
+- Deterministic promotion gates:
+  - minimum signal count
+  - minimum confidence
+  - recency bound (`age_days`) constrained by effective retention window
+  - maximum candidate cap
+
+### Privacy and governance guardrails
+
+- Opt-out enforcement:
+  - if `signals.enabled=false`, candidate generation is suggestion-only with no
+    promoted candidates.
+- Derived-signal-only enforcement:
+  - forbidden raw-text key classes (`raw_text`, `transcript`, `messages`,
+    etc.) cause candidate rejection.
+- Promoted stubs remain gate-controlled by existing hypothesis pipeline canary
+  and rollback evidence contracts (`go|hold|rollback-required` remains unchanged
+  in evaluation path).
+
+### Deterministic quality coverage
+
+- Added candidate-generation fixture matrix:
+  - `assistant/hypothesis-signal-candidate-fixtures.json`
+- Added reusable deterministic candidate check harness:
+  - `tools/hypothesis-signal-candidate-check.sh`
+- Added CI fixture step in hypothesis workflow:
+  - `.github/workflows/hypothesis-pipeline.yml`
+
 ## Phase 3 Delta: Skill Provenance Admission Gate (2026-02-14)
 
 Lane: `Provenance admission gate for broad-source skill imports` (`#122`)

@@ -229,6 +229,9 @@ make hypothesis-hold-fixture
 
 # run failure fixture (expected non-zero, includes rollback recommendation)
 make hypothesis-failure-fixture
+
+# run signal-derived candidate generation fixture checks
+make hypothesis-signals-candidate-fixture
 ```
 
 Artifacts:
@@ -237,10 +240,22 @@ Artifacts:
 - Pipeline tool: `tools/hypothesis-pipeline.py`
 - Evidence output: `assistant/hypothesis-evals/<hypothesis-id>/<run-id>/`
 - Canary decision evidence: `evaluation-report.json` -> `canary_decision` (`go` | `hold` | `rollback-required`)
+- Signal-derived candidate artifact: `assistant/hypotheses/signal-candidates.json`
 - Contract docs: `infrastructure/hypothesis-pipeline-v1.md`
 
 `make hypothesis-*` commands write to `/tmp/gaia-hypothesis-evals` by default.
 Override with `HYPOTHESIS_OUTPUT_ROOT=<path>` if you want repo-local artifacts.
+
+Candidate generation command:
+
+```bash
+python3 tools/hypothesis-pipeline.py signals-candidates \
+  --signals-ledger ~/.gaia-assistant/data/unmet-intent-signals.json \
+  --triage-ledger ~/.gaia-assistant/data/unmet-intent-signal-triage.json \
+  --output assistant/hypotheses/signal-candidates.json \
+  --emit-hypotheses-dir assistant/hypotheses/generated \
+  --json
+```
 
 ## Reliability Checkpoint (Phase 3)
 

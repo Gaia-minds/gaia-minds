@@ -50,7 +50,8 @@ See `ROADMAP.md` for full phase details and exit criteria.
 - `Phase 3 Skill-Import Security Research` - continuous security-validation synthesis for broad-source skill imports with execution-ready hardening lanes seeded (`#115`, PR `#124`)
 - `Phase 3 Skill Provenance Admission Gate` - deterministic source pin/attestation/source-health policy checks for `gaia skills validate` with pass/warn/fail regression coverage (`#122`, PR `#125`)
 - `Phase 3 Obfuscation-Aware Skill Validation Hardening` - canonicalization-aware blocking for encoded/hidden/split-token prompt-injection and sensitive-exfiltration payloads with deterministic fixture/smoke/UAT coverage (`#123`, PR `#126`)
-- `Phase 3 Skill-First Unmet-Intent Triage` - deterministic `gaia signals triage` classification (`existing-skill-enable` / `skill-import-candidate` / `core-feature-gap` / `out-of-scope-or-rejected`) with security-gated import-candidate routing and validation-aware skill enablement (`#112`, PR pending)
+- `Phase 3 Skill-First Unmet-Intent Triage` - deterministic `gaia signals triage` classification (`existing-skill-enable` / `skill-import-candidate` / `core-feature-gap` / `out-of-scope-or-rejected`) with security-gated import-candidate routing and validation-aware skill enablement (`#112`, PR `#127`)
+- `Phase 3 Signal-Derived Hypothesis Candidate Integration` - deterministic signal+triage threshold routing into hypothesis candidate artifacts with opt-out enforcement, derived-signal-only guardrails, and promoted candidate stub generation for canary-gated hypothesis pipeline flow (`#113`, PR pending)
 
 ## In Progress
 
@@ -58,11 +59,11 @@ _Nothing currently in progress._
 
 ## Next Up (Post-Phase-3 Delivery Queue)
 
-_Signal-driven follow-on queue continues with `#113` after `#112` merge._
+_No queued signal-driven follow-on lanes. Awaiting next planning round._
 
 ## Planned Next Wave (Signal-Driven Evolution Follow-On)
 
-- `#113` `[Phase 3][Framework]` Integrate unmet-intent signals into hypothesis candidate generation (depends on `#111` + `#112`)
+_No queued items._
 
 ## Blocked
 

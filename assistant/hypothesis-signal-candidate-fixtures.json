@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "suite": "gaia-hypothesis-signal-candidates",
+  "now": "2026-02-14T00:00:00+00:00",
+  "thresholds": {
+    "min_count": 2,
+    "min_confidence": 0.65,
+    "max_age_days": 90,
+    "max_candidates": 10
+  },
+  "signals_ledger": {
+    "schema_version": 1,
+    "generated_at": "2026-02-14T00:00:00+00:00",
+    "collection_enabled": true,
+    "retention_days": 90,
+    "max_records": 300,
+    "signal_count": 5,
+    "signals": [
+      {
+        "signal_id": "sig-promote",
+        "signal_type": "feedback_correction_pattern",
+        "intent_tag": "response_quality.concise_bullets",
+        "confidence": 0.82,
+        "count": 5,
+        "first_seen_at": "2026-02-10T00:00:00+00:00",
+        "last_seen_at": "2026-02-13T20:00:00+00:00",
+        "source_event_count": 7
+      },
+      {
+        "signal_id": "sig-hold-confidence",
+        "signal_type": "command_failure",
+        "intent_tag": "command.workflow_automation_gap",
+        "confidence": 0.44,
+        "count": 6,
+        "first_seen_at": "2026-02-10T00:00:00+00:00",
+        "last_seen_at": "2026-02-13T20:00:00+00:00",
+        "source_event_count": 6
+      },
+      {
+        "signal_id": "sig-hold-recency",
+        "signal_type": "command_failure",
+        "intent_tag": "skills.enable_existing_reader",
+        "confidence": 0.78,
+        "count": 4,
+        "first_seen_at": "2025-08-01T00:00:00+00:00",
+        "last_seen_at": "2025-08-01T00:00:00+00:00",
+        "source_event_count": 4
+      },
+      {
+        "signal_id": "sig-reject-class",
+        "signal_type": "command_failure",
+        "intent_tag": "skills.unsafe_payload_attempt",
+        "confidence": 0.91,
+        "count": 9,
+        "first_seen_at": "2026-02-12T00:00:00+00:00",
+        "last_seen_at": "2026-02-13T22:00:00+00:00",
+        "source_event_count": 10
+      },
+      {
+        "signal_id": "sig-redaction-block",
+        "signal_type": "command_failure",
+        "intent_tag": "command.pipeline_builder_needed",
+        "confidence": 0.88,
+        "count": 5,
+        "first_seen_at": "2026-02-12T00:00:00+00:00",
+        "last_seen_at": "2026-02-13T22:00:00+00:00",
+        "source_event_count": 5,
+        "raw_text": "THIS_SHOULD_NEVER_BE_ALLOWED"
+      }
+    ]
+  },
+  "triage_ledger": {
+    "schema_version": 1,
+    "generated_at": "2026-02-14T00:00:00+00:00",
+    "source_signal_count": 5,
+    "triage_count": 5,
+    "class_summary": {
+      "existing-skill-enable": 1,
+      "skill-import-candidate": 2,
+      "core-feature-gap": 1,
+      "out-of-scope-or-rejected": 1
+    },
+    "items": [
+      {
+        "signal_id": "sig-promote",
+        "triage_class": "core-feature-gap",
+        "triage_confidence": 0.88,
+        "follow_up_action": "open_core_feature_followup"
+      },
+      {
+        "signal_id": "sig-hold-confidence",
+        "triage_class": "skill-import-candidate",
+        "triage_confidence": 0.63,
+        "follow_up_action": "source_and_validate_skill_candidate"
+      },
+      {
+        "signal_id": "sig-hold-recency",
+        "triage_class": "existing-skill-enable",
+        "triage_confidence": 0.74,
+        "follow_up_action": "enable_skill:local:reader"
+      },
+      {
+        "signal_id": "sig-reject-class",
+        "triage_class": "out-of-scope-or-rejected",
+        "triage_confidence": 0.95,
+        "follow_up_action": "reject_unsafe_request"
+      },
+      {
+        "signal_id": "sig-redaction-block",
+        "triage_class": "skill-import-candidate",
+        "triage_confidence": 0.81,
+        "follow_up_action": "source_and_validate_skill_candidate"
+      }
+    ]
+  },
+  "expectations": {
+    "status_by_signal": {
+      "sig-promote": "promote",
+      "sig-hold-confidence": "hold",
+      "sig-hold-recency": "hold",
+      "sig-reject-class": "reject",
+      "sig-redaction-block": "reject"
+    },
+    "promoted_signal_ids": [
+      "sig-promote"
+    ],
+    "promoted_count": 1,
+    "held_count": 2,
+    "rejected_count": 2,
+    "opt_out_promoted_count": 0
+  }
+}
