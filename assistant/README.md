@@ -542,12 +542,26 @@ Policy traces:
 
 ## Budget Policy
 
-Default budget split:
+Default budget split and enforcement:
 
 - User service: `80%`
 - Self-improvement: `20%`
+- Hard cycle token cap: `12000`
+- Hard window token cap: `60000` (`daily_utc` window)
+- Warning threshold: `80%`
+- Breach action: `block` (`warn` and `defer` are also supported)
 
-Adjust in `tools/agent-config.yml` under `budget`.
+Adjust in `tools/agent-config.yml` under `budget`, including:
+
+- global caps (`hard_cycle_token_cap`, `hard_window_token_cap`)
+- per-track caps (`track_cycle_token_cap.*`, `track_window_token_cap.*`)
+- reset window (`window`)
+- breach behavior (`breach_action`)
+
+Budget decision traces are written to:
+
+- `tools/agent-memory/budget-decisions.jsonl`
+- `tools/agent-memory/state.json` (`last_budget_decision`, `budget_runtime`)
 
 ## Auth Notes
 

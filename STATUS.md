@@ -42,15 +42,16 @@ See `ROADMAP.md` for full phase details and exit criteria.
 
 ## In Progress
 
-_Nothing currently in progress._
+- `#95` (`framework-track`) - Hard token-budget enforcement per cycle and track
+  - Owner: `codex-gpt5` (main role: `contributor`)
+  - Activated sub-roles: `gaia-security-reviewer`, `gaia-qa-evaluator`, `gaia-technical-writer`
+  - Scope: deterministic per-cycle/per-track token budget gate with policy-governed `warn|defer|block` decisions and trace evidence
 
 ## Next Up (Kickoff Queue)
 
-1. `#95` (`framework-track`) - Hard token-budget enforcement per cycle and track
-   - Recommended owner role: contributor + `gaia-security-reviewer` + `gaia-qa-evaluator`
-2. `#96` (`assistant-track`) - Feedback loop capture and correction records
+1. `#96` (`assistant-track`) - Feedback loop capture and correction records
    - Recommended owner role: contributor + `gaia-technical-writer`
-3. `#97` (`assistant-track`) - Personalized response profiles and memory summarization
+2. `#97` (`assistant-track`) - Personalized response profiles and memory summarization
    - Dependency: after `#96`
 
 ## Blocked

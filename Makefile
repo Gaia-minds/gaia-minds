@@ -1,7 +1,8 @@
-.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy quality-matrix compatibility-matrix benchmark memory-benchmark memory-quality benchmark-trend hypothesis-validate hypothesis-run hypothesis-dry-run hypothesis-hold-fixture hypothesis-failure-fixture reliability-checkpoint reliability-checkpoint-check reliability-checkpoint-simulate-breach reliability-drift reliability-drift-check reliability-drift-simulate hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
+.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy quality-matrix compatibility-matrix benchmark memory-benchmark memory-quality benchmark-trend hypothesis-validate hypothesis-run hypothesis-dry-run hypothesis-hold-fixture hypothesis-failure-fixture token-budget-fixtures reliability-checkpoint reliability-checkpoint-check reliability-checkpoint-simulate-breach reliability-drift reliability-drift-check reliability-drift-simulate hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
 
 HYPOTHESIS_OUTPUT_ROOT ?= /tmp/gaia-hypothesis-evals
 RELIABILITY_CHECKPOINT_ROOT ?= /tmp/gaia-reliability-checkpoints
+TOKEN_BUDGET_FIXTURE_OUTPUT ?= /tmp/gaia-token-budget-fixture-results.json
 
 docs-check:
 	./tools/validate-docs.sh
@@ -60,6 +61,9 @@ hypothesis-hold-fixture:
 
 hypothesis-failure-fixture:
 	python3 ./tools/hypothesis-pipeline.py run --hypothesis ./assistant/hypotheses/phase3-hypothesis-pipeline-v1-failure-fixture.json --output-root "$(HYPOTHESIS_OUTPUT_ROOT)" --run-id failure-fixture --dry-run
+
+token-budget-fixtures:
+	python3 ./tools/token-budget-fixtures.py --fixtures ./assistant/token-budget-fixtures.json --json-out "$(TOKEN_BUDGET_FIXTURE_OUTPUT)" --check
 
 reliability-checkpoint:
 	python3 ./tools/reliability-checkpoint.py --baseline-config ./assistant/reliability-baseline-phase3.json --output-root "$(RELIABILITY_CHECKPOINT_ROOT)" --run-id latest

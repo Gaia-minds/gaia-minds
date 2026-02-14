@@ -699,6 +699,49 @@ Lane: `Canary gate for hypothesis rollout decisions` (`#94`)
 - Added local command target for hold fixture:
   `make hypothesis-hold-fixture`.
 
+## Phase 3 Delta: Token Budget Enforcement (2026-02-14)
+
+Lane: `Hard token-budget enforcement per cycle and track` (`#95`)
+
+### Runtime policy contract changes
+
+- Extended budget policy contract in `tools/agent-config.yml` with explicit:
+  - global caps: `hard_cycle_token_cap`, `hard_window_token_cap`
+  - per-track caps: `track_cycle_token_cap.*`, `track_window_token_cap.*`
+  - reset window: `window` (`hourly_utc|daily_utc|weekly_utc`)
+  - warning threshold: `warning_threshold_pct`
+  - breach action: `breach_action` (`warn|defer|block`)
+  - deterministic estimate control: `estimated_tokens_per_action`
+- Added startup validation gate in `tools/agent-loop.py` so invalid budget
+  contracts fail fast before cycle execution.
+
+### Enforcement + trace changes
+
+- Added deterministic pre-execution budget gate in `tools/agent-loop.py` with
+  decisions:
+  - `allow`
+  - `warn`
+  - `defer`
+  - `block`
+- Enforcement evaluates both per-cycle and window-projected usage against global
+  and active-track limits before action execution.
+- Added structured budget-decision trace artifact:
+  - `tools/agent-memory/budget-decisions.jsonl`
+- Added state payload fields for observability:
+  - `state.json.last_budget_decision`
+  - `state.json.budget_runtime` (window key + per-track totals)
+
+### Deterministic regression coverage
+
+- Added fixture contract:
+  `assistant/token-budget-fixtures.json`
+- Added deterministic fixture runner:
+  `tools/token-budget-fixtures.py`
+- Added local command target:
+  `make token-budget-fixtures`
+- Added CI gate:
+  `.github/workflows/token-budget-enforcement.yml`
+
 ---
 
 ## Open Technical Questions
