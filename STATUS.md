@@ -38,13 +38,11 @@ See `ROADMAP.md` for full phase details and exit criteria.
 - `Phase 3 Hypothesis Pipeline v1` - deterministic proposal -> eval -> evidence workflow (`#86`, PR #90)
 - `Phase 3 Reliability Baseline Checkpoint` - baseline thresholds + checkpoint tooling + triage workflow (`#87`, PR #91)
 - `Phase 3 Drift Detection` - deterministic checkpoint-history drift report + CI gate + triage linkage (`#93`)
+- `Phase 3 Canary Rollout Gate` - deterministic hypothesis rollout decision contract (`go|hold|rollback-required`) with CI fixture coverage (`#94`, PR #100)
 
 ## In Progress
 
-- `#94` (`framework-track`) - Canary gate for hypothesis rollout decisions
-  - Owner: `codex-gpt5` (main role: `contributor`)
-  - Activated sub-roles: `gaia-qa-evaluator`, `gaia-release-manager`, `gaia-technical-writer`
-  - Scope: deterministic canary decision evidence (`go|hold|rollback-required`) in hypothesis pipeline artifacts and CI fixtures
+_Nothing currently in progress._
 
 ## Next Up (Kickoff Queue)
 
