@@ -12,7 +12,7 @@ Updated: 2026-02-15
 
 | Scenario | Expected | Actual | Status |
 | --- | --- | --- | --- |
-| Delegation decision thresholds (`low`/`medium`/`high`/`critical`) | deterministic `delegate|confirm|fallback|deny` routing at boundary values | fixture suite passed all boundary cases (`tools/delegation-contract-check.sh`, 14/14) | Pass |
+| Delegation decision thresholds (`low`/`medium`/`high`/`critical`) | deterministic `delegate`, `confirm`, `fallback`, and `deny` routing at boundary values | fixture suite passed all boundary cases (`tools/delegation-contract-check.sh`, 14/14) | Pass |
 | Safety overrides: missing capability, policy deny, escalation approval missing, specialist ambiguity | non-bypass safety routing (`deny` or `fallback`) | fixture suite asserts each override path and expected fallback strategy | Pass |
 | Trace metadata contract | decision traces include `decision_reason` + `fallback_strategy` plus correlation metadata | fixture harness validates metadata presence on every emitted `delegation_decision` trace | Pass |
 | Smoke regression | full smoke suite remains green after new lane additions | `make test-smoke` passed `28/28` including `delegation_contract_v1_matrix` | Pass |
