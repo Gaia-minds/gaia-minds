@@ -4570,6 +4570,16 @@ def _fetch_openrouter_free_models(api_key: str) -> List[str]:
     return _dedupe_models(sorted(free))
 
 
+def _provider_catalog_api_key_env_var(provider: str) -> str:
+    return {
+        "openrouter": "OPENROUTER_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "openai-codex": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+        "claude-code": "ANTHROPIC_API_KEY",
+    }.get(provider, "")
+
+
 def _seed_api_key_for_provider(
     cfg_path: Path,
     provider: str,
@@ -4579,13 +4589,7 @@ def _seed_api_key_for_provider(
     provided = explicit_api_key.strip() if isinstance(explicit_api_key, str) else ""
     if provided:
         return provided
-    env_var = {
-        "openrouter": "OPENROUTER_API_KEY",
-        "openai": "OPENAI_API_KEY",
-        "openai-codex": "OPENAI_API_KEY",
-        "anthropic": "ANTHROPIC_API_KEY",
-        "claude-code": "ANTHROPIC_API_KEY",
-    }.get(provider, "")
+    env_var = _provider_catalog_api_key_env_var(provider)
     if not env_var:
         return ""
     env_value = os.environ.get(env_var, "").strip()
@@ -4629,6 +4633,56 @@ def _provider_model_catalog(provider: str, api_key: str) -> Tuple[List[str], str
     return fallback, "curated catalog"
 
 
+def _provider_model_catalog_snapshot(
+    provider: str,
+    *,
+    cfg_path: Path,
+    explicit_api_key: Optional[str],
+    secret_store_override: Optional[str],
+) -> Dict[str, Any]:
+    seed_key = _seed_api_key_for_provider(
+        cfg_path=cfg_path,
+        provider=provider,
+        explicit_api_key=explicit_api_key,
+        secret_store_override=secret_store_override,
+    )
+    catalog, source_detail = _provider_model_catalog(provider, seed_key)
+    source = "live" if source_detail.startswith("live") else "curated"
+    default_model = _default_model_for_provider(provider)
+    ordered_models = _dedupe_models([default_model, *catalog], limit=PROVIDER_MODEL_CATALOG_LIMIT)
+    fallback_reason = ""
+    guidance = ""
+
+    if source != "live":
+        env_var = _provider_catalog_api_key_env_var(provider)
+        if seed_key:
+            fallback_reason = "live_catalog_unavailable"
+            guidance = (
+                "Live catalog request failed or returned no eligible models. "
+                "Check credential scope, quota, and network connectivity."
+            )
+        else:
+            fallback_reason = "missing_credentials"
+            if env_var:
+                guidance = (
+                    f"No API key detected for live catalog discovery. "
+                    f"Set {env_var} or pass --api-key with --provider."
+                )
+            else:
+                guidance = "No live-catalog credential path is configured for this provider."
+
+    return {
+        "provider": provider,
+        "provider_display_name": PROVIDER_DISPLAY_NAMES.get(provider, provider),
+        "source": source,
+        "source_detail": source_detail,
+        "fallback_reason": fallback_reason,
+        "guidance": guidance,
+        "default_model": default_model,
+        "models": ordered_models,
+    }
+
+
 def _select_provider_model(
     provider: str,
     *,
@@ -4641,14 +4695,15 @@ def _select_provider_model(
     if explicit_model and explicit_model.strip():
         return explicit_model.strip()
 
-    default_model = _default_model_for_provider(provider)
-    seed_key = _seed_api_key_for_provider(
+    snapshot = _provider_model_catalog_snapshot(
+        provider,
         cfg_path=cfg_path,
-        provider=provider,
         explicit_api_key=explicit_api_key,
         secret_store_override=secret_store_override,
     )
-    catalog, source = _provider_model_catalog(provider, seed_key)
+    default_model = str(snapshot.get("default_model", _default_model_for_provider(provider)))
+    catalog = [str(item).strip() for item in snapshot.get("models", []) if str(item).strip()]
+    source = str(snapshot.get("source_detail", "curated catalog"))
 
     if source.startswith("live"):
         print(f"[ok] loaded provider model catalog ({source})")
@@ -4908,6 +4963,59 @@ def _linked_openai_oauth_access_token(cfg: Dict[str, Any]) -> Tuple[str, str]:
 
 def _provider_runtime_dependency_issue(provider: str, env: Dict[str, str]) -> Optional[str]:
     return onboarding.provider_runtime_dependency_issue(provider, env)
+
+
+def cmd_models_list(args: argparse.Namespace) -> int:
+    cfg_path = Path(args.config).expanduser()
+    provider_filter = str(args.provider).strip() if isinstance(args.provider, str) else ""
+    explicit_api_key = str(args.api_key).strip() if isinstance(args.api_key, str) else ""
+    if explicit_api_key and not provider_filter:
+        print("--api-key requires --provider to disambiguate target catalog.", file=sys.stderr)
+        return 1
+
+    providers = [provider_filter] if provider_filter else list(ONBOARD_PROVIDER_CHOICES)
+    payload: List[Dict[str, Any]] = []
+    for provider in providers:
+        snapshot = _provider_model_catalog_snapshot(
+            provider,
+            cfg_path=cfg_path,
+            explicit_api_key=explicit_api_key if provider == provider_filter else None,
+            secret_store_override=args.secret_store,
+        )
+        payload.append(snapshot)
+
+    if args.as_json:
+        if provider_filter and payload:
+            print(json.dumps(payload[0], indent=2))
+        else:
+            print(json.dumps({"providers": payload}, indent=2))
+        return 0
+
+    print("Provider model catalogs")
+    print("=======================")
+    for idx, entry in enumerate(payload):
+        if idx:
+            print("")
+        provider = str(entry.get("provider", ""))
+        provider_label = str(entry.get("provider_display_name", provider))
+        source = str(entry.get("source", "curated"))
+        source_detail = str(entry.get("source_detail", "curated catalog"))
+        fallback_reason = str(entry.get("fallback_reason", "")).strip()
+        guidance = str(entry.get("guidance", "")).strip()
+        default_model = str(entry.get("default_model", "")).strip()
+        models = [str(item).strip() for item in entry.get("models", []) if str(item).strip()]
+
+        print(f"provider: {provider} ({provider_label})")
+        print(f"source:   {source} ({source_detail})")
+        if fallback_reason:
+            print(f"reason:   {fallback_reason}")
+        if guidance:
+            print(f"guidance: {guidance}")
+        print("models:")
+        for model in models:
+            marker = " (recommended)" if model == default_model else ""
+            print(f"  - {model}{marker}")
+    return 0
 
 
 def cmd_init(args: argparse.Namespace) -> int:
