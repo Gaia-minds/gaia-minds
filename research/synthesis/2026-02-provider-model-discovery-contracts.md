@@ -23,13 +23,12 @@ Go decision:
 
 Primary docs and references:
 
-- OpenAI Models API (`GET /v1/models`): https://platform.openai.com/docs/api-reference/models/list
-- OpenAI API errors: https://platform.openai.com/docs/guides/error-codes/api-errors
+- OpenAI OpenAPI spec (`/models` list operation in `manual_spec` branch): https://raw.githubusercontent.com/openai/openai-openapi/manual_spec/openapi.yaml
 - Anthropic Models API (`GET /v1/models`): https://docs.anthropic.com/en/api/models-list
 - Anthropic API errors: https://docs.anthropic.com/en/api/errors
-- OpenRouter Models API (`GET /api/v1/models`): https://openrouter.ai/docs/api-reference/list-available-models
-- OpenRouter available-for-user catalog endpoint: https://openrouter.ai/docs/api-reference/list-available-models-for-a-user
-- OpenRouter errors and diagnostics: https://openrouter.ai/docs/api-reference/errors
+- OpenRouter Models API (`GET /api/v1/models`): https://openrouter.ai/docs/api-reference/models/list-available-models
+- OpenRouter available-for-user catalog endpoint: https://openrouter.ai/docs/api-reference/models/list-endpoint-for-models-available-for-your-account
+- OpenRouter errors and diagnostics: https://openrouter.ai/docs/api-reference/errors-and-debugging
 - Claude Code CLI model settings and aliases: https://docs.anthropic.com/en/docs/claude-code/settings
 - Claude Code CLI reference (`--model`, `--effort`): https://docs.anthropic.com/en/docs/claude-code/cli-reference
 - OpenAI Codex CLI command-line options: https://developers.openai.com/codex/cli#command-line-options
