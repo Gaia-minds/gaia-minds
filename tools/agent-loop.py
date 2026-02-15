@@ -130,6 +130,8 @@ DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
 DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
 DEFAULT_OPENROUTER_MODEL = "openrouter/auto"
 SUPPORTED_REASONING_PROVIDERS = {"anthropic", "openai", "openrouter"}
+DEFAULT_REASONING_FAILOVER_ORDER = ("openai", "openrouter", "anthropic")
+DEFAULT_REASONING_FAILOVER_ERROR_CLASSES = ("quota", "auth")
 
 
 # ---------------------------------------------------------------------------
@@ -335,6 +337,139 @@ def _resolve_openrouter_runtime(config: Dict[str, Any]) -> Dict[str, Any]:
         "app_url": app_url,
         "timeout_seconds": timeout_seconds,
     }
+
+
+def _parse_bool_default(value: Any, default_value: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    token = str(value).strip().lower()
+    if token in {"1", "true", "yes", "on", "enabled"}:
+        return True
+    if token in {"0", "false", "no", "off", "disabled"}:
+        return False
+    return default_value
+
+
+def _resolve_reasoning_failover_policy(config: Dict[str, Any], primary_provider: str) -> Dict[str, Any]:
+    reasoning = config.get("reasoning", {})
+    reasoning = reasoning if isinstance(reasoning, dict) else {}
+    failover_cfg = reasoning.get("failover", {})
+    failover_cfg = failover_cfg if isinstance(failover_cfg, dict) else {}
+
+    enabled_default = _parse_bool_default(failover_cfg.get("enabled", True), True)
+    enabled = _parse_bool_default(os.environ.get("GAIA_REASONING_FAILOVER_ENABLED", ""), enabled_default)
+
+    classes_override = os.environ.get("GAIA_REASONING_FAILOVER_HARD_ERRORS", "").strip()
+    classes_raw: Any = classes_override if classes_override else failover_cfg.get(
+        "hard_error_classes",
+        list(DEFAULT_REASONING_FAILOVER_ERROR_CLASSES),
+    )
+    if isinstance(classes_raw, str):
+        class_tokens = [token.strip().lower() for token in classes_raw.split(",")]
+    elif isinstance(classes_raw, list):
+        class_tokens = [str(token).strip().lower() for token in classes_raw]
+    else:
+        class_tokens = list(DEFAULT_REASONING_FAILOVER_ERROR_CLASSES)
+    hard_error_classes: List[str] = []
+    for token in class_tokens:
+        if token in DEFAULT_REASONING_FAILOVER_ERROR_CLASSES and token not in hard_error_classes:
+            hard_error_classes.append(token)
+    if not hard_error_classes:
+        hard_error_classes = list(DEFAULT_REASONING_FAILOVER_ERROR_CLASSES)
+
+    order_override = os.environ.get("GAIA_REASONING_FAILOVER_ORDER", "").strip()
+    order_raw: Any = order_override if order_override else failover_cfg.get("order", list(DEFAULT_REASONING_FAILOVER_ORDER))
+    if isinstance(order_raw, str):
+        order_tokens = [token.strip().lower() for token in order_raw.split(",")]
+    elif isinstance(order_raw, list):
+        order_tokens = [str(token).strip().lower() for token in order_raw]
+    else:
+        order_tokens = list(DEFAULT_REASONING_FAILOVER_ORDER)
+    order: List[str] = []
+    for token in order_tokens:
+        if token in SUPPORTED_REASONING_PROVIDERS and token != primary_provider and token not in order:
+            order.append(token)
+
+    models_raw = failover_cfg.get("models", {})
+    models_raw = models_raw if isinstance(models_raw, dict) else {}
+    models: Dict[str, str] = {}
+    for provider in SUPPORTED_REASONING_PROVIDERS:
+        value = str(models_raw.get(provider, "")).strip()
+        if value:
+            models[provider] = value
+    models_override = os.environ.get("GAIA_REASONING_FAILOVER_MODELS", "").strip()
+    if models_override:
+        for token in models_override.split(","):
+            item = token.strip()
+            if not item or "=" not in item:
+                continue
+            provider, model = item.split("=", 1)
+            provider = provider.strip().lower()
+            model = model.strip()
+            if provider in SUPPORTED_REASONING_PROVIDERS and model:
+                models[provider] = model
+
+    return {
+        "enabled": enabled,
+        "hard_error_classes": hard_error_classes,
+        "order": order,
+        "models": models,
+    }
+
+
+def _classify_reasoning_error(error_text: str) -> str:
+    normalized = str(error_text).strip().lower()
+    if not normalized:
+        return "other"
+    quota_markers = (
+        "insufficient_quota",
+        "rate limit",
+        "quota",
+        "billing",
+        "http 429",
+    )
+    if any(marker in normalized for marker in quota_markers):
+        return "quota"
+    auth_markers = (
+        "http 401",
+        "http 403",
+        "unauthorized",
+        "forbidden",
+        "authentication",
+        "invalid api key",
+        "api key is not set",
+        "permission denied",
+    )
+    if any(marker in normalized for marker in auth_markers):
+        return "auth"
+    return "other"
+
+
+def _initialize_reasoning_client(
+    config: Dict[str, Any],
+    provider: str,
+    *,
+    model_override: str = "",
+) -> Tuple[Any, str, str]:
+    model = model_override.strip() or _resolve_reasoning_model(config, provider)
+    if provider == "anthropic":
+        if not _HAS_ANTHROPIC:
+            return None, model, "anthropic-package"
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+        if not api_key:
+            return None, model, "anthropic-key"
+        return anthropic.Anthropic(api_key=api_key), model, ""
+    if provider == "openai":
+        runtime = _resolve_openai_runtime(config)
+        if not runtime.get("api_key"):
+            return None, model, "openai-key"
+        return runtime, model, ""
+    if provider == "openrouter":
+        runtime = _resolve_openrouter_runtime(config)
+        if not runtime.get("api_key"):
+            return None, model, "openrouter-key"
+        return runtime, model, ""
+    return None, model, "unsupported-provider"
 
 
 # ---------------------------------------------------------------------------
@@ -1335,8 +1470,15 @@ def ask_model_for_plan(
         else:
             raise RuntimeError(f"Unsupported reasoning provider: {provider}")
     except Exception as exc:
+        error_text = str(exc)
+        error_class = _classify_reasoning_error(error_text)
         log.error("Reasoning request failed (%s/%s): %s", provider, model, exc)
-        return {"reasoning": f"Reasoning request failed: {exc}", "actions": []}
+        return {
+            "reasoning": f"Reasoning request failed: {exc}",
+            "actions": [],
+            "_reasoning_error": error_text,
+            "_reasoning_error_class": error_class,
+        }
 
     # Parse JSON from response text.
     text = _strip_markdown_fences(text)
@@ -1402,17 +1544,33 @@ def run_cycle(
     constitution = load_constitution(repo_root)
 
     # 4. Ask reasoning provider for a plan
+    failover_policy = _resolve_reasoning_failover_policy(config, reasoning_provider)
+    hard_error_classes = set(failover_policy.get("hard_error_classes", []))
+    failover_order = list(failover_policy.get("order", []))
+    failover_models = failover_policy.get("models", {})
+    failover_models = failover_models if isinstance(failover_models, dict) else {}
+    log.info(
+        "Reasoning failover policy: enabled=%s hard_errors=%s order=%s",
+        bool(failover_policy.get("enabled", False)),
+        ",".join(sorted(hard_error_classes)) or "(none)",
+        ",".join(failover_order) or "(none)",
+    )
+
+    failover_attempts: List[Dict[str, str]] = []
+    selected_provider = reasoning_provider
+    selected_model = reasoning_model
+
     if client is None:
         log.info(
-            "No API client available for provider '%s' -- skipping reasoning (dry-run)",
+            "No API client available for provider '%s' -- proceeding with failover policy evaluation",
             reasoning_provider,
         )
+        primary_error = f"No API client available for provider '{reasoning_provider}'"
         plan = {
-            "reasoning": (
-                f"No API client (dry-run without provider credentials), "
-                f"provider={reasoning_provider}, active_track={active_track}"
-            ),
+            "reasoning": f"Reasoning request failed: {primary_error}",
             "actions": [],
+            "_reasoning_error": primary_error,
+            "_reasoning_error_class": "auth",
         }
     else:
         plan = ask_model_for_plan(
@@ -1424,6 +1582,114 @@ def run_cycle(
             active_track=active_track,
             provider=reasoning_provider,
             model=reasoning_model,
+        )
+
+    primary_error = str(plan.get("_reasoning_error", "")).strip()
+    primary_error_class = str(plan.get("_reasoning_error_class", "other")).strip().lower()
+    if primary_error:
+        if dry_run:
+            log.info("Dry-run mode: skipping runtime failover after error class=%s", primary_error_class)
+        elif bool(failover_policy.get("enabled", False)) and primary_error_class in hard_error_classes:
+            log.warning(
+                "Reasoning failover triggered: provider=%s model=%s class=%s error=%s",
+                reasoning_provider,
+                reasoning_model,
+                primary_error_class,
+                primary_error,
+            )
+            for fallback_provider in failover_order:
+                model_override = str(failover_models.get(fallback_provider, "")).strip()
+                fallback_client, fallback_model, init_issue = _initialize_reasoning_client(
+                    config,
+                    fallback_provider,
+                    model_override=model_override,
+                )
+                attempt: Dict[str, str] = {
+                    "provider": fallback_provider,
+                    "model": fallback_model,
+                }
+                if fallback_client is None:
+                    attempt["outcome"] = "skipped"
+                    attempt["reason"] = init_issue or "client-unavailable"
+                    failover_attempts.append(attempt)
+                    log.warning(
+                        "Reasoning failover skipped %s/%s: %s",
+                        fallback_provider,
+                        fallback_model,
+                        init_issue or "client-unavailable",
+                    )
+                    continue
+
+                fallback_plan = ask_model_for_plan(
+                    client=fallback_client,
+                    config=config,
+                    state=state,
+                    memory=memory,
+                    constitution=constitution,
+                    active_track=active_track,
+                    provider=fallback_provider,
+                    model=fallback_model,
+                )
+                fallback_error = str(fallback_plan.get("_reasoning_error", "")).strip()
+                fallback_error_class = str(fallback_plan.get("_reasoning_error_class", "other")).strip().lower()
+                if fallback_error:
+                    attempt["outcome"] = "failed"
+                    attempt["reason"] = fallback_error_class or "other"
+                    failover_attempts.append(attempt)
+                    log.warning(
+                        "Reasoning failover attempt failed: %s/%s class=%s error=%s",
+                        fallback_provider,
+                        fallback_model,
+                        fallback_error_class or "other",
+                        fallback_error,
+                    )
+                    continue
+
+                attempt["outcome"] = "success"
+                attempt["reason"] = "ok"
+                failover_attempts.append(attempt)
+                plan = fallback_plan
+                selected_provider = fallback_provider
+                selected_model = fallback_model
+                log.info(
+                    "Reasoning failover succeeded: %s/%s -> %s/%s",
+                    reasoning_provider,
+                    reasoning_model,
+                    selected_provider,
+                    selected_model,
+                )
+                break
+
+            if failover_attempts and not any(item.get("outcome") == "success" for item in failover_attempts):
+                log.error(
+                    "Reasoning failover exhausted with no successful provider. "
+                    "Attempts=%s",
+                    failover_attempts,
+                )
+        elif not bool(failover_policy.get("enabled", False)):
+            log.info("Reasoning failover disabled; not attempting fallback after error class=%s", primary_error_class)
+        else:
+            log.info(
+                "Reasoning failover not applied for error class=%s (configured=%s)",
+                primary_error_class,
+                ",".join(sorted(hard_error_classes)) or "(none)",
+            )
+
+    if failover_attempts:
+        log_lesson(
+            cycle_number,
+            "Reasoning failover attempted",
+            "reasoning_failover",
+            json.dumps(
+                {
+                    "from_provider": reasoning_provider,
+                    "from_model": reasoning_model,
+                    "to_provider": selected_provider,
+                    "to_model": selected_model,
+                    "attempts": failover_attempts,
+                },
+                separators=(",", ":"),
+            ),
         )
 
     actions = plan.get("actions", [])
@@ -1755,46 +2021,66 @@ def main() -> int:
     if reasoning_provider == "openrouter":
         openrouter_runtime = _resolve_openrouter_runtime(config)
     log.info("Reasoning provider selected: %s (model: %s)", reasoning_provider, reasoning_model)
+    failover_policy = _resolve_reasoning_failover_policy(config, reasoning_provider)
+    log.info(
+        "Failover configured: enabled=%s hard_errors=%s order=%s",
+        bool(failover_policy.get("enabled", False)),
+        ",".join(failover_policy.get("hard_error_classes", [])) or "(none)",
+        ",".join(failover_policy.get("order", [])) or "(none)",
+    )
 
     # Validate provider runtime requirements (except in dry-run).
     if not args.dry_run:
+        preflight_issue = ""
         if reasoning_provider == "anthropic":
             if not _HAS_ANTHROPIC:
-                log.error(
-                    "Reasoning provider is 'anthropic' but the 'anthropic' package is missing.\n"
-                    "Install it:\n"
-                    "  pip install anthropic\n"
-                    "Or: pip install -r requirements.txt"
-                )
-                return 1
-            if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
-                log.error(
-                    "Reasoning provider is 'anthropic' but ANTHROPIC_API_KEY is not set.\n"
-                    "  export ANTHROPIC_API_KEY='your-key-here'"
-                )
-                return 1
+                preflight_issue = "anthropic-package"
+            elif not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+                preflight_issue = "anthropic-key"
         elif reasoning_provider == "openrouter":
-            assert openrouter_runtime is not None
-            if not openrouter_runtime.get("api_key"):
-                log.error(
-                    "Reasoning provider is 'openrouter' but OPENROUTER_API_KEY is not set.\n"
-                    "  export OPENROUTER_API_KEY='your-key-here'"
-                )
-                return 1
+            if not openrouter_runtime or not openrouter_runtime.get("api_key"):
+                preflight_issue = "openrouter-key"
         elif reasoning_provider == "openai":
-            assert openai_runtime is not None
-            if not openai_runtime.get("api_key"):
-                log.error(
-                    "Reasoning provider is 'openai' but OPENAI_API_KEY is not set.\n"
-                    "  export OPENAI_API_KEY='your-key-here'"
-                )
-                return 1
+            if not openai_runtime or not openai_runtime.get("api_key"):
+                preflight_issue = "openai-key"
         else:
-            log.error(
-                "Unsupported reasoning provider '%s'. Supported: anthropic, openai, openrouter",
-                reasoning_provider,
-            )
-            return 1
+            preflight_issue = "unsupported-provider"
+
+        if preflight_issue:
+            if bool(failover_policy.get("enabled", False)):
+                log.warning(
+                    "Primary reasoning provider preflight failed (%s); continuing because failover is enabled.",
+                    preflight_issue,
+                )
+            else:
+                if preflight_issue == "anthropic-package":
+                    log.error(
+                        "Reasoning provider is 'anthropic' but the 'anthropic' package is missing.\n"
+                        "Install it:\n"
+                        "  pip install anthropic\n"
+                        "Or: pip install -r requirements.txt"
+                    )
+                elif preflight_issue == "anthropic-key":
+                    log.error(
+                        "Reasoning provider is 'anthropic' but ANTHROPIC_API_KEY is not set.\n"
+                        "  export ANTHROPIC_API_KEY='your-key-here'"
+                    )
+                elif preflight_issue == "openrouter-key":
+                    log.error(
+                        "Reasoning provider is 'openrouter' but OPENROUTER_API_KEY is not set.\n"
+                        "  export OPENROUTER_API_KEY='your-key-here'"
+                    )
+                elif preflight_issue == "openai-key":
+                    log.error(
+                        "Reasoning provider is 'openai' but OPENAI_API_KEY is not set.\n"
+                        "  export OPENAI_API_KEY='your-key-here'"
+                    )
+                else:
+                    log.error(
+                        "Unsupported reasoning provider '%s'. Supported: anthropic, openai, openrouter",
+                        reasoning_provider,
+                    )
+                return 1
 
     log.info("Loaded config: %s v%s", config.get("agent", {}).get("name", "?"), config.get("agent", {}).get("version", "?"))
 

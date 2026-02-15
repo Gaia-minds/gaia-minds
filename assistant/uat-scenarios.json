@@ -280,6 +280,12 @@
       "command": "node ./bin/gaia.js run --mode single --dry-run --reasoning-provider openai --reasoning-model gpt-4.1-mini >/dev/null"
     },
     {
+      "id": "run_failover_quota_hard_error",
+      "description": "Gaia run applies deterministic provider failover on quota hard errors with visible logs",
+      "expect_exit": 0,
+      "command": "bash ./tools/runtime-failover-check.sh"
+    },
+    {
       "id": "agent_loop_dry_run",
       "description": "Self-evolve loop dry-run command path works",
       "expect_exit": 0,
