@@ -30,6 +30,7 @@ def build_parser(ctx: Dict[str, Any]) -> argparse.ArgumentParser:
     POLICY_SOURCE_CHOICES = ctx["POLICY_SOURCE_CHOICES"]
     POLICY_TOOL_CHOICES = ctx["POLICY_TOOL_CHOICES"]
     PROFILE_KEY_MAP = ctx["PROFILE_KEY_MAP"]
+    REASONING_EFFORT_WITH_AUTO_CHOICES = ctx["REASONING_EFFORT_WITH_AUTO_CHOICES"]
     REMINDER_DEFAULT_CADENCE_MINUTES = ctx["REMINDER_DEFAULT_CADENCE_MINUTES"]
     REMINDER_DEFAULT_WINDOW_MINUTES = ctx["REMINDER_DEFAULT_WINDOW_MINUTES"]
     RESPONSE_PROFILE_CHOICES = ctx["RESPONSE_PROFILE_CHOICES"]
@@ -138,6 +139,12 @@ def build_parser(ctx: Dict[str, Any]) -> argparse.ArgumentParser:
         "--model",
         default=None,
         help="Reasoning model to set during onboarding",
+    )
+    onboard.add_argument(
+        "--effort",
+        choices=list(REASONING_EFFORT_WITH_AUTO_CHOICES),
+        default=None,
+        help="Reasoning effort to set during onboarding (auto/minimal/low/medium/high)",
     )
     onboard.add_argument(
         "--secret-store",
@@ -1029,6 +1036,12 @@ def build_parser(ctx: Dict[str, Any]) -> argparse.ArgumentParser:
         "--reasoning-model",
         default=None,
         help="Override reasoning model for this run",
+    )
+    run.add_argument(
+        "--reasoning-effort",
+        choices=list(REASONING_EFFORT_WITH_AUTO_CHOICES),
+        default=None,
+        help="Override reasoning effort for this run (auto/minimal/low/medium/high)",
     )
     run.add_argument("--dry-run", action="store_true", help="Plan only, do not execute actions")
     run.add_argument("--verbose", action="store_true", help="Verbose logs")

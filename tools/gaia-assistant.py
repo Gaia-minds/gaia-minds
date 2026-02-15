@@ -53,6 +53,8 @@ DEFAULT_CODEX_RUNTIME_MODEL = "gpt-5.3-codex"
 DEFAULT_OPENROUTER_MODEL = "openrouter/auto"
 DEFAULT_REASONING_FAILOVER_ORDER = ("openai", "openrouter", "anthropic")
 DEFAULT_REASONING_FAILOVER_HARD_ERRORS = ("quota", "auth")
+REASONING_EFFORT_CHOICES = ("minimal", "low", "medium", "high")
+REASONING_EFFORT_WITH_AUTO_CHOICES = ("auto", *REASONING_EFFORT_CHOICES)
 PROVIDER_MODEL_CATALOG_LIMIT = 8
 PROVIDER_DISPLAY_NAMES: Dict[str, str] = {
     "openrouter": "OpenRouter",
@@ -177,6 +179,9 @@ PROFILE_KEY_MAP = {
     "verbosity": ("profile", "verbosity"),
     "provider": ("profile", "default_provider"),
     "default_provider": ("profile", "default_provider"),
+    "effort": ("reasoning", "effort"),
+    "reasoning_effort": ("reasoning", "effort"),
+    "reasoning-effort": ("reasoning", "effort"),
     "response_profile": ("profile", "response_profile"),
     "response-style": ("profile", "response_profile"),
     "style": ("profile", "response_profile"),
@@ -315,6 +320,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "reasoning": {
         "provider": "anthropic",
         "model": DEFAULT_ANTHROPIC_MODEL,
+        "effort": "",
         "explicit_provider_override": False,
         "failover": {
             "enabled": True,
@@ -447,6 +453,22 @@ def _normalize_bool_default(value: Any, default_value: bool) -> bool:
     return default_value
 
 
+def _normalize_reasoning_effort(value: Any, *, default_value: str = "") -> str:
+    token = str(value).strip().lower()
+    if not token:
+        return default_value
+    if token in REASONING_EFFORT_CHOICES:
+        return token
+    if token in ("auto", "default", "none", "off", "disabled"):
+        return ""
+    return default_value
+
+
+def _reasoning_effort_display(value: str) -> str:
+    normalized = _normalize_reasoning_effort(value, default_value="")
+    return normalized or "auto"
+
+
 def _normalize_int_default(
     value: Any,
     *,
@@ -471,6 +493,7 @@ def _normalize_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     reasoning = cfg.setdefault("reasoning", {})
     reasoning.setdefault("provider", "anthropic")
     reasoning.setdefault("model", DEFAULT_ANTHROPIC_MODEL)
+    reasoning["effort"] = _normalize_reasoning_effort(reasoning.get("effort", ""), default_value="")
     reasoning["explicit_provider_override"] = _normalize_bool_default(
         reasoning.get("explicit_provider_override", False),
         False,
@@ -757,6 +780,14 @@ def _normalize_config_value(key: str, value: str) -> Tuple[Optional[Any], Option
             return None, (
                 f"Invalid provider '{value}'. "
                 f"Expected one of: {', '.join(PROFILE_PROVIDER_CHOICES)}."
+            )
+        return normalized, None
+    if canonical_key in ("effort", "reasoning_effort", "reasoning-effort"):
+        normalized = _normalize_reasoning_effort(raw, default_value="__invalid__")
+        if normalized == "__invalid__":
+            return None, (
+                f"Invalid reasoning effort '{value}'. "
+                f"Expected one of: {', '.join(REASONING_EFFORT_WITH_AUTO_CHOICES)}."
             )
         return normalized, None
     if canonical_key in ("response_profile", "response-style", "style"):
@@ -4456,6 +4487,7 @@ def _set_reasoning_config(
     provider: str,
     model: Optional[str],
     *,
+    effort: Optional[str] = None,
     explicit_provider_override: bool,
 ) -> None:
     cfg = _ensure_config_exists(cfg_path)
@@ -4469,6 +4501,10 @@ def _set_reasoning_config(
         reasoning["model"] = model.strip()
     else:
         reasoning["model"] = _default_model_for_provider(provider)
+    if effort is not None:
+        reasoning["effort"] = _normalize_reasoning_effort(effort, default_value="")
+    elif "effort" not in reasoning:
+        reasoning["effort"] = ""
     reasoning["explicit_provider_override"] = bool(explicit_provider_override)
     _write_json(cfg_path, cfg)
 
@@ -4797,11 +4833,52 @@ def _select_provider_model(
         print("Model id cannot be empty.")
 
 
+def _select_reasoning_effort(
+    *,
+    cfg_path: Path,
+    explicit_effort: Optional[str],
+    non_interactive: bool,
+) -> str:
+    if explicit_effort is not None:
+        normalized_explicit = _normalize_reasoning_effort(explicit_effort, default_value="__invalid__")
+        if normalized_explicit == "__invalid__":
+            raise ValueError(
+                f"Invalid reasoning effort '{explicit_effort}'. "
+                f"Expected one of: {', '.join(REASONING_EFFORT_WITH_AUTO_CHOICES)}."
+            )
+        return normalized_explicit
+
+    cfg = _ensure_config_exists(cfg_path)
+    reasoning = cfg.get("reasoning", {})
+    reasoning = reasoning if isinstance(reasoning, dict) else {}
+    configured_effort = _normalize_reasoning_effort(reasoning.get("effort", ""), default_value="")
+    if non_interactive:
+        return configured_effort
+
+    options: List[Tuple[str, str]] = [
+        ("", "Auto (provider/model default)"),
+        ("minimal", "Minimal"),
+        ("low", "Low"),
+        ("medium", "Medium"),
+        ("high", "High"),
+    ]
+    default_index = 0
+    if configured_effort in REASONING_EFFORT_CHOICES:
+        default_index = list(REASONING_EFFORT_CHOICES).index(configured_effort) + 1
+    return _prompt_choice(
+        "Select reasoning effort:",
+        options,
+        default_index=default_index,
+        non_interactive=False,
+    )
+
+
 def _configure_api_key_provider(
     cfg_path: Path,
     provider: str,
     api_key_env: str,
     model: Optional[str],
+    effort: Optional[str],
     api_key: Optional[str],
     secret_store_override: Optional[str],
     no_prompt: bool,
@@ -4846,11 +4923,13 @@ def _configure_api_key_provider(
         cfg_path,
         provider,
         model,
+        effort=effort,
         explicit_provider_override=True,
     )
     print("[ok] reasoning provider configured")
     print(f"     provider: {provider}")
     print(f"     model:    {model or _default_model_for_provider(provider)}")
+    print(f"     effort:   {_reasoning_effort_display(effort or '')}")
     return 0
 
 
@@ -5264,6 +5343,16 @@ def cmd_onboard(args: argparse.Namespace) -> int:
         print(f"Supported providers: {', '.join(ONBOARD_PROVIDER_CHOICES)}", file=sys.stderr)
         return 1
     print(f"[ok] selected provider: {provider}")
+    try:
+        selected_effort = _select_reasoning_effort(
+            cfg_path=cfg_path,
+            explicit_effort=getattr(args, "effort", None),
+            non_interactive=args.yes,
+        )
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"[ok] selected effort: {_reasoning_effort_display(selected_effort)}")
 
     if provider == "openai-codex":
         selected_model = _select_provider_model(
@@ -5294,6 +5383,7 @@ def cmd_onboard(args: argparse.Namespace) -> int:
             no_prompt=True,
             profile_id=None,
             model=selected_model,
+            effort=selected_effort,
         )
         return cmd_auth_login(login_args)
 
@@ -5326,6 +5416,7 @@ def cmd_onboard(args: argparse.Namespace) -> int:
             no_prompt=True,
             profile_id=None,
             model=selected_model,
+            effort=selected_effort,
         )
         return cmd_auth_login(login_args)
 
@@ -5353,6 +5444,7 @@ def cmd_onboard(args: argparse.Namespace) -> int:
         provider=provider,
         api_key_env=api_key_env,
         model=provider_model,
+        effort=selected_effort,
         api_key=args.api_key,
         secret_store_override=args.secret_store,
         no_prompt=args.yes,
@@ -5374,6 +5466,9 @@ def cmd_auth_login(args: argparse.Namespace) -> int:
     provider = str(args.provider).strip().lower()
     source = str(args.source).strip().lower()
     selected_model = str(getattr(args, "model", "")).strip()
+    selected_effort_raw = getattr(args, "effort", None)
+    selected_effort = _normalize_reasoning_effort(selected_effort_raw, default_value="")
+    effort_requested = selected_effort_raw is not None
     runtime_aligned_model = ""
 
     if provider not in AUTH_PROVIDER_CHOICES:
@@ -5449,7 +5544,9 @@ def cmd_auth_login(args: argparse.Namespace) -> int:
         reasoning = reasoning if isinstance(reasoning, dict) else {}
         aligned_provider = str(reasoning.get("provider", "")).strip().lower()
         aligned_model = str(reasoning.get("model", "")).strip()
+        aligned_effort = _normalize_reasoning_effort(reasoning.get("effort", ""), default_value="")
         explicit_override = _normalize_bool_default(reasoning.get("explicit_provider_override", False), False)
+        updated_runtime = False
 
         if runtime_aligned:
             runtime_aligned_model = aligned_model or DEFAULT_CODEX_RUNTIME_MODEL
@@ -5457,10 +5554,17 @@ def cmd_auth_login(args: argparse.Namespace) -> int:
         if selected_model and aligned_provider == "openai" and not explicit_override:
             if aligned_model != selected_model:
                 reasoning["model"] = selected_model
-                cfg["reasoning"] = reasoning
-                _write_json(cfg_path, _normalize_config(cfg))
+                updated_runtime = True
             runtime_aligned = True
             runtime_aligned_model = selected_model
+        if effort_requested and aligned_provider == "openai" and not explicit_override:
+            if aligned_effort != selected_effort:
+                reasoning["effort"] = selected_effort
+                updated_runtime = True
+            runtime_aligned = True
+        if updated_runtime:
+            cfg["reasoning"] = reasoning
+            _write_json(cfg_path, _normalize_config(cfg))
 
     store = _load_gaia_auth_store(gaia_auth_store)
     profiles = store.get("profiles", {}) if isinstance(store, dict) else {}
@@ -5479,6 +5583,8 @@ def cmd_auth_login(args: argparse.Namespace) -> int:
             print(f"[ok] Runtime defaults aligned for OAuth provider: openai/{effective_model}")
         else:
             print(f"[ok] Runtime defaults aligned for OAuth provider: {provider}/{effective_model}")
+        if effort_requested:
+            print(f"[ok] Runtime effort aligned: {_reasoning_effort_display(selected_effort)}")
     print("")
     if source == "codex-cli":
         print("Note: credentials are stored in local Gaia auth store, not in this repository.")
@@ -5910,6 +6016,8 @@ def cmd_config_get(args: argparse.Namespace) -> int:
         )
         print("", end="")
         return 0
+    if key in ("effort", "reasoning_effort", "reasoning-effort"):
+        value = _reasoning_effort_display(str(value))
     if isinstance(value, (dict, list)):
         print(json.dumps(value, indent=2))
     else:
@@ -5995,15 +6103,18 @@ def cmd_config_set(args: argparse.Namespace) -> int:
         reasoning["explicit_provider_override"] = True
 
     _write_json(cfg_path, _normalize_config(cfg))
+    display_value = normalized
+    if key in ("effort", "reasoning_effort", "reasoning-effort"):
+        display_value = _reasoning_effort_display(str(normalized))
     _write_action_trace(
         trace_dir=trace_dir,
         action_type="config_set",
         input_summary=f"key={key}",
-        output_summary=f"set to {normalized}",
+        output_summary=f"set to {display_value}",
         duration_ms=(time.perf_counter() - start) * 1000,
         permission_level=permission_level,
     )
-    print(f"{path[0]}.{path[1]}={normalized}")
+    print(f"{path[0]}.{path[1]}={display_value}")
     return 0
 
 
@@ -12733,8 +12844,21 @@ def cmd_run(args: argparse.Namespace) -> int:
     profile_provider = str(profile_cfg.get("default_provider", "")).strip().lower()
     configured_provider = str(reasoning_cfg.get("provider", "")).strip().lower()
     configured_model = str(reasoning_cfg.get("model", "")).strip()
+    configured_effort = _normalize_reasoning_effort(reasoning_cfg.get("effort", ""), default_value="")
     effective_provider = str(args.reasoning_provider or configured_provider or profile_provider).strip().lower()
     effective_model = str(args.reasoning_model or configured_model).strip()
+    if getattr(args, "reasoning_effort", None) is None:
+        effective_effort = configured_effort
+    else:
+        override_effort = _normalize_reasoning_effort(args.reasoning_effort, default_value="__invalid__")
+        if override_effort == "__invalid__":
+            print(
+                f"Invalid reasoning effort override: {args.reasoning_effort}. "
+                f"Expected one of: {', '.join(REASONING_EFFORT_WITH_AUTO_CHOICES)}.",
+                file=sys.stderr,
+            )
+            return 1
+        effective_effort = override_effort
 
     if not effective_provider:
         effective_provider = "anthropic"
@@ -12866,6 +12990,10 @@ def cmd_run(args: argparse.Namespace) -> int:
         env["GAIA_REASONING_PROVIDER"] = effective_provider
     if effective_model:
         env["GAIA_REASONING_MODEL"] = effective_model
+    if effective_effort:
+        env["GAIA_REASONING_EFFORT"] = effective_effort
+    else:
+        env.pop("GAIA_REASONING_EFFORT", None)
     env["GAIA_REASONING_FAILOVER_ENABLED"] = "1" if failover_enabled else "0"
     env["GAIA_REASONING_FAILOVER_HARD_ERRORS"] = ",".join(failover_hard_errors)
     env["GAIA_REASONING_FAILOVER_ORDER"] = ",".join(failover_order)
@@ -12895,6 +13023,10 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"Reasoning model override: {args.reasoning_model}")
     elif effective_model:
         print(f"Reasoning model: {effective_model} (from launcher config)")
+    if getattr(args, "reasoning_effort", None) is not None:
+        print(f"Reasoning effort override: {_reasoning_effort_display(effective_effort)}")
+    else:
+        print(f"Reasoning effort: {_reasoning_effort_display(configured_effort)} (from launcher config)")
     print(
         "Reasoning failover: "
         f"{'enabled' if failover_enabled else 'disabled'} "
