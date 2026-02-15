@@ -53,6 +53,8 @@ DEFAULT_OPENROUTER_MODEL = "openrouter/auto"
 ONBOARD_PROVIDER_CHOICES = onboarding.ONBOARD_PROVIDER_CHOICES
 PROFILE_VERBOSITY_CHOICES = ("concise", "balanced", "detailed")
 PROFILE_PROVIDER_CHOICES = onboarding.PROFILE_PROVIDER_CHOICES
+AUTH_PROVIDER_CHOICES = onboarding.AUTH_PROVIDER_CHOICES
+AUTH_SOURCE_CHOICES = onboarding.AUTH_SOURCE_CHOICES
 RUNTIME_REASONING_PROVIDER_CHOICES = ("anthropic", "openai", "openrouter")
 RESPONSE_PROFILE_CHOICES = ("auto", "concise", "balanced", "detailed")
 RESPONSE_PROFILE_DEFAULT = "balanced"
@@ -4596,6 +4598,26 @@ def _codex_login() -> int:
     return subprocess.run(cmd).returncode
 
 
+def _claude_login() -> int:
+    if not shutil.which("claude"):
+        print(
+            "Claude CLI is not installed. Install Claude Code CLI, then run:\n"
+            "  claude auth login",
+            file=sys.stderr,
+        )
+        return 1
+    return subprocess.run(["claude", "auth", "login"]).returncode
+
+
+def _run_command_capture(cmd: List[str]) -> Tuple[int, str, str]:
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+def _collect_claude_cli_credentials() -> Tuple[Optional[Dict[str, Any]], str]:
+    return onboarding.collect_claude_cli_credentials(_run_command_capture)
+
+
 def _apply_oauth_runtime_defaults(cfg_path: Path, oauth_provider: str) -> bool:
     return onboarding.apply_oauth_runtime_defaults(
         cfg_path,
@@ -4630,6 +4652,32 @@ def _import_codex_profile_to_gaia(
         print(
             "Codex credentials not found after login.\n"
             f"Expected auth file: {codex_auth_path}",
+            file=sys.stderr,
+        )
+    return rc, profile_id, runtime_aligned
+
+
+def _import_claude_profile_to_gaia(
+    cfg_path: Path,
+    provider: str,
+    gaia_auth_store: Path,
+) -> Tuple[int, str, bool]:
+    rc, profile_id, runtime_aligned = onboarding.import_claude_profile_to_gaia(
+        cfg_path,
+        provider,
+        gaia_auth_store,
+        collect_claude_cli_credentials_fn=_collect_claude_cli_credentials,
+        load_gaia_auth_store_fn=_load_gaia_auth_store,
+        save_gaia_auth_store_fn=_save_gaia_auth_store,
+        link_profile_fn=_link_profile,
+        apply_oauth_runtime_defaults_fn=_apply_oauth_runtime_defaults,
+    )
+    if rc != 0 and provider == "claude-code":
+        _, error = _collect_claude_cli_credentials()
+        detail = error or "claude auth status did not return an active OAuth profile"
+        print(
+            "Claude Code profile metadata was not detected after login/link.\n"
+            f"Details: {detail}",
             file=sys.stderr,
         )
     return rc, profile_id, runtime_aligned
@@ -4686,7 +4734,7 @@ def cmd_init(args: argparse.Namespace) -> int:
 def cmd_doctor(args: argparse.Namespace) -> int:
     problems = 0
     required_cmds = ["python3", "git"]
-    optional_cmds = ["gh", "codex"]
+    optional_cmds = ["gh", "codex", "claude"]
     cfg_path = Path(args.config).expanduser()
 
     print("Gaia assistant doctor")
@@ -4743,13 +4791,14 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
         active = cfg.get("auth", {}).get("active_profile")
         if not isinstance(active, dict):
-            if reasoning_provider == "openai-codex":
+            if reasoning_provider in ("openai-codex", "claude-code"):
                 print("[warn] no linked OAuth profile in launcher config")
-                print(f"       run `{_launcher_hint()} onboard --provider openai-codex`")
+                print(f"       run `{_launcher_hint()} onboard --provider {reasoning_provider}`")
             else:
                 print("[info] no linked OAuth profile (not required for API-key providers)")
         else:
             credential, error = _read_linked_credential(active)
+            active_provider = str(active.get("provider", "")).strip().lower()
             if credential is None:
                 print(f"[warn] {error}")
             else:
@@ -4761,10 +4810,15 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                     print(f"[ok] linked OAuth profile found: {profile_id} (expires={expiry})")
                     if oauth_runtime_ready:
                         print("[ok] linked OAuth token can satisfy OpenAI runtime preflight")
+                    if active_provider == "claude-code":
+                        if shutil.which("claude"):
+                            print("[ok] claude-cli is available for claude-code profile checks")
+                        else:
+                            print("[warn] linked profile uses claude-code but `claude` CLI is missing")
+                            print(f"       run `{_launcher_hint()} auth login --provider claude-code --source claude-cli`")
             if reasoning_provider == "openai" and not oauth_runtime_ready and not oai:
                 print(f"[warn] OpenAI runtime credential is missing: {oauth_error}")
                 print(f"       run `{_launcher_hint()} auth login --provider openai-codex --source codex-cli`")
-            active_provider = str(active.get("provider", "")).strip().lower()
             if reasoning_provider == "anthropic" and active_provider == "openai-codex":
                 if reasoning_override_locked:
                     print("[info] anthropic runtime provider is explicitly overridden")
@@ -4819,6 +4873,7 @@ def cmd_onboard(args: argparse.Namespace) -> int:
                 ("openai", "OpenAI (API key)"),
                 ("anthropic", "Anthropic (API key)"),
                 ("openai-codex", "OpenAI Codex (OAuth via Codex CLI)"),
+                ("claude-code", "Claude Code (OAuth via Claude CLI)"),
             ],
             default_index=0,
             non_interactive=args.yes,
@@ -4846,6 +4901,29 @@ def cmd_onboard(args: argparse.Namespace) -> int:
             config=str(cfg_path),
             provider="openai-codex",
             source="codex-cli",
+            codex_auth_path=args.codex_auth_path,
+            gaia_auth_store=args.gaia_auth_store,
+            no_prompt=True,
+            profile_id=None,
+        )
+        return cmd_auth_login(login_args)
+
+    if provider == "claude-code":
+        print("OAuth flow selected: Claude Code via Claude CLI")
+        print("This runs Claude auth login and links profile metadata into Gaia local auth store.")
+        should_start = _prompt_yes_no(
+            "Start Claude Code OAuth login now?",
+            default=True,
+            non_interactive=args.yes,
+        )
+        if not should_start:
+            print("Skipped OAuth login. Run this later:")
+            print(f"  {_launcher_hint()} auth login --provider claude-code --source claude-cli")
+            return 0
+        login_args = argparse.Namespace(
+            config=str(cfg_path),
+            provider="claude-code",
+            source="claude-cli",
             codex_auth_path=args.codex_auth_path,
             gaia_auth_store=args.gaia_auth_store,
             no_prompt=True,
@@ -4901,13 +4979,24 @@ def cmd_onboard(args: argparse.Namespace) -> int:
 def cmd_auth_login(args: argparse.Namespace) -> int:
     cfg_path = Path(args.config).expanduser()
     _ensure_config_exists(cfg_path)
-    provider = str(args.provider).strip()
-    source = str(args.source).strip()
+    provider = str(args.provider).strip().lower()
+    source = str(args.source).strip().lower()
 
-    if provider != "openai-codex":
+    if provider not in AUTH_PROVIDER_CHOICES:
         print(f"Unsupported OAuth provider: {provider}", file=sys.stderr)
-        print("Supported provider for now: openai-codex", file=sys.stderr)
+        print(f"Supported providers: {', '.join(AUTH_PROVIDER_CHOICES)}", file=sys.stderr)
         return 1
+    allowed_sources = onboarding.AUTH_PROVIDER_SOURCES.get(provider, ())
+    if source not in allowed_sources:
+        expected = ", ".join(allowed_sources) if allowed_sources else "none"
+        print(f"Unsupported auth source/provider combination: source={source} provider={provider}", file=sys.stderr)
+        print(f"Supported source(s) for {provider}: {expected}", file=sys.stderr)
+        return 1
+
+    gaia_auth_store = _resolve_gaia_auth_store(cfg_path, args.gaia_auth_store)
+    runtime_aligned = False
+    profile_id = ""
+    source_label = ""
 
     if source == "codex-cli":
         if not args.no_prompt:
@@ -4924,7 +5013,6 @@ def cmd_auth_login(args: argparse.Namespace) -> int:
             return rc
 
         codex_auth_path = _resolve_codex_auth_path(args.codex_auth_path)
-        gaia_auth_store = _resolve_gaia_auth_store(cfg_path, args.gaia_auth_store)
         rc, profile_id, runtime_aligned = _import_codex_profile_to_gaia(
             cfg_path,
             provider,
@@ -4933,38 +5021,78 @@ def cmd_auth_login(args: argparse.Namespace) -> int:
         )
         if rc != 0:
             return rc
+        source_label = "gaia-local (imported from codex-cli)"
+    elif source == "claude-cli":
+        if not args.no_prompt:
+            answer = input(
+                "Gaia will run Claude Code OAuth login, then import profile metadata into Gaia local auth store.\n"
+                "Continue? [Y/n]: "
+            ).strip().lower()
+            if answer in ("n", "no"):
+                print("Canceled.")
+                return 1
 
-        store = _load_gaia_auth_store(gaia_auth_store)
-        profiles = store.get("profiles", {}) if isinstance(store, dict) else {}
-        credential = profiles.get(profile_id) if isinstance(profiles, dict) else {}
-        expiry = _format_expiry(credential if isinstance(credential, dict) else {})
+        rc = _claude_login()
+        if rc != 0:
+            return rc
 
-        print("[ok] OAuth profile linked for Gaia assistant")
-        print(f"     source:   gaia-local (imported from codex-cli)")
-        print(f"     provider: {provider}")
-        print(f"     profile:  {profile_id}")
-        print(f"     store:    {gaia_auth_store}")
-        print(f"     expires:  {expiry}")
-        if runtime_aligned:
-            print("[ok] Runtime defaults aligned for OAuth provider: openai/gpt-4.1-mini")
-        print("")
+        rc, profile_id, runtime_aligned = _import_claude_profile_to_gaia(
+            cfg_path,
+            provider,
+            gaia_auth_store,
+        )
+        if rc != 0:
+            return rc
+        source_label = "gaia-local (metadata imported from claude-cli)"
+    else:
+        print(f"Unsupported auth source: {source}", file=sys.stderr)
+        print(f"Supported sources: {', '.join(AUTH_SOURCE_CHOICES)}", file=sys.stderr)
+        return 1
+
+    store = _load_gaia_auth_store(gaia_auth_store)
+    profiles = store.get("profiles", {}) if isinstance(store, dict) else {}
+    credential = profiles.get(profile_id) if isinstance(profiles, dict) else {}
+    expiry = _format_expiry(credential if isinstance(credential, dict) else {})
+
+    print("[ok] OAuth profile linked for Gaia assistant")
+    print(f"     source:   {source_label}")
+    print(f"     provider: {provider}")
+    print(f"     profile:  {profile_id}")
+    print(f"     store:    {gaia_auth_store}")
+    print(f"     expires:  {expiry}")
+    if runtime_aligned:
+        print("[ok] Runtime defaults aligned for OAuth provider: openai/gpt-4.1-mini")
+    print("")
+    if source == "codex-cli":
         print("Note: credentials are stored in local Gaia auth store, not in this repository.")
-        return 0
-
-    print(f"Unsupported auth source: {source}", file=sys.stderr)
-    print("Supported sources: codex-cli", file=sys.stderr)
-    return 1
+    else:
+        print("Note: Gaia stores only Claude profile metadata; OAuth tokens remain in Claude CLI credential storage.")
+    return 0
 
 
 def cmd_auth_link(args: argparse.Namespace) -> int:
     cfg_path = Path(args.config).expanduser()
     _ensure_config_exists(cfg_path)
-    provider = str(args.provider).strip()
-    source = str(args.source).strip()
+    provider = str(args.provider).strip().lower()
+    source = str(args.source).strip().lower()
+
+    if provider not in AUTH_PROVIDER_CHOICES:
+        print(f"Unsupported OAuth provider: {provider}", file=sys.stderr)
+        print(f"Supported providers: {', '.join(AUTH_PROVIDER_CHOICES)}", file=sys.stderr)
+        return 1
+    allowed_sources = onboarding.AUTH_PROVIDER_SOURCES.get(provider, ())
+    if source not in allowed_sources:
+        expected = ", ".join(allowed_sources) if allowed_sources else "none"
+        print(f"Unsupported auth source/provider combination: source={source} provider={provider}", file=sys.stderr)
+        print(f"Supported source(s) for {provider}: {expected}", file=sys.stderr)
+        return 1
+
+    gaia_auth_store = _resolve_gaia_auth_store(cfg_path, args.gaia_auth_store)
+    runtime_aligned = False
+    profile_id = ""
 
     if source == "codex-cli":
         codex_auth_path = _resolve_codex_auth_path(args.codex_auth_path)
-        gaia_auth_store = _resolve_gaia_auth_store(cfg_path, args.gaia_auth_store)
         rc, profile_id, runtime_aligned = _import_codex_profile_to_gaia(
             cfg_path,
             provider,
@@ -4974,16 +5102,26 @@ def cmd_auth_link(args: argparse.Namespace) -> int:
         if rc != 0:
             return rc
         print("[ok] Imported and linked Codex OAuth profile into Gaia local store")
-        print(f"     provider: {provider}")
-        print(f"     profile:  {profile_id}")
-        print(f"     store:    {gaia_auth_store}")
-        if runtime_aligned:
-            print("[ok] Runtime defaults aligned for OAuth provider: openai/gpt-4.1-mini")
-        return 0
+    elif source == "claude-cli":
+        rc, profile_id, runtime_aligned = _import_claude_profile_to_gaia(
+            cfg_path,
+            provider,
+            gaia_auth_store,
+        )
+        if rc != 0:
+            return rc
+        print("[ok] Imported and linked Claude Code OAuth profile metadata into Gaia local store")
+    else:
+        print(f"Unsupported auth source: {source}", file=sys.stderr)
+        print(f"Supported sources: {', '.join(AUTH_SOURCE_CHOICES)}", file=sys.stderr)
+        return 1
 
-    print(f"Unsupported auth source: {source}", file=sys.stderr)
-    print("Supported sources: codex-cli", file=sys.stderr)
-    return 1
+    print(f"     provider: {provider}")
+    print(f"     profile:  {profile_id}")
+    print(f"     store:    {gaia_auth_store}")
+    if runtime_aligned:
+        print("[ok] Runtime defaults aligned for OAuth provider: openai/gpt-4.1-mini")
+    return 0
 
 
 def cmd_auth_status(args: argparse.Namespace) -> int:
@@ -5004,7 +5142,8 @@ def cmd_auth_status(args: argparse.Namespace) -> int:
         if reasoning_provider in ("openrouter", "openai", "anthropic"):
             print("This is expected when using API-key providers.")
             return 0
-        print(f"Run: {_launcher_hint()} auth login --provider openai-codex")
+        print(f"Run: {_launcher_hint()} auth login --provider openai-codex --source codex-cli")
+        print(f"Or:  {_launcher_hint()} auth login --provider claude-code --source claude-cli")
         return 1
 
     provider = str(active.get("provider", "")).strip()
@@ -5027,8 +5166,19 @@ def cmd_auth_status(args: argparse.Namespace) -> int:
     cred_type = str(credential.get("type", "unknown"))
     expires = _format_expiry(credential)
     email = str(credential.get("email", "")).strip() or "n/a"
+    account_id = str(credential.get("account_id", "")).strip() or "n/a"
+    organization = str(credential.get("organization", "")).strip()
+    workspace = str(credential.get("workspace", "")).strip()
+    plan = str(credential.get("plan", "")).strip()
     print(f"type:      {cred_type}")
     print(f"email:     {email}")
+    print(f"account:   {account_id}")
+    if organization:
+        print(f"org:       {organization}")
+    if workspace:
+        print(f"workspace: {workspace}")
+    if plan:
+        print(f"plan:      {plan}")
     print(f"expires:   {expires}")
     if _is_expired(credential):
         print("[warn] OAuth profile is expired")

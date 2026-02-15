@@ -8,11 +8,17 @@ import importlib.util
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 
-ONBOARD_PROVIDER_CHOICES = ("openrouter", "openai", "anthropic", "openai-codex")
+ONBOARD_PROVIDER_CHOICES = ("openrouter", "openai", "anthropic", "openai-codex", "claude-code")
 PROFILE_PROVIDER_CHOICES = ("openrouter", "openai", "anthropic", "openai-codex")
+AUTH_PROVIDER_CHOICES = ("openai-codex", "claude-code")
+AUTH_SOURCE_CHOICES = ("codex-cli", "claude-cli")
+AUTH_PROVIDER_SOURCES: Dict[str, Tuple[str, ...]] = {
+    "openai-codex": ("codex-cli",),
+    "claude-code": ("claude-cli",),
+}
 AUTH_PROVIDER_DEFAULTS: Dict[str, Dict[str, Any]] = {
     "anthropic": {
         "subscription_oauth_supported": False,
@@ -23,6 +29,10 @@ AUTH_PROVIDER_DEFAULTS: Dict[str, Dict[str, Any]] = {
         "api_key_env": "OPENAI_API_KEY",
     },
     "openai-codex": {
+        "subscription_oauth_supported": True,
+        "api_key_env": "",
+    },
+    "claude-code": {
         "subscription_oauth_supported": True,
         "api_key_env": "",
     },
@@ -40,6 +50,7 @@ NormalizeConfigFn = Callable[[Dict[str, Any]], Dict[str, Any]]
 LinkProfileFn = Callable[[Path, str, str, str, Path], int]
 ReadLinkedCredentialFn = Callable[[Dict[str, Any]], Tuple[Optional[Dict[str, Any]], str]]
 IsExpiredFn = Callable[[Dict[str, Any]], bool]
+CommandRunnerFn = Callable[[List[str]], Tuple[int, str, str]]
 
 
 def resolve_codex_auth_path(override_path: Optional[str], default_codex_auth_path: Path) -> Path:
@@ -141,6 +152,171 @@ def read_codex_cli_credentials(codex_auth_path: Path, load_json: JsonLoader) -> 
         "source": "codex-cli",
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+def _read_nested_value(payload: Dict[str, Any], path: Iterable[str]) -> Any:
+    current: Any = payload
+    for key in path:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(key)
+    return current
+
+
+def _string_value(value: Any) -> str:
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        for key in ("email", "name", "id", "uuid", "slug"):
+            candidate = value.get(key)
+            if isinstance(candidate, str) and candidate.strip():
+                return candidate.strip()
+    return ""
+
+
+def _first_string(payload: Dict[str, Any], paths: Iterable[Tuple[str, ...]]) -> str:
+    for path in paths:
+        value = _read_nested_value(payload, path)
+        normalized = _string_value(value)
+        if normalized:
+            return normalized
+    return ""
+
+
+def _first_bool(payload: Dict[str, Any], paths: Iterable[Tuple[str, ...]]) -> Optional[bool]:
+    for path in paths:
+        value = _read_nested_value(payload, path)
+        if isinstance(value, bool):
+            return value
+    return None
+
+
+def read_claude_cli_credentials(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    logged_in = _first_bool(
+        payload,
+        (
+            ("authenticated",),
+            ("logged_in",),
+            ("loggedIn",),
+            ("is_logged_in",),
+            ("isLoggedIn",),
+            ("auth", "authenticated"),
+            ("auth", "logged_in"),
+            ("auth", "loggedIn"),
+        ),
+    )
+    status = _first_string(payload, (("status",), ("auth_status",), ("auth", "status"))).lower()
+    if logged_in is False:
+        return None
+    if status in ("logged_out", "unauthenticated", "not_authenticated", "signed_out", "signed-out"):
+        return None
+
+    email = _first_string(
+        payload,
+        (
+            ("email",),
+            ("user_email",),
+            ("account_email",),
+            ("user", "email"),
+            ("account", "email"),
+            ("profile", "email"),
+            ("session", "email"),
+        ),
+    )
+    account_id = _first_string(
+        payload,
+        (
+            ("account_id",),
+            ("accountId",),
+            ("user_id",),
+            ("userId",),
+            ("id",),
+            ("user", "id"),
+            ("user", "uuid"),
+            ("account", "id"),
+            ("account", "uuid"),
+            ("profile", "id"),
+        ),
+    )
+    organization = _first_string(
+        payload,
+        (
+            ("organization",),
+            ("org",),
+            ("organization_name",),
+            ("org_name",),
+            ("account", "organization"),
+            ("account", "org"),
+            ("workspace", "organization"),
+            ("workspace", "org"),
+            ("team", "name"),
+        ),
+    )
+    workspace = _first_string(
+        payload,
+        (
+            ("workspace",),
+            ("workspace_id",),
+            ("workspaceId",),
+            ("workspace_name",),
+            ("account", "workspace"),
+            ("project", "workspace"),
+        ),
+    )
+    plan = _first_string(
+        payload,
+        (
+            ("plan",),
+            ("subscription_plan",),
+            ("account", "plan"),
+            ("subscription", "plan"),
+            ("billing", "plan"),
+            ("entitlement", "plan"),
+        ),
+    )
+
+    has_identity = bool(email or account_id or organization or workspace)
+    if logged_in is True and not has_identity:
+        has_identity = True
+    if not has_identity:
+        return None
+
+    return {
+        "type": "oauth",
+        "provider": "claude-code",
+        "source": "claude-cli",
+        "email": email,
+        "account_id": account_id,
+        "organization": organization,
+        "workspace": workspace,
+        "plan": plan,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def collect_claude_cli_credentials(run_command: CommandRunnerFn) -> Tuple[Optional[Dict[str, Any]], str]:
+    rc, stdout, stderr = run_command(["claude", "auth", "status", "--json"])
+    if rc != 0:
+        detail = stderr.strip() or stdout.strip()
+        if detail:
+            return None, f"claude auth status failed: {detail}"
+        return None, "claude auth status failed"
+
+    raw = stdout.strip()
+    if not raw:
+        return None, "claude auth status returned empty JSON payload"
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        return None, f"claude auth status returned invalid JSON: {exc}"
+
+    if not isinstance(payload, dict):
+        return None, "claude auth status payload must be a JSON object"
+
+    credential = read_claude_cli_credentials(payload)
+    if credential is None:
+        return None, "claude auth status indicates no active OAuth session"
+    return credential, ""
 
 
 def is_expired(credential: Dict[str, Any]) -> bool:
@@ -258,6 +434,37 @@ def import_codex_profile_to_gaia(
     if provider != "openai-codex":
         return 1, "", False
     credential = read_codex_cli_credentials_fn(codex_auth_path)
+    if credential is None:
+        return 1, "", False
+
+    store = load_gaia_auth_store_fn(gaia_auth_store)
+    profiles = store.setdefault("profiles", {})
+    if not isinstance(profiles, dict):
+        profiles = {}
+        store["profiles"] = profiles
+
+    profile_id = profile_id_for_credential(provider, credential)
+    profiles[profile_id] = credential
+    save_gaia_auth_store_fn(gaia_auth_store, store)
+    link_profile_fn(cfg_path, provider, profile_id, "gaia-local", gaia_auth_store)
+    runtime_aligned = apply_oauth_runtime_defaults_fn(cfg_path, provider)
+    return 0, profile_id, runtime_aligned
+
+
+def import_claude_profile_to_gaia(
+    cfg_path: Path,
+    provider: str,
+    gaia_auth_store: Path,
+    *,
+    collect_claude_cli_credentials_fn: Callable[[], Tuple[Optional[Dict[str, Any]], str]],
+    load_gaia_auth_store_fn: Callable[[Path], Dict[str, Any]],
+    save_gaia_auth_store_fn: Callable[[Path, Dict[str, Any]], None],
+    link_profile_fn: LinkProfileFn,
+    apply_oauth_runtime_defaults_fn: Callable[[Path, str], bool],
+) -> Tuple[int, str, bool]:
+    if provider != "claude-code":
+        return 1, "", False
+    credential, _ = collect_claude_cli_credentials_fn()
     if credential is None:
         return 1, "", False
 

@@ -21,6 +21,8 @@ def build_parser(ctx: Dict[str, Any]) -> argparse.ArgumentParser:
     MEMORY_LIST_DEFAULT_LIMIT = ctx["MEMORY_LIST_DEFAULT_LIMIT"]
     MEMORY_LIST_MAX_LIMIT = ctx["MEMORY_LIST_MAX_LIMIT"]
     MEMORY_TYPE_CHOICES = ctx["MEMORY_TYPE_CHOICES"]
+    AUTH_PROVIDER_CHOICES = ctx["AUTH_PROVIDER_CHOICES"]
+    AUTH_SOURCE_CHOICES = ctx["AUTH_SOURCE_CHOICES"]
     ONBOARD_PROVIDER_CHOICES = ctx["ONBOARD_PROVIDER_CHOICES"]
     PERMISSION_LEVEL_CHOICES = ctx["PERMISSION_LEVEL_CHOICES"]
     POLICY_DECISION_CHOICES = ctx["POLICY_DECISION_CHOICES"]
@@ -920,10 +922,15 @@ def build_parser(ctx: Dict[str, Any]) -> argparse.ArgumentParser:
 
     auth_login = auth_sub.add_parser("login", help="Run web OAuth login and link profile")
     auth_login.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
-    auth_login.add_argument("--provider", default="openai-codex", help="Provider id (default: openai-codex)")
+    auth_login.add_argument(
+        "--provider",
+        choices=list(AUTH_PROVIDER_CHOICES),
+        default="openai-codex",
+        help="OAuth provider id (default: openai-codex)",
+    )
     auth_login.add_argument(
         "--source",
-        choices=["codex-cli"],
+        choices=list(AUTH_SOURCE_CHOICES),
         default="codex-cli",
         help="OAuth source (default: codex-cli)",
     )
@@ -943,10 +950,15 @@ def build_parser(ctx: Dict[str, Any]) -> argparse.ArgumentParser:
 
     auth_link = auth_sub.add_parser("link", help="Link an existing profile without logging in")
     auth_link.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
-    auth_link.add_argument("--provider", default="openai-codex", help="Provider id (default: openai-codex)")
+    auth_link.add_argument(
+        "--provider",
+        choices=list(AUTH_PROVIDER_CHOICES),
+        default="openai-codex",
+        help="OAuth provider id (default: openai-codex)",
+    )
     auth_link.add_argument(
         "--source",
-        choices=["codex-cli"],
+        choices=list(AUTH_SOURCE_CHOICES),
         default="codex-cli",
         help="Profile source (default: codex-cli)",
     )

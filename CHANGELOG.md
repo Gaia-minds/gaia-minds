@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- Claude Code OAuth onboarding/auth support in Gaia assistant surfaces (`gaia onboard --provider claude-code`, `gaia auth login --provider claude-code --source claude-cli`) with metadata-only profile linkage and deterministic status rendering (`tools/gaia-assistant.py`, `tools/gaia_assistant_parser.py`, `tools/gaia_assistant_onboarding.py`, `#130`)
+- Deterministic UAT coverage + governance record for Claude OAuth onboarding/auth command surfaces (`assistant/uat-scenarios.json`, `assistant/feature-catalog.json`, `assistant/uat-policy.md`, `docs/uat-changes/2026-02-15-claude-oauth-onboarding-surface.md`, `#130`)
 - Planning-round artifact for governance/onboarding stabilization sequencing with issue queue `#129`-`#134`, dependency order, and gate expectations (`infrastructure/planning-round-2026-02-14-governance-onboarding-release-reset.md`)
 - Obfuscation-aware canonicalization checks in `gaia skills validate` for encoded/hidden/split-token prompt-injection and sensitive-exfiltration directives, with bounded deterministic candidate scanning (`tools/gaia-assistant.py`, `#123`)
 - Detection-stage metadata on skill validation findings (`detection.mode/source/candidate_stage`) and per-file canonicalization scan summaries in report provenance (`tools/gaia-assistant.py`, `#123`)

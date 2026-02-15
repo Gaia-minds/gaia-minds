@@ -86,6 +86,7 @@ The wizard lets you choose provider and connection style:
 2. `openai` -> API key
 3. `anthropic` -> API key
 4. `openai-codex` -> OAuth via Codex CLI
+5. `claude-code` -> OAuth via Claude CLI
 
 Direct non-interactive examples:
 
@@ -101,6 +102,9 @@ gaia onboard --provider openai --api-key "$OPENAI_API_KEY" --model gpt-4.1-mini 
 
 # OpenAI Codex OAuth
 gaia onboard --provider openai-codex --yes
+
+# Claude Code OAuth
+gaia onboard --provider claude-code --yes
 ```
 
 After successful Codex OAuth onboarding, Gaia auto-aligns runtime defaults to
@@ -109,10 +113,11 @@ After successful Codex OAuth onboarding, Gaia auto-aligns runtime defaults to
 OAuth token for OpenAI runtime when available.
 
 Gaia still supports explicit auth commands if you prefer manual control.
-For Codex OAuth:
+For provider OAuth:
 
 ```bash
 npm run gaia -- auth login --source codex-cli --provider openai-codex
+npm run gaia -- auth login --source claude-cli --provider claude-code
 npm run gaia -- auth status
 ```
 
@@ -120,6 +125,8 @@ npm run gaia -- auth status
 
 - OAuth tokens are stored in Gaia local state:
   `~/.gaia-assistant/auth-profiles.json` (or `$GAIA_ASSISTANT_HOME/auth-profiles.json`)
+- Claude Code OAuth keeps tokens in Claude CLI credential storage; Gaia stores
+  only linkage metadata from `claude auth status --json`.
 - API keys can be stored in Gaia local secret store:
   `~/.gaia-assistant/secrets.json` (or `$GAIA_ASSISTANT_HOME/secrets.json`)
 - Launcher config stores profile selection metadata in:
@@ -810,12 +817,15 @@ Provider OAuth profile support is exposed through Gaia-native commands:
 
 - `gaia onboard`
 - `gaia auth login --source codex-cli --provider openai-codex`
+- `gaia auth login --source claude-cli --provider claude-code`
 - `npm run gaia -- onboard`
 - `npm run gaia -- auth login --source codex-cli --provider openai-codex`
+- `npm run gaia -- auth login --source claude-cli --provider claude-code`
 
 Direct Python fallback (if preferred):
 - `python3 tools/gaia-assistant.py onboard`
 - `python3 tools/gaia-assistant.py auth login --source codex-cli --provider openai-codex`
+- `python3 tools/gaia-assistant.py auth login --source claude-cli --provider claude-code`
 
 Runtime module layout note:
 
