@@ -219,13 +219,12 @@ Execution queue (governance + onboarding stabilization sprint reset):
 - `#129` Governance/state sync reset across `README.md`, `CONTRIBUTING.md`, `STATUS.md`, `ROADMAP.md`, and `CHANGELOG.md` (delivered)
 - `#131` Refactor onboarding/auth surfaces out of `tools/gaia-assistant.py` (delivered; PR #137)
 - `#130` Add Claude Code OAuth onboarding path to `gaia onboard` + `gaia auth` (delivered; PR #138)
-- `#132` Rebuild live preview from reproducible real Gaia interaction traces (queued)
+- `#132` Rebuild live preview from reproducible real Gaia interaction traces (delivered)
 - `#133` Prepare next npm release after stabilization lanes merge (queued; release gate)
 
 Recommended merge order:
 
-1. `#132` (live preview refresh from reproducible captures)
-2. `#133` (release preparation and publish)
+1. `#133` (release preparation and publish)
 
 Claude Code OAuth implementation notes (for `#130`):
 
@@ -334,9 +333,8 @@ Framework KPIs:
 
 Next checkpoint date: February 22, 2026.
 
-1. Complete live-preview refresh lane (`#132`) with reproducible capture workflow and updated assets.
-2. Complete release lane (`#133`) with full readiness packet and validated npm publish.
-3. Run the next planning round immediately after `#133` to seed the next framework/assistant queue.
+1. Complete release lane (`#133`) with full readiness packet and validated npm publish.
+2. Run the next planning round immediately after `#133` to seed the next framework/assistant queue.
 
 ## Milestones Log
 
@@ -361,6 +359,6 @@ Next checkpoint date: February 22, 2026.
 | 2026-02-13 | Phase 3 hypothesis pipeline v1 merged | Issue #86 via PR #90 |
 | 2026-02-14 | Signal-driven follow-on queue completed | Issues #111, #112, #113, #115, #122, #123 merged |
 | 2026-02-14 | Governance/onboarding stabilization sprint queue opened | Issues #129, #130, #131, #132, #133, #134 |
-| 2026-02-15 | Onboarding stabilization implementation lanes merged | Issues #129, #130, #131, #134 merged; #132 and #133 remain |
+| 2026-02-15 | Onboarding stabilization implementation lanes merged | Issues #129, #130, #131, #132, #134 merged; release gate #133 remains |
 
 This roadmap is a living document and should be updated at least weekly.

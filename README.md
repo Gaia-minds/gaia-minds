@@ -58,7 +58,7 @@ See `assistant/README.md` for full runtime and release docs.
 
 ### Live Preview
 
-Terminal snapshot (refreshed for current command surfaces on February 14, 2026):
+Terminal snapshot (refreshed from executable command captures on February 15, 2026):
 
 ![Gaia assistant terminal preview](assistant/assets/gaia-assistant-terminal.svg)
 
@@ -68,6 +68,8 @@ Animated walkthrough (same capability flow):
 
 Source-of-truth mapping for these assets (command capture flow + file links):
 `assistant/README.md#live-preview-freshness-note`.
+Normalized command transcript:
+`assistant/assets/gaia-assistant-live-preview-transcript.md`.
 
 ## What Gaia Is
 

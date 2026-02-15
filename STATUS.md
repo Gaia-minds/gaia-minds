@@ -27,6 +27,7 @@ current active sprint window.
 - `Sprint onboarding/auth surface extraction` (`#131`, PR #137)
 - `Sprint Claude Code OAuth onboarding/auth integration` (`#130`, PR #138)
 - `Sprint governance/state sync reset for docs and status surfaces` (`#129`)
+- `Sprint live preview rebuild from executable Gaia traces` (`#132`)
 
 ## In Progress
 
@@ -34,8 +35,7 @@ _Nothing in progress._
 
 ## Next Up (Ordered Queue)
 
-1. `#132` Rebuild live preview from reproducible real Gaia interaction traces.
-2. `#133` Prepare next npm release after stabilization lanes merge.
+1. `#133` Prepare next npm release after stabilization lanes merge.
 
 ## Planned Next Wave
 
