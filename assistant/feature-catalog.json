@@ -3,7 +3,7 @@
   "description": "Feature-to-UAT coverage map for Gaia assistant and evolution actions.",
   "commands": [
     {"path": "init", "scenarios": ["init_force"]},
-    {"path": "onboard", "scenarios": ["onboard_openai_nostore"]},
+    {"path": "onboard", "scenarios": ["onboard_openai_nostore", "onboard_claude_code_oauth"]},
     {"path": "doctor", "scenarios": ["doctor_command"]},
     {"path": "config", "scenarios": ["cli_help_surface"]},
     {"path": "config set", "scenarios": ["config_set_get_name", "provider_twin_openai", "signals_extraction_privacy_controls", "signals_skill_first_triage_matrix", "skills_provenance_admission_modes", "skills_obfuscation_validation_hardening"]},
@@ -67,9 +67,9 @@
     {"path": "autopilot", "scenarios": ["autopilot_dry_run"]},
     {"path": "autopilot run", "scenarios": ["autopilot_dry_run", "autopilot_run_and_trace"]},
     {"path": "auth", "scenarios": ["auth_status_command"]},
-    {"path": "auth login", "scenarios": ["auth_login_unsupported_provider"]},
+    {"path": "auth login", "scenarios": ["auth_login_unsupported_provider", "auth_login_claude_cli_source"]},
     {"path": "auth link", "scenarios": ["auth_link_rejects_openclaw_source", "auth_link_codex_missing_credentials"]},
-    {"path": "auth status", "scenarios": ["auth_status_command"]},
+    {"path": "auth status", "scenarios": ["auth_status_command", "auth_login_claude_cli_source"]},
     {"path": "run", "scenarios": ["run_single_dry"]}
   ],
   "agent_actions": [

@@ -21,6 +21,11 @@ Provider-facing features are exercised through local provider twins:
 - `anthropic` -> expected reply prefix: `[local-anthropic]`
 - `openai-codex` -> expected reply prefix: `[local-openai-codex]`
 
+OAuth command surfaces are exercised with deterministic local CLI stubs:
+
+- `auth login --provider openai-codex --source codex-cli`
+- `auth login --provider claude-code --source claude-cli`
+
 ## Command Surface Coverage
 
 Coverage registry files:

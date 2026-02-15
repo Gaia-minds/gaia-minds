@@ -24,17 +24,17 @@ current active sprint window.
 - `Phase 3 Skill-First Unmet-Intent Triage` (`#112`, PR #127)
 - `Phase 3 Signal-Derived Hypothesis Candidate Integration` (`#113`, PR #128)
 - `Sprint OAuth onboarding activation + provider preflight fix` (`#134`, PR #136)
+- `Sprint onboarding/auth surface extraction` (`#131`, PR #137)
 
 ## In Progress
 
 - `#129` Governance/state sync reset (autonomous onboarding prompt + role-resolution protocol alignment) — owner `@TonyThePredictor`.
-- `#131` Refactor onboarding/auth surfaces out of `tools/gaia-assistant.py` — owner `@TonyThePredictor`.
+- `#130` Add Claude Code OAuth onboarding in `gaia onboard` / `gaia auth` — owner `@TonyThePredictor`.
 
 ## Next Up (Ordered Queue)
 
-1. `#130` Add Claude Code OAuth onboarding in `gaia onboard` / `gaia auth`.
-2. `#132` Rebuild live preview from reproducible real Gaia interaction traces.
-3. `#133` Prepare next npm release after stabilization lanes merge.
+1. `#132` Rebuild live preview from reproducible real Gaia interaction traces.
+2. `#133` Prepare next npm release after stabilization lanes merge.
 
 ## Planned Next Wave
 
