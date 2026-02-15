@@ -26,9 +26,8 @@ Primary docs and references:
 - OpenAI OpenAPI spec (`/models` list operation in `manual_spec` branch): https://raw.githubusercontent.com/openai/openai-openapi/manual_spec/openapi.yaml
 - Anthropic Models API (`GET /v1/models`): https://docs.anthropic.com/en/api/models-list
 - Anthropic API errors: https://docs.anthropic.com/en/api/errors
-- OpenRouter Models API (`GET /api/v1/models`): https://openrouter.ai/docs/api-reference/models/list-available-models
-- OpenRouter available-for-user catalog endpoint: https://openrouter.ai/docs/api-reference/models/list-endpoint-for-models-available-for-your-account
-- OpenRouter errors and diagnostics: https://openrouter.ai/docs/api-reference/errors-and-debugging
+- OpenRouter API reference overview: https://openrouter.ai/docs/api-reference/overview
+- OpenRouter Models API (`GET /api/v1/models`): https://openrouter.ai/api/v1/models
 - Claude Code CLI model settings and aliases: https://docs.anthropic.com/en/docs/claude-code/settings
 - Claude Code CLI reference (`--model`, `--effort`): https://docs.anthropic.com/en/docs/claude-code/cli-reference
 - OpenAI Codex CLI command-line options: https://developers.openai.com/codex/cli#command-line-options
@@ -86,12 +85,11 @@ Failure modes to expect:
 What is contractually available:
 
 - `GET /api/v1/models` returns machine-readable model metadata, including pricing/context fields.
-- OpenRouter also documents a user-scoped available-models endpoint (`/api/v1/models?category=...`) tied to current account/provider preferences.
 
 Implication for Gaia:
 
 - **Live catalog source is stable and production-appropriate.**
-- Prefer general list endpoint for baseline; optionally augment with user-scoped availability if Gaia needs “actually routeable now” semantics.
+- Use this as the canonical live list endpoint for initial model selector/catalog surfaces.
 
 Failure modes to expect:
 
@@ -226,7 +224,7 @@ Codex default preference rule:
 
 - Provider APIs do not expose one universal `supports_effort` contract; Gaia must maintain a compatibility map until provider metadata normalizes.
 - OpenAI catalog includes model classes outside Gaia reasoning scope; filtering heuristics must be regression-tested.
-- OpenRouter global catalog and user-available catalog can diverge based on account/provider routing settings.
+- OpenRouter routing/availability can diverge from static list assumptions based on account/provider settings and temporary upstream capacity changes.
 - CLI products may change aliases/model naming independently from API IDs; curated mappings require periodic freshness checks.
 
 ## Acceptance Check Against Issue #144
