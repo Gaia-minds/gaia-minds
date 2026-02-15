@@ -4772,6 +4772,85 @@ def _model_capability_entry(provider: str, model_id: str, capability_source: str
     }
 
 
+def _reasoning_effort_compatibility(provider: str, model_id: str, effort: str) -> Dict[str, Any]:
+    normalized_provider = str(provider).strip().lower()
+    normalized_model = str(model_id).strip()
+    requested_effort = _normalize_reasoning_effort(effort, default_value="")
+    capability = _model_capability_entry(normalized_provider, normalized_model, "derived-provider-contract-v1")
+    supports_effort = bool(capability.get("supports_effort", False))
+    effort_levels_raw = capability.get("effort_levels", [])
+    effort_levels_raw = effort_levels_raw if isinstance(effort_levels_raw, list) else []
+    effort_levels: List[str] = []
+    for level in effort_levels_raw:
+        normalized_level = _normalize_reasoning_effort(level, default_value="__invalid__")
+        if normalized_level == "__invalid__":
+            continue
+        if normalized_level and normalized_level not in effort_levels:
+            effort_levels.append(normalized_level)
+
+    mapped_effort = requested_effort
+    if normalized_provider in ("anthropic", "claude-code") and mapped_effort == "minimal":
+        mapped_effort = "low"
+
+    compatible = True
+    if requested_effort:
+        if not supports_effort:
+            compatible = False
+        elif effort_levels and mapped_effort not in effort_levels:
+            compatible = False
+
+    return {
+        "provider": normalized_provider,
+        "model": normalized_model,
+        "requested_effort": requested_effort,
+        "mapped_effort": mapped_effort,
+        "supports_effort": supports_effort,
+        "effort_levels": effort_levels,
+        "compatible": compatible,
+    }
+
+
+def _print_reasoning_effort_compatibility_warning(
+    *,
+    stage: str,
+    provider: str,
+    model_id: str,
+    effort: str,
+) -> bool:
+    compatibility = _reasoning_effort_compatibility(provider, model_id, effort)
+    requested_effort = str(compatibility.get("requested_effort", "")).strip()
+    if not requested_effort:
+        return False
+    if bool(compatibility.get("compatible", True)):
+        return False
+
+    normalized_provider = str(compatibility.get("provider", "")).strip().lower() or str(provider).strip().lower()
+    normalized_model = str(compatibility.get("model", "")).strip() or str(model_id).strip()
+    if not normalized_provider or not normalized_model:
+        return False
+    effort_levels_raw = compatibility.get("effort_levels", [])
+    effort_levels_raw = effort_levels_raw if isinstance(effort_levels_raw, list) else []
+    effort_levels = [str(level).strip() for level in effort_levels_raw if str(level).strip()]
+    effort_levels_display = ",".join(effort_levels) if effort_levels else "none"
+    provider_hint = normalized_provider or "openai"
+
+    print(
+        f"[warn] {stage} compatibility: effort '{requested_effort}' is unsupported for "
+        f"{normalized_provider}/{normalized_model}."
+    )
+    print(
+        f"[warn] {stage} compatibility: runtime will ignore this effort value and use provider/model defaults."
+    )
+    print(
+        f"[hint] {stage} compatibility: supported effort levels for this model: {effort_levels_display}."
+    )
+    print(
+        f"[hint] {stage} compatibility: run `{_launcher_hint()} models list --provider {provider_hint}` "
+        "to choose a compatible model, or set effort to auto."
+    )
+    return True
+
+
 def _provider_model_catalog_snapshot(
     provider: str,
     *,
@@ -5431,6 +5510,12 @@ def cmd_onboard(args: argparse.Namespace) -> int:
             secret_store_override=args.secret_store,
             non_interactive=args.yes,
         )
+        _print_reasoning_effort_compatibility_warning(
+            stage="onboarding",
+            provider=provider,
+            model_id=selected_model,
+            effort=selected_effort,
+        )
         print("OAuth flow selected: OpenAI Codex via Codex CLI")
         print("This opens browser/device auth and links profile into Gaia local auth store.")
         should_start = _prompt_yes_no(
@@ -5463,6 +5548,12 @@ def cmd_onboard(args: argparse.Namespace) -> int:
             explicit_api_key=args.api_key,
             secret_store_override=args.secret_store,
             non_interactive=args.yes,
+        )
+        _print_reasoning_effort_compatibility_warning(
+            stage="onboarding",
+            provider=provider,
+            model_id=selected_model,
+            effort=selected_effort,
         )
         print("OAuth flow selected: Claude Code via Claude CLI")
         print("This runs Claude auth login and links profile metadata into Gaia local auth store.")
@@ -5505,6 +5596,12 @@ def cmd_onboard(args: argparse.Namespace) -> int:
         explicit_api_key=args.api_key,
         secret_store_override=args.secret_store,
         non_interactive=args.yes,
+    )
+    _print_reasoning_effort_compatibility_warning(
+        stage="onboarding",
+        provider=provider,
+        model_id=provider_model,
+        effort=selected_effort,
     )
 
     rc = _configure_api_key_provider(
@@ -13095,6 +13192,12 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"Reasoning effort override: {_reasoning_effort_display(effective_effort)}")
     else:
         print(f"Reasoning effort: {_reasoning_effort_display(configured_effort)} (from launcher config)")
+    _print_reasoning_effort_compatibility_warning(
+        stage="run startup",
+        provider=effective_provider,
+        model_id=effective_model,
+        effort=effective_effort,
+    )
     print(
         "Reasoning failover: "
         f"{'enabled' if failover_enabled else 'disabled'} "

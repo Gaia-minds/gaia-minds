@@ -835,6 +835,8 @@ Reasoning effort selector:
 - Config contract: `reasoning.effort` (`minimal`, `low`, `medium`, `high`).
 - Onboarding supports `--effort` and run supports `--reasoning-effort`.
 - `gaia config set effort <value>` persists effort (`gaia config get effort`).
+- Onboarding and `gaia run` startup now emit deterministic compatibility
+  warnings/remediation guidance when selected model+effort is unsupported.
 - Runtime applies effort only when the current provider/model supports it and
   logs explicit no-op behavior when unsupported.
 
