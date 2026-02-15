@@ -1,6 +1,6 @@
 # Gaia Minds Roadmap
 
-Updated: February 14, 2026
+Updated: February 15, 2026
 
 This roadmap is now optimized for fast execution.
 
@@ -215,21 +215,17 @@ Recommended merge order:
 
 Execution queue (governance + onboarding stabilization sprint reset):
 
-- `#134` Fix OAuth onboarding activation + provider dependency preflight for `gaia run` (queued; based on user reproduction)
-- `#129` Governance/state sync reset across `README.md`, `CONTRIBUTING.md`, `STATUS.md`, `ROADMAP.md`, and `CHANGELOG.md` (queued)
-- `#131` Refactor onboarding/auth surfaces out of `tools/gaia-assistant.py` (queued)
-- `#130` Add Claude Code OAuth onboarding path to `gaia onboard` + `gaia auth` (queued; depends on `#131`)
+- `#134` Fix OAuth onboarding activation + provider dependency preflight for `gaia run` (delivered; PR #136)
+- `#129` Governance/state sync reset across `README.md`, `CONTRIBUTING.md`, `STATUS.md`, `ROADMAP.md`, and `CHANGELOG.md` (delivered)
+- `#131` Refactor onboarding/auth surfaces out of `tools/gaia-assistant.py` (delivered; PR #137)
+- `#130` Add Claude Code OAuth onboarding path to `gaia onboard` + `gaia auth` (delivered; PR #138)
 - `#132` Rebuild live preview from reproducible real Gaia interaction traces (queued)
 - `#133` Prepare next npm release after stabilization lanes merge (queued; release gate)
 
 Recommended merge order:
 
-1. `#134` (fix broken OAuth onboarding -> run continuity first)
-2. `#129` (source-of-truth reset for docs/state)
-3. `#131` (onboarding/auth refactor boundary)
-4. `#130` (Claude Code OAuth onboarding integration)
-5. `#132` (live preview refresh from reproducible captures)
-6. `#133` (release preparation and publish)
+1. `#132` (live preview refresh from reproducible captures)
+2. `#133` (release preparation and publish)
 
 Claude Code OAuth implementation notes (for `#130`):
 
@@ -336,9 +332,11 @@ Framework KPIs:
 
 ## Immediate 14-Day Priorities
 
-1. Fix onboarding/runtime continuity regression (`#134`) so successful OAuth onboarding leads to a runnable default path.
-2. Complete governance/state reset lane (`#129`) so onboarding/contributor docs and sprint tracking stop diverging.
-3. Land onboarding/auth module extraction (`#131`), Claude Code OAuth integration (`#130`), and publish next npm release after full validation (`#132`, `#133`).
+Next checkpoint date: February 22, 2026.
+
+1. Complete live-preview refresh lane (`#132`) with reproducible capture workflow and updated assets.
+2. Complete release lane (`#133`) with full readiness packet and validated npm publish.
+3. Run the next planning round immediately after `#133` to seed the next framework/assistant queue.
 
 ## Milestones Log
 
@@ -363,5 +361,6 @@ Framework KPIs:
 | 2026-02-13 | Phase 3 hypothesis pipeline v1 merged | Issue #86 via PR #90 |
 | 2026-02-14 | Signal-driven follow-on queue completed | Issues #111, #112, #113, #115, #122, #123 merged |
 | 2026-02-14 | Governance/onboarding stabilization sprint queue opened | Issues #129, #130, #131, #132, #133, #134 |
+| 2026-02-15 | Onboarding stabilization implementation lanes merged | Issues #129, #130, #131, #134 merged; #132 and #133 remain |
 
 This roadmap is a living document and should be updated at least weekly.
