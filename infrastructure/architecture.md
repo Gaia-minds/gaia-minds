@@ -1252,6 +1252,55 @@ Lane: `Build coordinator planner and specialist registry v1` (`#162`)
 - Smoke suite now includes:
   - `coordinator_planner_registry_v1_matrix`
 
+## Phase 4 Delta: Delegated Execution and Synthesis v1 (2026-02-15)
+
+Lane: `Implement delegated execution and synthesis path` (`#163`)
+
+### Runtime contract additions
+
+- Added coordinator execution entrypoint:
+  - `execute_coordinator_delegation_v1(cfg, payload, ...)`
+- Added explicit runtime gate controls (default-off):
+  - `runtime.delegation_enabled`
+  - `runtime.delegation_mode` (`off|coordinator_v1`)
+  - `runtime.delegation_dispatch_max_attempts` (`1..3`, default `2`)
+- Added specialist result envelope contract:
+  - `specialist.result.v1`
+- Added synthesis output contract:
+  - `delegation.synthesis.v1`
+
+### Execution flow behavior
+
+- Execution consumes `coordinator.plan.v1` tasks and per-task
+  `delegation.contract.v1` decisions.
+- `delegate` tasks dispatch to the top-ranked specialist candidate.
+- Dispatch path includes deterministic retry budget (same specialist, bounded
+  attempts) before fallback activation.
+- Non-delegate decisions (`confirm|fallback|deny`) route deterministically to
+  fallback handling:
+  - `single_agent` strategy -> single-agent result envelope
+  - `defer` strategy -> deferred result envelope
+
+### Trace integration
+
+- Added delegation execution trace emitters:
+  - `specialist_dispatch`
+  - `specialist_result`
+  - `delegation_fallback`
+  - `delegation_synthesis`
+- Existing traces remain in-chain:
+  - `delegation_plan_created`
+  - `delegation_decision`
+
+### Fixtures and smoke coverage
+
+- Delegated execution fixture matrix:
+  - `assistant/delegated-execution-fixtures.json`
+- Delegated execution harness:
+  - `tools/delegated-execution-check.sh`
+- Smoke suite now includes:
+  - `delegated_execution_synthesis_v1_matrix`
+
 ---
 
 ## Open Technical Questions

@@ -248,6 +248,8 @@ make benchmark-trend
 - Delegation contract regression harness: `tools/delegation-contract-check.sh`
 - Coordinator planner/registry fixture: `assistant/coordinator-planner-fixtures.json`
 - Coordinator planner regression harness: `tools/coordinator-planner-check.sh`
+- Delegated execution/synthesis fixture: `assistant/delegated-execution-fixtures.json`
+- Delegated execution/synthesis regression harness: `tools/delegated-execution-check.sh`
 - Quality matrix artifact: `assistant/quality-matrix-results.json`
 - Trend history: `assistant/benchmark-trend-history.json`
 - Trend summary: `assistant/benchmark-trend-summary.md`

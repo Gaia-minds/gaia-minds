@@ -150,6 +150,13 @@ SPECIALIST_REGISTRY_SCHEMA_VERSION = 1
 COORDINATOR_PLAN_SCHEMA_VERSION = 1
 COORDINATOR_MAX_SUBTASKS_DEFAULT = 4
 COORDINATOR_MAX_CANDIDATES_DEFAULT = 3
+DELEGATION_RUNTIME_MODE_CHOICES = ("off", "coordinator_v1")
+COORDINATOR_EXECUTION_SCHEMA_VERSION = 1
+SPECIALIST_RESULT_SCHEMA_VERSION = 1
+DELEGATION_SYNTHESIS_SCHEMA_VERSION = 1
+COORDINATOR_DISPATCH_MAX_ATTEMPTS_DEFAULT = 2
+COORDINATOR_DISPATCH_MAX_ATTEMPTS_MIN = 1
+COORDINATOR_DISPATCH_MAX_ATTEMPTS_MAX = 3
 DEFAULT_CAPABILITY_LEVELS = {
     "file_read": "safe",
     "file_write": "safe",
@@ -198,6 +205,12 @@ PROFILE_KEY_MAP = {
     "response_profile": ("profile", "response_profile"),
     "response-style": ("profile", "response_profile"),
     "style": ("profile", "response_profile"),
+    "delegation_enabled": ("runtime", "delegation_enabled"),
+    "delegation-enabled": ("runtime", "delegation_enabled"),
+    "delegation_mode": ("runtime", "delegation_mode"),
+    "delegation-mode": ("runtime", "delegation_mode"),
+    "delegation_dispatch_max_attempts": ("runtime", "delegation_dispatch_max_attempts"),
+    "delegation-dispatch-max-attempts": ("runtime", "delegation_dispatch_max_attempts"),
     "signals_enabled": ("signals", "enabled"),
     "signal_collection": ("signals", "enabled"),
     "signals_retention_days": ("signals", "retention_days"),
@@ -329,6 +342,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "runtime": {
         "mode": "continuous",
         "interval_minutes": 60,
+        "delegation_enabled": False,
+        "delegation_mode": "off",
+        "delegation_dispatch_max_attempts": COORDINATOR_DISPATCH_MAX_ATTEMPTS_DEFAULT,
     },
     "reasoning": {
         "provider": "anthropic",
@@ -502,6 +518,27 @@ def _normalize_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     runtime = cfg.setdefault("runtime", {})
     runtime.setdefault("mode", "continuous")
     runtime.setdefault("interval_minutes", 60)
+    runtime["delegation_enabled"] = _normalize_bool_default(
+        runtime.get("delegation_enabled", False),
+        False,
+    )
+    delegation_mode = str(runtime.get("delegation_mode", "off")).strip().lower()
+    if delegation_mode not in DELEGATION_RUNTIME_MODE_CHOICES:
+        delegation_mode = "coordinator_v1" if runtime["delegation_enabled"] else "off"
+    if runtime["delegation_enabled"] and delegation_mode == "off":
+        delegation_mode = "coordinator_v1"
+    if not runtime["delegation_enabled"]:
+        delegation_mode = "off"
+    runtime["delegation_mode"] = delegation_mode
+    runtime["delegation_dispatch_max_attempts"] = _normalize_int_default(
+        runtime.get(
+            "delegation_dispatch_max_attempts",
+            COORDINATOR_DISPATCH_MAX_ATTEMPTS_DEFAULT,
+        ),
+        default_value=COORDINATOR_DISPATCH_MAX_ATTEMPTS_DEFAULT,
+        min_value=COORDINATOR_DISPATCH_MAX_ATTEMPTS_MIN,
+        max_value=COORDINATOR_DISPATCH_MAX_ATTEMPTS_MAX,
+    )
 
     reasoning = cfg.setdefault("reasoning", {})
     reasoning.setdefault("provider", "anthropic")
@@ -818,6 +855,36 @@ def _normalize_config_value(key: str, value: str) -> Tuple[Optional[Any], Option
         return raw, None
     if canonical_key == "name":
         return raw, None
+    if canonical_key in ("delegation_enabled", "delegation-enabled"):
+        token = raw.lower()
+        if token in ("1", "true", "yes", "on", "enabled"):
+            return True, None
+        if token in ("0", "false", "no", "off", "disabled"):
+            return False, None
+        return None, "Invalid delegation_enabled value. Expected true/false."
+    if canonical_key in ("delegation_mode", "delegation-mode"):
+        normalized = raw.lower().replace("-", "_")
+        if normalized not in DELEGATION_RUNTIME_MODE_CHOICES:
+            return None, (
+                f"Invalid delegation_mode '{value}'. "
+                f"Expected one of: {', '.join(DELEGATION_RUNTIME_MODE_CHOICES)}."
+            )
+        return normalized, None
+    if canonical_key in ("delegation_dispatch_max_attempts", "delegation-dispatch-max-attempts"):
+        try:
+            attempts = int(raw)
+        except ValueError:
+            return None, "Invalid delegation_dispatch_max_attempts value. Expected an integer."
+        if (
+            attempts < COORDINATOR_DISPATCH_MAX_ATTEMPTS_MIN
+            or attempts > COORDINATOR_DISPATCH_MAX_ATTEMPTS_MAX
+        ):
+            return None, (
+                "Invalid delegation_dispatch_max_attempts value. "
+                f"Expected {COORDINATOR_DISPATCH_MAX_ATTEMPTS_MIN}.."
+                f"{COORDINATOR_DISPATCH_MAX_ATTEMPTS_MAX}."
+            )
+        return attempts, None
     if canonical_key in ("signals_enabled", "signal_collection"):
         token = raw.lower()
         if token in ("1", "true", "yes", "on", "enabled"):
@@ -4317,6 +4384,649 @@ def emit_coordinator_plan_trace(
         permission_level=permission_level,
         metadata=metadata,
     )
+
+
+def _resolve_delegation_runtime_settings(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    runtime_cfg = cfg.get("runtime", {})
+    runtime_cfg = runtime_cfg if isinstance(runtime_cfg, dict) else {}
+
+    configured_enabled = _normalize_bool_default(
+        runtime_cfg.get("delegation_enabled", False),
+        False,
+    )
+    mode = str(runtime_cfg.get("delegation_mode", "off")).strip().lower()
+    if mode not in DELEGATION_RUNTIME_MODE_CHOICES:
+        mode = "coordinator_v1" if configured_enabled else "off"
+    if configured_enabled and mode == "off":
+        mode = "coordinator_v1"
+    if not configured_enabled:
+        mode = "off"
+
+    dispatch_max_attempts = _normalize_int_default(
+        runtime_cfg.get(
+            "delegation_dispatch_max_attempts",
+            COORDINATOR_DISPATCH_MAX_ATTEMPTS_DEFAULT,
+        ),
+        default_value=COORDINATOR_DISPATCH_MAX_ATTEMPTS_DEFAULT,
+        min_value=COORDINATOR_DISPATCH_MAX_ATTEMPTS_MIN,
+        max_value=COORDINATOR_DISPATCH_MAX_ATTEMPTS_MAX,
+    )
+
+    return {
+        "configured_enabled": configured_enabled,
+        "enabled": configured_enabled and mode == "coordinator_v1",
+        "mode": mode,
+        "dispatch_max_attempts": dispatch_max_attempts,
+    }
+
+
+def _normalize_dispatch_failure_budget(value: Any) -> Dict[str, int]:
+    budget: Dict[str, int] = {}
+    if isinstance(value, dict):
+        for raw_task_id, raw_count in value.items():
+            task_id = str(raw_task_id).strip()
+            if not task_id:
+                continue
+            try:
+                failures = int(raw_count)
+            except (TypeError, ValueError):
+                failures = 0
+            if failures < 0:
+                failures = 0
+            if failures > 9:
+                failures = 9
+            budget[task_id] = failures
+        return budget
+
+    tokens: List[str] = []
+    if isinstance(value, str):
+        tokens = [item.strip() for item in value.split(",")]
+    elif isinstance(value, list):
+        tokens = [str(item).strip() for item in value]
+    for token in tokens:
+        if not token:
+            continue
+        budget[token] = COORDINATOR_DISPATCH_MAX_ATTEMPTS_DEFAULT
+    return budget
+
+
+def _dispatch_failure_budget_for_task(failure_budget: Dict[str, int], task_id: str) -> int:
+    task_key = str(task_id).strip()
+    if task_key in failure_budget:
+        return max(0, int(failure_budget.get(task_key, 0)))
+    if "*" in failure_budget:
+        return max(0, int(failure_budget.get("*", 0)))
+    return 0
+
+
+def _primary_specialist_for_task(task_payload: Dict[str, Any]) -> str:
+    candidates = task_payload.get("candidate_specialists", [])
+    if isinstance(candidates, list):
+        for item in candidates:
+            specialist_id = str(item).strip().lower()
+            if specialist_id:
+                return specialist_id
+    ranked = task_payload.get("ranked_specialists", [])
+    if isinstance(ranked, list):
+        for item in ranked:
+            if not isinstance(item, dict):
+                continue
+            specialist_id = str(item.get("specialist_id", "")).strip().lower()
+            if specialist_id:
+                return specialist_id
+    return "single-agent"
+
+
+def _build_specialist_result_envelope_v1(
+    *,
+    plan_id: str,
+    task_payload: Dict[str, Any],
+    specialist_id: str,
+    attempt: int,
+    status: str,
+    result_summary: str,
+    error: str = "",
+) -> Dict[str, Any]:
+    ranked = task_payload.get("ranked_specialists", [])
+    estimated_confidence = 0.0
+    if isinstance(ranked, list):
+        for item in ranked:
+            if not isinstance(item, dict):
+                continue
+            item_specialist = str(item.get("specialist_id", "")).strip().lower()
+            if item_specialist and item_specialist == specialist_id:
+                estimated_confidence = _normalize_delegation_confidence(
+                    item.get("estimated_confidence", 0.0),
+                    default_value=0.0,
+                )
+                break
+    if estimated_confidence <= 0.0 and isinstance(ranked, list) and ranked and isinstance(ranked[0], dict):
+        estimated_confidence = _normalize_delegation_confidence(
+            ranked[0].get("estimated_confidence", 0.0),
+            default_value=0.0,
+        )
+    return {
+        "schema_version": SPECIALIST_RESULT_SCHEMA_VERSION,
+        "contract_id": "specialist.result.v1",
+        "plan_id": plan_id,
+        "task_id": str(task_payload.get("task_id", "")).strip(),
+        "specialist_id": specialist_id,
+        "attempt": max(1, int(attempt)),
+        "status": status,
+        "result_summary": _summarize_text(result_summary, max_chars=260),
+        "estimated_confidence": estimated_confidence,
+        "error": _summarize_text(error, max_chars=220),
+    }
+
+
+def _build_single_agent_fallback_envelope_v1(
+    *,
+    plan_id: str,
+    task_payload: Dict[str, Any],
+    reason: str,
+) -> Dict[str, Any]:
+    title = str(task_payload.get("title", "")).strip() or str(task_payload.get("task_id", "")).strip()
+    summary = (
+        f"Single-agent fallback completed for '{title}' "
+        f"(reason: {_summarize_text(reason, max_chars=120)})."
+    )
+    return {
+        "schema_version": SPECIALIST_RESULT_SCHEMA_VERSION,
+        "contract_id": "specialist.result.v1",
+        "plan_id": plan_id,
+        "task_id": str(task_payload.get("task_id", "")).strip(),
+        "specialist_id": "single-agent",
+        "attempt": 1,
+        "status": "ok",
+        "result_summary": _summarize_text(summary, max_chars=260),
+        "estimated_confidence": 0.7,
+        "error": "",
+    }
+
+
+def _build_defer_fallback_envelope_v1(
+    *,
+    plan_id: str,
+    task_payload: Dict[str, Any],
+    reason: str,
+) -> Dict[str, Any]:
+    return {
+        "schema_version": SPECIALIST_RESULT_SCHEMA_VERSION,
+        "contract_id": "specialist.result.v1",
+        "plan_id": plan_id,
+        "task_id": str(task_payload.get("task_id", "")).strip(),
+        "specialist_id": "defer",
+        "attempt": 0,
+        "status": "deferred",
+        "result_summary": _summarize_text(
+            f"Execution deferred: {reason}",
+            max_chars=260,
+        ),
+        "estimated_confidence": 0.0,
+        "error": "",
+    }
+
+
+def emit_specialist_dispatch_trace(
+    trace_dir: Path,
+    dispatch_payload: Dict[str, Any],
+    *,
+    correlation_id: str = "",
+    duration_ms: float = 0.0,
+    permission_level: str = "safe",
+) -> Dict[str, Any]:
+    task_id = str(dispatch_payload.get("task_id", "")).strip() or "task-unknown"
+    decision = _normalize_delegation_decision(dispatch_payload.get("decision", "fallback"))
+    fallback_strategy = _normalize_delegation_fallback_strategy(
+        dispatch_payload.get("fallback_strategy", "single_agent"),
+        default_value="single_agent",
+    )
+    metadata = _with_trace_metadata(
+        {
+            "plan_id": str(dispatch_payload.get("plan_id", "")).strip(),
+            "task_id": task_id,
+            "intent_class": str(dispatch_payload.get("intent_class", "")).strip() or "general",
+            "risk_level": _normalize_delegation_risk(dispatch_payload.get("risk_level", "medium")),
+            "decision": decision,
+            "decision_reason": str(dispatch_payload.get("decision_reason", "")).strip(),
+            "fallback_strategy": fallback_strategy,
+            "specialist_id": str(dispatch_payload.get("specialist_id", "")).strip(),
+            "attempt": int(dispatch_payload.get("attempt", 1) or 1),
+            "contract_id": "coordinator.execution.v1",
+        },
+        correlation_id=correlation_id or task_id,
+    )
+    return _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="specialist_dispatch",
+        input_summary=f"task_id={task_id}",
+        output_summary=(
+            "dispatch "
+            f"{str(dispatch_payload.get('specialist_id', '')).strip() or 'single-agent'} "
+            f"attempt={int(dispatch_payload.get('attempt', 1) or 1)}"
+        ),
+        duration_ms=duration_ms,
+        permission_level=permission_level,
+        metadata=metadata,
+    )
+
+
+def emit_specialist_result_trace(
+    trace_dir: Path,
+    result_payload: Dict[str, Any],
+    *,
+    correlation_id: str = "",
+    duration_ms: float = 0.0,
+    permission_level: str = "safe",
+) -> Dict[str, Any]:
+    task_id = str(result_payload.get("task_id", "")).strip() or "task-unknown"
+    status_token = str(result_payload.get("status", "ok")).strip().lower()
+    trace_status = "ok"
+    if status_token in ("error", "failed"):
+        trace_status = "error"
+    if status_token in ("deferred",):
+        trace_status = "blocked"
+    metadata = _with_trace_metadata(
+        {
+            "plan_id": str(result_payload.get("plan_id", "")).strip(),
+            "task_id": task_id,
+            "specialist_id": str(result_payload.get("specialist_id", "")).strip(),
+            "result_status": status_token,
+            "attempt": int(result_payload.get("attempt", 1) or 1),
+            "error": str(result_payload.get("error", "")).strip(),
+            "contract_id": str(result_payload.get("contract_id", "specialist.result.v1")).strip(),
+        },
+        correlation_id=correlation_id or task_id,
+    )
+    return _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="specialist_result",
+        input_summary=f"task_id={task_id}",
+        output_summary=_summarize_text(result_payload.get("result_summary", ""), max_chars=160),
+        duration_ms=duration_ms,
+        permission_level=permission_level,
+        status=trace_status,
+        metadata=metadata,
+    )
+
+
+def emit_delegation_fallback_trace(
+    trace_dir: Path,
+    fallback_payload: Dict[str, Any],
+    *,
+    correlation_id: str = "",
+    duration_ms: float = 0.0,
+    permission_level: str = "safe",
+) -> Dict[str, Any]:
+    task_id = str(fallback_payload.get("task_id", "")).strip() or "task-unknown"
+    fallback_strategy = _normalize_delegation_fallback_strategy(
+        fallback_payload.get("fallback_strategy", "single_agent"),
+        default_value="single_agent",
+    )
+    execution_mode = str(fallback_payload.get("execution_mode", "")).strip().lower()
+    if execution_mode not in ("single_agent", "defer"):
+        execution_mode = "single_agent" if fallback_strategy == "single_agent" else "defer"
+    metadata = _with_trace_metadata(
+        {
+            "plan_id": str(fallback_payload.get("plan_id", "")).strip(),
+            "task_id": task_id,
+            "intent_class": str(fallback_payload.get("intent_class", "")).strip() or "general",
+            "risk_level": _normalize_delegation_risk(fallback_payload.get("risk_level", "medium")),
+            "decision": _normalize_delegation_decision(fallback_payload.get("decision", "fallback")),
+            "decision_reason": str(fallback_payload.get("decision_reason", "")).strip(),
+            "fallback_strategy": fallback_strategy,
+            "fallback_reason": str(fallback_payload.get("fallback_reason", "")).strip(),
+            "execution_mode": execution_mode,
+            "contract_id": "coordinator.execution.v1",
+        },
+        correlation_id=correlation_id or task_id,
+    )
+    return _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="delegation_fallback",
+        input_summary=f"task_id={task_id}",
+        output_summary=f"{execution_mode} ({fallback_strategy})",
+        duration_ms=duration_ms,
+        permission_level=permission_level,
+        status="blocked" if execution_mode == "defer" else "ok",
+        metadata=metadata,
+    )
+
+
+def emit_delegation_synthesis_trace(
+    trace_dir: Path,
+    synthesis_payload: Dict[str, Any],
+    *,
+    correlation_id: str = "",
+    duration_ms: float = 0.0,
+    permission_level: str = "safe",
+) -> Dict[str, Any]:
+    plan_id = str(synthesis_payload.get("plan_id", "")).strip() or "coord-plan-unknown"
+    synthesis_status = str(synthesis_payload.get("status", "mixed")).strip().lower()
+    if synthesis_status not in ("ok", "mixed", "deferred"):
+        synthesis_status = "mixed"
+    metadata = _with_trace_metadata(
+        {
+            "plan_id": plan_id,
+            "task_count": int(synthesis_payload.get("task_count", 0) or 0),
+            "delegated_count": int(synthesis_payload.get("delegated_count", 0) or 0),
+            "fallback_count": int(synthesis_payload.get("fallback_count", 0) or 0),
+            "deferred_count": int(synthesis_payload.get("deferred_count", 0) or 0),
+            "status": synthesis_status,
+            "contract_id": str(synthesis_payload.get("contract_id", "delegation.synthesis.v1")).strip(),
+        },
+        correlation_id=correlation_id or plan_id,
+    )
+    return _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="delegation_synthesis",
+        input_summary=f"plan_id={plan_id}",
+        output_summary=_summarize_text(
+            synthesis_payload.get("user_response", ""),
+            max_chars=180,
+        ),
+        duration_ms=duration_ms,
+        permission_level=permission_level,
+        status="blocked" if synthesis_status == "deferred" else "ok",
+        metadata=metadata,
+    )
+
+
+def _synthesize_delegation_user_response(task_results: List[Dict[str, Any]]) -> str:
+    if not task_results:
+        return "No delegated tasks were generated."
+    lines: List[str] = []
+    for task in task_results:
+        title = str(task.get("title", "")).strip() or str(task.get("task_id", "")).strip()
+        execution_mode = str(task.get("execution_mode", "single_agent")).strip().lower()
+        summary = _summarize_text(task.get("result_summary", ""), max_chars=140)
+        lines.append(f"{title} [{execution_mode}]: {summary}")
+    return " | ".join(lines)
+
+
+def execute_coordinator_delegation_v1(
+    cfg: Dict[str, Any],
+    payload: Dict[str, Any],
+    *,
+    trace_dir: Optional[Path] = None,
+    correlation_id: str = "",
+    permission_level: str = "safe",
+) -> Dict[str, Any]:
+    started_at = time.perf_counter()
+    request_payload: Dict[str, Any] = payload if isinstance(payload, dict) else {}
+    config_payload: Dict[str, Any] = cfg if isinstance(cfg, dict) else {}
+    runtime_settings = _resolve_delegation_runtime_settings(config_payload)
+    resolved_trace_dir = trace_dir if trace_dir is not None else _resolve_trace_dir(config_payload)
+
+    plan_payload = plan_coordinator_delegation_v1(request_payload)
+    plan_id = str(plan_payload.get("plan_id", "")).strip() or "coord-plan-unknown"
+    runtime_correlation = (
+        str(correlation_id).strip()
+        or str(request_payload.get("correlation_id", "")).strip()
+        or f"{plan_id}:exec"
+    )
+
+    emit_coordinator_plan_trace(
+        resolved_trace_dir,
+        plan_payload,
+        correlation_id=runtime_correlation,
+        duration_ms=0.1,
+        permission_level=permission_level,
+    )
+
+    tasks = plan_payload.get("tasks", [])
+    tasks = tasks if isinstance(tasks, list) else []
+    failure_budget = _normalize_dispatch_failure_budget(request_payload.get("dispatch_failure_budget", {}))
+
+    task_results: List[Dict[str, Any]] = []
+    delegated_count = 0
+    fallback_count = 0
+    deferred_count = 0
+
+    for raw_task in tasks:
+        if not isinstance(raw_task, dict):
+            continue
+        task = dict(raw_task)
+        task_id = str(task.get("task_id", "")).strip() or "task-unknown"
+        decision_payload = task.get("delegation_decision", {})
+        decision_payload = decision_payload if isinstance(decision_payload, dict) else {}
+
+        emit_delegation_decision_trace(
+            resolved_trace_dir,
+            decision_payload,
+            correlation_id=runtime_correlation,
+            input_summary=f"plan_id={plan_id} task_id={task_id}",
+            duration_ms=0.1,
+            permission_level=permission_level,
+        )
+
+        decision = _normalize_delegation_decision(decision_payload.get("decision", "fallback"))
+        decision_reason = str(decision_payload.get("decision_reason", "")).strip()
+        fallback_strategy = _normalize_delegation_fallback_strategy(
+            decision_payload.get("fallback_strategy", "single_agent"),
+            default_value="single_agent",
+        )
+        if decision == "deny":
+            fallback_strategy = "defer"
+
+        execution_mode = "single_agent"
+        result_envelope: Dict[str, Any]
+        result_summary = ""
+        specialist_id = ""
+        fallback_reason = ""
+
+        if runtime_settings["enabled"] and decision == "delegate":
+            specialist_id = _primary_specialist_for_task(task)
+            dispatch_success = False
+            max_attempts = int(runtime_settings.get("dispatch_max_attempts", COORDINATOR_DISPATCH_MAX_ATTEMPTS_DEFAULT) or 1)
+            failure_count = _dispatch_failure_budget_for_task(failure_budget, task_id)
+
+            for attempt in range(1, max_attempts + 1):
+                dispatch_payload = {
+                    "plan_id": plan_id,
+                    "task_id": task_id,
+                    "intent_class": task.get("intent_class", "general"),
+                    "risk_level": task.get("risk_level", "medium"),
+                    "decision": decision,
+                    "decision_reason": decision_reason,
+                    "fallback_strategy": fallback_strategy,
+                    "specialist_id": specialist_id,
+                    "attempt": attempt,
+                }
+                emit_specialist_dispatch_trace(
+                    resolved_trace_dir,
+                    dispatch_payload,
+                    correlation_id=runtime_correlation,
+                    duration_ms=0.1,
+                    permission_level=permission_level,
+                )
+
+                should_fail = failure_count >= attempt
+                if should_fail:
+                    failure_envelope = _build_specialist_result_envelope_v1(
+                        plan_id=plan_id,
+                        task_payload=task,
+                        specialist_id=specialist_id,
+                        attempt=attempt,
+                        status="error",
+                        result_summary=(
+                            f"{specialist_id} dispatch attempt {attempt} failed for "
+                            f"task '{task_id}'."
+                        ),
+                        error="simulated dispatch failure budget exhausted attempt",
+                    )
+                    emit_specialist_result_trace(
+                        resolved_trace_dir,
+                        failure_envelope,
+                        correlation_id=runtime_correlation,
+                        duration_ms=0.1,
+                        permission_level=permission_level,
+                    )
+                    continue
+
+                success_summary = (
+                    f"{specialist_id} handled '{str(task.get('title', task_id)).strip() or task_id}' "
+                    f"using deterministic delegated execution."
+                )
+                result_envelope = _build_specialist_result_envelope_v1(
+                    plan_id=plan_id,
+                    task_payload=task,
+                    specialist_id=specialist_id,
+                    attempt=attempt,
+                    status="ok",
+                    result_summary=success_summary,
+                    error="",
+                )
+                emit_specialist_result_trace(
+                    resolved_trace_dir,
+                    result_envelope,
+                    correlation_id=runtime_correlation,
+                    duration_ms=0.1,
+                    permission_level=permission_level,
+                )
+                dispatch_success = True
+                execution_mode = "delegated"
+                result_summary = str(result_envelope.get("result_summary", "")).strip()
+                delegated_count += 1
+                break
+
+            if dispatch_success:
+                task_results.append(
+                    {
+                        "task_id": task_id,
+                        "title": str(task.get("title", "")).strip() or task_id,
+                        "decision": decision,
+                        "decision_reason": decision_reason,
+                        "fallback_strategy": fallback_strategy,
+                        "execution_mode": execution_mode,
+                        "specialist_id": specialist_id,
+                        "result_summary": result_summary,
+                        "result_envelope": result_envelope,
+                    }
+                )
+                continue
+
+            fallback_reason = (
+                f"specialist dispatch failed after {max_attempts} attempt(s); "
+                "applying deterministic fallback strategy."
+            )
+        else:
+            if not runtime_settings["enabled"] and decision == "delegate":
+                fallback_reason = "delegation runtime is disabled by explicit configuration gate."
+            elif decision == "confirm":
+                fallback_reason = (
+                    decision_reason
+                    or "delegation requires confirmation before execution."
+                )
+            elif decision == "fallback":
+                fallback_reason = (
+                    decision_reason
+                    or "delegation evaluator requested fallback path."
+                )
+            else:
+                fallback_reason = (
+                    decision_reason
+                    or "delegation request deferred by deterministic safety routing."
+                )
+
+        if fallback_strategy == "defer":
+            execution_mode = "defer"
+            result_envelope = _build_defer_fallback_envelope_v1(
+                plan_id=plan_id,
+                task_payload=task,
+                reason=fallback_reason,
+            )
+            deferred_count += 1
+        else:
+            execution_mode = "single_agent"
+            result_envelope = _build_single_agent_fallback_envelope_v1(
+                plan_id=plan_id,
+                task_payload=task,
+                reason=fallback_reason,
+            )
+        fallback_count += 1
+        result_summary = str(result_envelope.get("result_summary", "")).strip()
+
+        emit_delegation_fallback_trace(
+            resolved_trace_dir,
+            {
+                "plan_id": plan_id,
+                "task_id": task_id,
+                "intent_class": task.get("intent_class", "general"),
+                "risk_level": task.get("risk_level", "medium"),
+                "decision": decision,
+                "decision_reason": decision_reason,
+                "fallback_strategy": fallback_strategy,
+                "fallback_reason": fallback_reason,
+                "execution_mode": execution_mode,
+            },
+            correlation_id=runtime_correlation,
+            duration_ms=0.1,
+            permission_level=permission_level,
+        )
+        emit_specialist_result_trace(
+            resolved_trace_dir,
+            result_envelope,
+            correlation_id=runtime_correlation,
+            duration_ms=0.1,
+            permission_level=permission_level,
+        )
+
+        task_results.append(
+            {
+                "task_id": task_id,
+                "title": str(task.get("title", "")).strip() or task_id,
+                "decision": decision,
+                "decision_reason": decision_reason,
+                "fallback_strategy": fallback_strategy,
+                "execution_mode": execution_mode,
+                "specialist_id": result_envelope.get("specialist_id", ""),
+                "result_summary": result_summary,
+                "result_envelope": result_envelope,
+            }
+        )
+
+    total_tasks = len(task_results)
+    synthesis_status = "mixed"
+    if total_tasks == 0:
+        synthesis_status = "deferred"
+    elif delegated_count == total_tasks:
+        synthesis_status = "ok"
+    elif deferred_count == total_tasks:
+        synthesis_status = "deferred"
+
+    synthesis_payload = {
+        "schema_version": DELEGATION_SYNTHESIS_SCHEMA_VERSION,
+        "contract_id": "delegation.synthesis.v1",
+        "plan_id": plan_id,
+        "status": synthesis_status,
+        "task_count": total_tasks,
+        "delegated_count": delegated_count,
+        "fallback_count": fallback_count,
+        "deferred_count": deferred_count,
+        "user_response": _synthesize_delegation_user_response(task_results),
+    }
+
+    emit_delegation_synthesis_trace(
+        resolved_trace_dir,
+        synthesis_payload,
+        correlation_id=runtime_correlation,
+        duration_ms=0.1,
+        permission_level=permission_level,
+    )
+
+    return {
+        "schema_version": COORDINATOR_EXECUTION_SCHEMA_VERSION,
+        "contract_id": "coordinator.execution.v1",
+        "plan": plan_payload,
+        "plan_id": plan_id,
+        "correlation_id": runtime_correlation,
+        "runtime_gate": runtime_settings,
+        "task_count": total_tasks,
+        "tasks": task_results,
+        "synthesis": synthesis_payload,
+        "duration_ms": round(max((time.perf_counter() - started_at) * 1000.0, 0.0), 3),
+    }
 
 
 def _evaluate_policy_decision(

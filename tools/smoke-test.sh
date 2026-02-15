@@ -475,6 +475,13 @@ PY
     [[ \"\$planner_out\" == *'\"status\": \"pass\"'* ]]
   "
 
+  run_test "delegated_execution_synthesis_v1_matrix" bash -lc "
+    bash \"${ROOT_DIR}/tools/delegated-execution-check.sh\" >/tmp/delegated-execution-smoke.out 2>&1 &&
+    delegated_out=\$(cat /tmp/delegated-execution-smoke.out) &&
+    [[ \"\$delegated_out\" == *'\"suite\": \"delegated-execution-v1\"'* ]] &&
+    [[ \"\$delegated_out\" == *'\"status\": \"pass\"'* ]]
+  "
+
   run_test "quality_matrix_guardrails" bash -lc "
     python3 \"${ROOT_DIR}/tools/quality-matrix.py\" \
       --manifest \"${ROOT_DIR}/assistant/fixtures/skills/manifest.json\" \

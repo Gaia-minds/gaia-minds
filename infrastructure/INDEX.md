@@ -33,6 +33,7 @@ Technical foundations and operational guidance.
 - [QA Evaluation Report](qa-evaluation-2026-02-14-skill-provenance-admission.md) — Updated: 2026-02-14
 - [QA Evaluation Report](qa-evaluation-2026-02-14-skills-obfuscation-hardening.md) — Updated: 2026-02-14
 - [QA Evaluation Report](qa-evaluation-2026-02-15-coordinator-planner-registry-v1.md) — Updated: 2026-02-15
+- [QA Evaluation Report](qa-evaluation-2026-02-15-delegated-execution-synthesis-v1.md) — Updated: 2026-02-15
 - [QA Evaluation Report](qa-evaluation-2026-02-15-delegation-contract-evaluator-v1.md) — Updated: 2026-02-15
 - [QA Evaluation Report: Release v0.3.0](qa-evaluation-2026-02-14-v0.3.0.md) — Date: February 14, 2026 Issue: `#108` Evaluator: Codex (`gaia-qa-evaluator` sub-role)
 - [QA Evaluation Report: Release v0.4.0](qa-evaluation-2026-02-15-v0.4.0.md) — Date: February 15, 2026 Issue: `#133` Evaluator: Codex (`gaia-qa-evaluator` sub-role)
@@ -51,6 +52,7 @@ Technical foundations and operational guidance.
 - [Security Review Report](security-review-2026-02-14-skill-provenance-admission.md) — Updated: 2026-02-14
 - [Security Review Report](security-review-2026-02-14-skills-obfuscation-hardening.md) — Updated: 2026-02-14
 - [Security Review Report](security-review-2026-02-15-coordinator-planner-registry-v1.md) — Updated: 2026-02-15
+- [Security Review Report](security-review-2026-02-15-delegated-execution-synthesis-v1.md) — Updated: 2026-02-15
 - [Security Review Report](security-review-2026-02-15-delegation-contract-evaluator-v1.md) — Updated: 2026-02-15
 - [Security Review Template](security-review-template.md) — Updated: February 8, 2026
 - [Self-Evolution PR Evidence Rubric](self-evolution-evidence-rubric.md) — Updated: February 13, 2026

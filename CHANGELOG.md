@@ -14,10 +14,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Delegation contract v1 fixture matrix and regression harness for threshold boundaries and safety override paths (`assistant/delegation-contract-v1-fixtures.json`, `tools/delegation-contract-check.sh`, `tools/smoke-test.sh`, `#161`)
 - Coordinator planner v1 contract (`coordinator.plan.v1`) with bounded decomposition, deterministic specialist ranking, and evaluator invocation over coordinator-produced task packets (`tools/gaia-assistant.py`, `#162`)
 - Specialist registry v1 schema contract and deterministic fixture harness coverage for ranking/decomposition stability (`infrastructure/specialist-registry-contract-v1.md`, `assistant/coordinator-planner-fixtures.json`, `tools/coordinator-planner-check.sh`, `tools/smoke-test.sh`, `#162`)
+- Coordinator delegated execution/synthesis v1 entrypoint with explicit runtime gate (`runtime.delegation_enabled`, `runtime.delegation_mode`, `runtime.delegation_dispatch_max_attempts`), deterministic dispatch retry behavior, specialist result envelopes, and fallback routing (`tools/gaia-assistant.py`, `#163`)
+- Delegated execution/synthesis fixture matrix and regression harness coverage with gate-off fallback, delegate success, and dispatch-failure/defer safety scenarios (`assistant/delegated-execution-fixtures.json`, `tools/delegated-execution-check.sh`, `tools/smoke-test.sh`, `#163`)
 
 ### Changed
 - Architecture docs now include the Phase 4 delegation evaluator/runtime delta and trace contract details (`infrastructure/architecture.md`, `#161`)
 - Architecture docs now include coordinator planner + specialist registry runtime contract details for Phase 4 lane B (`infrastructure/architecture.md`, `#162`)
+- Architecture docs now include delegated execution/synthesis runtime contracts and trace-stage coverage for Phase 4 lane C (`infrastructure/architecture.md`, `#163`)
+- Smoke baseline now tracks `30` deterministic checks including delegated execution/synthesis matrix coverage (`assistant/smoke-baseline.md`, `#163`)
 
 ### Removed
 - _Nothing yet._
