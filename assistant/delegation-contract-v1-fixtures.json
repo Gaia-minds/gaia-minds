@@ -1,0 +1,264 @@
+{
+  "schema_version": 1,
+  "description": "Deterministic delegation contract v1 routing fixtures for threshold and safety overrides.",
+  "cases": [
+    {
+      "id": "low_delegate_boundary",
+      "description": "low risk delegates at 0.70 confidence",
+      "input": {
+        "task_id": "fixture-low-delegate",
+        "intent_class": "research",
+        "risk_level": "low",
+        "estimated_confidence": 0.7,
+        "required_capabilities": ["file_read"],
+        "candidate_specialists": ["research"],
+        "policy_decision": "allow"
+      },
+      "expect": {
+        "decision": "delegate",
+        "fallback_strategy": "single_agent",
+        "reason_contains": "delegate threshold"
+      }
+    },
+    {
+      "id": "low_confirm_boundary",
+      "description": "low risk confirms at 0.45 confidence",
+      "input": {
+        "task_id": "fixture-low-confirm",
+        "intent_class": "planning",
+        "risk_level": "low",
+        "estimated_confidence": 0.45,
+        "required_capabilities": ["file_read"],
+        "candidate_specialists": ["planning"],
+        "policy_decision": "allow"
+      },
+      "expect": {
+        "decision": "confirm",
+        "fallback_strategy": "single_agent",
+        "reason_contains": "confirm threshold"
+      }
+    },
+    {
+      "id": "low_fallback_below_confirm",
+      "description": "low risk falls back below confirm threshold",
+      "input": {
+        "task_id": "fixture-low-fallback",
+        "intent_class": "planning",
+        "risk_level": "low",
+        "estimated_confidence": 0.44,
+        "required_capabilities": ["file_read"],
+        "candidate_specialists": ["planning"],
+        "policy_decision": "allow"
+      },
+      "expect": {
+        "decision": "fallback",
+        "fallback_strategy": "single_agent",
+        "reason_contains": "fallback required"
+      }
+    },
+    {
+      "id": "medium_delegate_boundary",
+      "description": "medium risk delegates at 0.80 confidence",
+      "input": {
+        "task_id": "fixture-medium-delegate",
+        "intent_class": "execution",
+        "risk_level": "medium",
+        "estimated_confidence": 0.8,
+        "required_capabilities": ["file_write"],
+        "candidate_specialists": ["ops"],
+        "policy_decision": "allow"
+      },
+      "expect": {
+        "decision": "delegate",
+        "fallback_strategy": "single_agent",
+        "reason_contains": "delegate threshold"
+      }
+    },
+    {
+      "id": "medium_confirm_boundary",
+      "description": "medium risk confirms at 0.60 confidence",
+      "input": {
+        "task_id": "fixture-medium-confirm",
+        "intent_class": "execution",
+        "risk_level": "medium",
+        "estimated_confidence": 0.6,
+        "required_capabilities": ["file_write"],
+        "candidate_specialists": ["ops"],
+        "policy_decision": "allow"
+      },
+      "expect": {
+        "decision": "confirm",
+        "fallback_strategy": "single_agent",
+        "reason_contains": "confirm threshold"
+      }
+    },
+    {
+      "id": "medium_fallback_below_confirm",
+      "description": "medium risk falls back below confirm threshold",
+      "input": {
+        "task_id": "fixture-medium-fallback",
+        "intent_class": "execution",
+        "risk_level": "medium",
+        "estimated_confidence": 0.59,
+        "required_capabilities": ["file_write"],
+        "candidate_specialists": ["ops"],
+        "policy_decision": "allow"
+      },
+      "expect": {
+        "decision": "fallback",
+        "fallback_strategy": "single_agent",
+        "reason_contains": "fallback required"
+      }
+    },
+    {
+      "id": "high_delegate_requires_confirmation",
+      "description": "high risk delegates only when confidence and explicit confirmation are both present",
+      "input": {
+        "task_id": "fixture-high-delegate",
+        "intent_class": "operations",
+        "risk_level": "high",
+        "estimated_confidence": 0.91,
+        "required_capabilities": ["network_request"],
+        "candidate_specialists": ["ops"],
+        "human_confirmed": true,
+        "policy_decision": "allow"
+      },
+      "expect": {
+        "decision": "delegate",
+        "fallback_strategy": "single_agent",
+        "reason_contains": "explicit human confirmation"
+      }
+    },
+    {
+      "id": "high_requires_confirm_without_human_approval",
+      "description": "high risk routes to confirm when confidence is high but explicit confirmation is missing",
+      "input": {
+        "task_id": "fixture-high-confirm",
+        "intent_class": "operations",
+        "risk_level": "high",
+        "estimated_confidence": 0.91,
+        "required_capabilities": ["network_request"],
+        "candidate_specialists": ["ops"],
+        "human_confirmed": false,
+        "policy_decision": "allow"
+      },
+      "expect": {
+        "decision": "confirm",
+        "fallback_strategy": "single_agent",
+        "reason_contains": "requires explicit human confirmation"
+      }
+    },
+    {
+      "id": "critical_always_deny",
+      "description": "critical risk is denied regardless of confidence",
+      "input": {
+        "task_id": "fixture-critical-deny",
+        "intent_class": "operations",
+        "risk_level": "critical",
+        "estimated_confidence": 0.99,
+        "required_capabilities": ["delete_files"],
+        "candidate_specialists": ["ops"],
+        "policy_decision": "allow"
+      },
+      "expect": {
+        "decision": "deny",
+        "fallback_strategy": "defer",
+        "reason_contains": "critical-risk"
+      }
+    },
+    {
+      "id": "missing_capability_denies",
+      "description": "missing required capability hard-denies",
+      "input": {
+        "task_id": "fixture-missing-capability",
+        "intent_class": "operations",
+        "risk_level": "low",
+        "estimated_confidence": 0.95,
+        "required_capabilities": ["file_write", "network_request"],
+        "available_capabilities": ["file_write"],
+        "candidate_specialists": ["ops"],
+        "policy_decision": "allow"
+      },
+      "expect": {
+        "decision": "deny",
+        "fallback_strategy": "defer",
+        "reason_contains": "required capabilities are missing"
+      }
+    },
+    {
+      "id": "policy_deny_override",
+      "description": "policy deny overrides confidence thresholds",
+      "input": {
+        "task_id": "fixture-policy-deny",
+        "intent_class": "research",
+        "risk_level": "low",
+        "estimated_confidence": 0.95,
+        "required_capabilities": ["file_read"],
+        "candidate_specialists": ["research"],
+        "policy_decision": "deny"
+      },
+      "expect": {
+        "decision": "deny",
+        "fallback_strategy": "defer",
+        "reason_contains": "policy decision denied"
+      }
+    },
+    {
+      "id": "sandbox_escalation_without_approval_fallback",
+      "description": "missing sandbox approval falls back by default",
+      "input": {
+        "task_id": "fixture-sandbox-fallback",
+        "intent_class": "operations",
+        "risk_level": "medium",
+        "estimated_confidence": 0.95,
+        "required_capabilities": ["shell_exec"],
+        "candidate_specialists": ["ops"],
+        "policy_decision": "allow",
+        "sandbox_escalation_required": true,
+        "sandbox_approved": false
+      },
+      "expect": {
+        "decision": "fallback",
+        "fallback_strategy": "single_agent",
+        "reason_contains": "sandbox escalation approval missing"
+      }
+    },
+    {
+      "id": "specialist_ambiguity_fallback",
+      "description": "unresolved specialist ambiguity falls back to single-agent synthesis",
+      "input": {
+        "task_id": "fixture-specialist-ambiguity",
+        "intent_class": "cross_domain",
+        "risk_level": "medium",
+        "estimated_confidence": 0.95,
+        "required_capabilities": ["file_read"],
+        "candidate_specialists": ["research", "planning"],
+        "policy_decision": "allow",
+        "specialist_ambiguity": true
+      },
+      "expect": {
+        "decision": "fallback",
+        "fallback_strategy": "single_agent",
+        "reason_contains": "specialist ambiguity"
+      }
+    },
+    {
+      "id": "policy_confirm_overrides_delegate",
+      "description": "policy confirm downgrades delegate outcome to confirm",
+      "input": {
+        "task_id": "fixture-policy-confirm",
+        "intent_class": "research",
+        "risk_level": "low",
+        "estimated_confidence": 0.95,
+        "required_capabilities": ["file_read"],
+        "candidate_specialists": ["research"],
+        "policy_decision": "confirm"
+      },
+      "expect": {
+        "decision": "confirm",
+        "fallback_strategy": "single_agent",
+        "reason_contains": "policy decision requires confirmation"
+      }
+    }
+  ]
+}

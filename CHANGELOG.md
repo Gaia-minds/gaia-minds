@@ -9,10 +9,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
-- _Nothing yet._
+- Deterministic delegation contract evaluator v1 entrypoint with policy/risk/capability/sandbox override routing across `delegate|confirm|fallback|deny` outcomes (`tools/gaia-assistant.py`, `#161`)
+- Delegation decision trace emitter with required correlation metadata fields (`task_id`, `risk_level`, `decision_reason`, `fallback_strategy`) for Phase 4 follow-on lane integration (`tools/gaia-assistant.py`, `#161`)
+- Delegation contract v1 fixture matrix and regression harness for threshold boundaries and safety override paths (`assistant/delegation-contract-v1-fixtures.json`, `tools/delegation-contract-check.sh`, `tools/smoke-test.sh`, `#161`)
 
 ### Changed
-- _Nothing yet._
+- Architecture docs now include the Phase 4 delegation evaluator/runtime delta and trace contract details (`infrastructure/architecture.md`, `#161`)
 
 ### Removed
 - _Nothing yet._

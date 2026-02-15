@@ -461,6 +461,13 @@ PY
     [[ \"\$traces\" == *\"policy_decision\"* ]]
   "
 
+  run_test "delegation_contract_v1_matrix" bash -lc "
+    bash \"${ROOT_DIR}/tools/delegation-contract-check.sh\" >/tmp/delegation-contract-smoke.out 2>&1 &&
+    delegation_out=\$(cat /tmp/delegation-contract-smoke.out) &&
+    [[ \"\$delegation_out\" == *'\"suite\": \"delegation-contract-v1\"'* ]] &&
+    [[ \"\$delegation_out\" == *'\"status\": \"pass\"'* ]]
+  "
+
   run_test "quality_matrix_guardrails" bash -lc "
     python3 \"${ROOT_DIR}/tools/quality-matrix.py\" \
       --manifest \"${ROOT_DIR}/assistant/fixtures/skills/manifest.json\" \

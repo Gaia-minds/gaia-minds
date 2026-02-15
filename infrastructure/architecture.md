@@ -1162,6 +1162,56 @@ Lane: `Refactor onboarding/auth surfaces out of tools/gaia-assistant.py` (`#131`
 - CLI command names and parser surfaces are unchanged.
 - Behavior parity is enforced through smoke/UAT/check gates.
 
+## Phase 4 Delta: Delegation Contract Evaluator v1 (2026-02-15)
+
+Lane: `Implement delegation contract evaluator v1` (`#161`)
+
+### Runtime contract additions
+
+- Added deterministic delegation contract evaluator entrypoint:
+  - `evaluate_delegation_contract_v1(contract)`
+- Evaluator emits one of:
+  - `delegate`
+  - `confirm`
+  - `fallback`
+  - `deny`
+- v1 routing enforces confidence thresholds and safety overrides from the Phase
+  4 kickoff contract:
+  - low risk: `>=0.70 delegate`, `0.45..0.69 confirm`, `<0.45 fallback`
+  - medium risk: `>=0.80 delegate`, `0.60..0.79 confirm`, `<0.60 fallback`
+  - high risk: `>=0.90` plus explicit human confirmation required for
+    delegation
+  - critical risk: hard `deny`
+
+### Safety override precedence
+
+- Required-capability gaps hard-deny delegation.
+- Policy `deny` hard-denies delegation.
+- Unapproved sandbox escalation routes to fallback by default.
+- Unresolved specialist ambiguity routes to fallback.
+- Policy `confirm` can downgrade a delegate outcome to confirm.
+
+### Trace integration
+
+- Added delegation decision trace emitter:
+  - `emit_delegation_decision_trace(...)`
+- Emits `delegation_decision` events with required metadata:
+  - `task_id`
+  - `risk_level`
+  - `decision`
+  - `decision_reason`
+  - `fallback_strategy`
+  - `correlation_id`
+
+### Deterministic fixture coverage
+
+- Added delegation fixture matrix:
+  - `assistant/delegation-contract-v1-fixtures.json`
+- Added deterministic fixture harness:
+  - `tools/delegation-contract-check.sh`
+- Smoke suite now includes:
+  - `delegation_contract_v1_matrix`
+
 ---
 
 ## Open Technical Questions

@@ -34,6 +34,7 @@ current active sprint window.
 - `[Sprint][Assistant] Add onboarding compatibility guardrails for model and effort` (`#155`)
 - `[Sprint][Framework] Phase 4 kickoff: delegation contract and coordinator design` (`#157`)
 - npm release `@gaia-minds/assistant-cli@0.5.0` (`#156`, tag `v0.5.0`)
+- `[Sprint][Framework][Phase 4] Implement delegation contract evaluator v1` (`#161`)
 
 ## In Progress
 
@@ -41,10 +42,9 @@ _No active in-progress lane._
 
 ## Next Up (Ordered Queue)
 
-1. `#161` `[Sprint][Framework][Phase 4] Implement delegation contract evaluator v1`
-2. `#162` `[Sprint][Framework][Phase 4] Build coordinator planner and specialist registry v1`
-3. `#163` `[Sprint][Framework][Phase 4] Implement delegated execution and synthesis path`
-4. `#164` `[Sprint][Framework][Phase 4] Add delegation QA matrix and rollout gates`
+1. `#162` `[Sprint][Framework][Phase 4] Build coordinator planner and specialist registry v1`
+2. `#163` `[Sprint][Framework][Phase 4] Implement delegated execution and synthesis path`
+3. `#164` `[Sprint][Framework][Phase 4] Add delegation QA matrix and rollout gates`
 
 ## Planned Next Wave
 

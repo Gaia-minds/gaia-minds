@@ -244,6 +244,8 @@ make benchmark-trend
 - Memory summarize benchmark result: `assistant/memory-summary-benchmark-results.json`
 - Memory QA/red-team fixture: `assistant/memory-quality-fixtures.json`
 - Memory QA/red-team result: `assistant/memory-quality-results.json`
+- Delegation contract v1 fixture: `assistant/delegation-contract-v1-fixtures.json`
+- Delegation contract regression harness: `tools/delegation-contract-check.sh`
 - Quality matrix artifact: `assistant/quality-matrix-results.json`
 - Trend history: `assistant/benchmark-trend-history.json`
 - Trend summary: `assistant/benchmark-trend-summary.md`
