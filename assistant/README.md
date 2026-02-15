@@ -820,11 +820,21 @@ and can be overridden per run:
 # one-off override from Gaia launcher
 gaia run --mode single --reasoning-provider openai --reasoning-model gpt-4.1-mini
 gaia run --mode single --reasoning-provider openrouter --reasoning-model openrouter/auto
+gaia run --mode single --reasoning-provider openai --reasoning-model gpt-5.3-codex --reasoning-effort high
 
 # npm/local clone equivalent
 npm run gaia -- run --mode single --reasoning-provider openai --reasoning-model gpt-4.1-mini
 npm run gaia -- run --mode single --reasoning-provider openrouter --reasoning-model openrouter/auto
+npm run gaia -- run --mode single --reasoning-provider openai --reasoning-model gpt-5.3-codex --reasoning-effort high
 ```
+
+Reasoning effort selector:
+
+- Config contract: `reasoning.effort` (`minimal`, `low`, `medium`, `high`).
+- Onboarding supports `--effort` and run supports `--reasoning-effort`.
+- `gaia config set effort <value>` persists effort (`gaia config get effort`).
+- Runtime applies effort only when the current provider/model supports it and
+  logs explicit no-op behavior when unsupported.
 
 Runtime hard-error failover:
 

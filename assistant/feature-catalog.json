@@ -72,7 +72,7 @@
     {"path": "auth login", "scenarios": ["auth_login_unsupported_provider", "auth_login_claude_cli_source"]},
     {"path": "auth link", "scenarios": ["auth_link_rejects_openclaw_source", "auth_link_codex_missing_credentials"]},
     {"path": "auth status", "scenarios": ["auth_status_command", "auth_login_claude_cli_source"]},
-    {"path": "run", "scenarios": ["run_single_dry", "run_failover_quota_hard_error"]}
+    {"path": "run", "scenarios": ["run_single_dry", "run_failover_quota_hard_error", "run_reasoning_effort_selector"]}
   ],
   "agent_actions": [
     {"type": "verify_resources", "scenarios": ["agent_loop_dry_run"]},

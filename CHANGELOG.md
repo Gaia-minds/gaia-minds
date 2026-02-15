@@ -9,10 +9,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
-- _Nothing yet._
+- Provider-aware reasoning effort selector across onboarding/config/runtime (`reasoning.effort`, `gaia onboard --effort`, `gaia run --reasoning-effort`) with deterministic runtime payload mapping for supported provider/model combinations (`#147`)
+- Deterministic runtime effort regression check harness and UAT scenario/governance coverage (`tools/runtime-effort-check.sh`, `assistant/uat-scenarios.json`, `assistant/feature-catalog.json`, `docs/uat-changes/2026-02-15-reasoning-effort-selector-coverage.md`, `#147`)
 
 ### Changed
-- _Nothing yet._
+- `gaia run` startup output now reports effective reasoning effort and agent-loop logs explicit effort no-op behavior for unsupported provider/model paths (`#147`)
 
 ### Removed
 - _Nothing yet._

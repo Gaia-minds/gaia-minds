@@ -17,9 +17,9 @@
     },
     {
       "id": "onboard_openai_nostore",
-      "description": "OpenAI onboarding succeeds in deterministic mode",
+      "description": "OpenAI onboarding persists model and effort selection in deterministic mode",
       "expect_exit": 0,
-      "command": "node ./bin/gaia.js onboard --provider openai --api-key test-key --model gpt-4.1-mini --yes --no-store-api-key >/dev/null"
+      "command": "node ./bin/gaia.js onboard --provider openai --api-key test-key --model gpt-4.1-mini --effort high --yes --no-store-api-key >/dev/null && effort=$(node ./bin/gaia.js config get effort) && [[ \"$effort\" == \"high\" ]]"
     },
     {
       "id": "onboard_claude_code_oauth",
@@ -284,6 +284,12 @@
       "description": "Gaia run applies deterministic provider failover on quota hard errors with visible logs",
       "expect_exit": 0,
       "command": "bash ./tools/runtime-failover-check.sh"
+    },
+    {
+      "id": "run_reasoning_effort_selector",
+      "description": "Gaia run applies normalized reasoning effort only when provider/model supports it",
+      "expect_exit": 0,
+      "command": "bash ./tools/runtime-effort-check.sh"
     },
     {
       "id": "agent_loop_dry_run",

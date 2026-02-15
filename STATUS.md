@@ -29,6 +29,7 @@ current active sprint window.
 - `Sprint governance/state sync reset for docs and status surfaces` (`#129`)
 - `Sprint live preview rebuild from executable Gaia traces` (`#132`)
 - npm release `@gaia-minds/assistant-cli@0.4.0` (`#133`, tag `v0.4.0`)
+- `[Sprint][Assistant] Add model effort selector across onboarding/config/runtime` (`#147`)
 
 ## In Progress
 

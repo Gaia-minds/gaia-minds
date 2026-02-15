@@ -22,6 +22,7 @@ agent:
 # ---------------------------------------------------------------------------
 reasoning:
   provider: "anthropic"  # anthropic | openai | openrouter
+  effort: ""  # optional: minimal | low | medium | high (empty = provider default)
   models:
     anthropic: "claude-sonnet-4-5-20250929"
     openai: "gpt-4.1-mini"

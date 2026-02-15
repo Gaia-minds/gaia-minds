@@ -132,6 +132,8 @@ DEFAULT_OPENROUTER_MODEL = "openrouter/auto"
 SUPPORTED_REASONING_PROVIDERS = {"anthropic", "openai", "openrouter"}
 DEFAULT_REASONING_FAILOVER_ORDER = ("openai", "openrouter", "anthropic")
 DEFAULT_REASONING_FAILOVER_ERROR_CLASSES = ("quota", "auth")
+REASONING_EFFORT_CHOICES = ("minimal", "low", "medium", "high")
+ANTHROPIC_EFFORT_CHOICES = {"low", "medium", "high"}
 
 
 # ---------------------------------------------------------------------------
@@ -337,6 +339,83 @@ def _resolve_openrouter_runtime(config: Dict[str, Any]) -> Dict[str, Any]:
         "app_url": app_url,
         "timeout_seconds": timeout_seconds,
     }
+
+
+def _normalize_reasoning_effort(value: Any, *, default_value: str = "") -> str:
+    token = str(value).strip().lower()
+    if not token:
+        return default_value
+    if token in REASONING_EFFORT_CHOICES:
+        return token
+    if token in {"auto", "default", "none", "off", "disabled"}:
+        return ""
+    return default_value
+
+
+def _resolve_reasoning_effort(config: Dict[str, Any]) -> str:
+    override = os.environ.get("GAIA_REASONING_EFFORT", "").strip()
+    if override:
+        normalized_override = _normalize_reasoning_effort(override, default_value="__invalid__")
+        if normalized_override == "__invalid__":
+            log.warning(
+                "Unsupported GAIA_REASONING_EFFORT=%s; ignoring effort override",
+                override,
+            )
+            return ""
+        return normalized_override
+
+    reasoning = config.get("reasoning", {})
+    reasoning = reasoning if isinstance(reasoning, dict) else {}
+    return _normalize_reasoning_effort(reasoning.get("effort", ""), default_value="")
+
+
+def _openai_model_supports_effort(model: str) -> bool:
+    normalized = str(model).strip().lower()
+    return normalized.startswith(("gpt-5", "o1", "o3", "o4"))
+
+
+def _openrouter_model_supports_effort(model: str) -> bool:
+    normalized = str(model).strip().lower()
+    if not normalized or normalized == "openrouter/auto":
+        return False
+    markers = ("gpt-5", "o1", "o3", "o4", "grok", "claude-opus-4-6")
+    return any(marker in normalized for marker in markers)
+
+
+def _anthropic_model_supports_effort(model: str) -> bool:
+    normalized = str(model).strip().lower()
+    return "claude-opus-4-6" in normalized
+
+
+def _resolve_reasoning_effort_payload(
+    provider: str,
+    model: str,
+    effort: str,
+) -> Tuple[Dict[str, Any], str]:
+    if not effort:
+        return {}, ""
+    if provider == "openai":
+        if _openai_model_supports_effort(model):
+            return {"reasoning_effort": effort}, effort
+        return {}, ""
+    if provider == "openrouter":
+        if _openrouter_model_supports_effort(model):
+            return {"reasoning": {"effort": effort}}, effort
+        return {}, ""
+    if provider == "anthropic":
+        if not _anthropic_model_supports_effort(model):
+            return {}, ""
+        anthropic_effort = "low" if effort == "minimal" else effort
+        if anthropic_effort not in ANTHROPIC_EFFORT_CHOICES:
+            return {}, ""
+        return (
+            {
+                "thinking": {"type": "enabled"},
+                "output_config": {"thinking": {"type": "adaptive", "effort": anthropic_effort}},
+            },
+            anthropic_effort,
+        )
+    return {}, ""
 
 
 def _parse_bool_default(value: Any, default_value: bool) -> bool:
@@ -1298,6 +1377,7 @@ def _openai_chat_completion(
     user_prompt: str,
     max_tokens: int,
     temperature: float,
+    reasoning_effort: str = "",
 ) -> str:
     """Call OpenAI chat completions API and return text response."""
     endpoint = f"{client['base_url']}/chat/completions"
@@ -1310,6 +1390,8 @@ def _openai_chat_completion(
         "max_tokens": max_tokens,
         "temperature": temperature,
     }
+    if reasoning_effort:
+        payload["reasoning_effort"] = reasoning_effort
     headers = {
         "Authorization": f"Bearer {client['api_key']}",
         "Content-Type": "application/json",
@@ -1345,6 +1427,7 @@ def _openrouter_chat_completion(
     user_prompt: str,
     max_tokens: int,
     temperature: float,
+    reasoning: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Call OpenRouter chat completions API and return text response."""
     endpoint = f"{client['base_url']}/chat/completions"
@@ -1357,6 +1440,8 @@ def _openrouter_chat_completion(
         "max_tokens": max_tokens,
         "temperature": temperature,
     }
+    if reasoning:
+        payload["reasoning"] = reasoning
     headers = {
         "Authorization": f"Bearer {client['api_key']}",
         "Content-Type": "application/json",
@@ -1413,6 +1498,24 @@ def ask_model_for_plan(
     except (TypeError, ValueError):
         temperature_float = 0.3
 
+    requested_effort = _resolve_reasoning_effort(config)
+    effort_payload, applied_effort = _resolve_reasoning_effort_payload(provider, model, requested_effort)
+    if requested_effort:
+        if applied_effort:
+            log.info(
+                "Applied reasoning effort: provider=%s model=%s effort=%s",
+                provider,
+                model,
+                applied_effort,
+            )
+        else:
+            log.info(
+                "Reasoning effort not applied: provider=%s model=%s effort=%s (unsupported provider/model)",
+                provider,
+                model,
+                requested_effort,
+            )
+
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(constitution=constitution)
 
     n_decisions = 10
@@ -1437,13 +1540,15 @@ def ask_model_for_plan(
     text: str
     try:
         if provider == "anthropic":
-            response = client.messages.create(
-                model=model,
-                max_tokens=max_tokens_int,
-                temperature=temperature_float,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_prompt}],
-            )
+            anthropic_payload: Dict[str, Any] = {
+                "model": model,
+                "max_tokens": max_tokens_int,
+                "temperature": temperature_float,
+                "system": system_prompt,
+                "messages": [{"role": "user", "content": user_prompt}],
+            }
+            anthropic_payload.update(effort_payload)
+            response = client.messages.create(**anthropic_payload)
             text = _extract_anthropic_text(response)
         elif provider == "openai":
             if not isinstance(client, dict):
@@ -1455,6 +1560,7 @@ def ask_model_for_plan(
                 user_prompt=user_prompt,
                 max_tokens=max_tokens_int,
                 temperature=temperature_float,
+                reasoning_effort=str(effort_payload.get("reasoning_effort", "")),
             )
         elif provider == "openrouter":
             if not isinstance(client, dict):
@@ -1466,6 +1572,7 @@ def ask_model_for_plan(
                 user_prompt=user_prompt,
                 max_tokens=max_tokens_int,
                 temperature=temperature_float,
+                reasoning=effort_payload.get("reasoning") if isinstance(effort_payload.get("reasoning"), dict) else None,
             )
         else:
             raise RuntimeError(f"Unsupported reasoning provider: {provider}")
