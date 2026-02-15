@@ -944,6 +944,11 @@ def build_parser(ctx: Dict[str, Any]) -> argparse.ArgumentParser:
         default=None,
         help="Path to Codex auth.json (optional override)",
     )
+    auth_login.add_argument(
+        "--model",
+        default=None,
+        help="Preferred runtime model to align after OAuth link",
+    )
     auth_login.add_argument("--profile-id", default=None, help="Explicit profile id to link")
     auth_login.add_argument("--no-prompt", action="store_true", help="Skip confirmation prompts")
     auth_login.set_defaults(func=cmd_auth_login)

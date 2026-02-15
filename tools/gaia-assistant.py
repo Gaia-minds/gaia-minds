@@ -49,7 +49,39 @@ DEFAULT_CODEX_AUTH_PATH = Path(
 ).expanduser() / "auth.json"
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
 DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
+DEFAULT_CODEX_RUNTIME_MODEL = "gpt-5.3-codex"
 DEFAULT_OPENROUTER_MODEL = "openrouter/auto"
+PROVIDER_MODEL_CATALOG_LIMIT = 8
+PROVIDER_DISPLAY_NAMES: Dict[str, str] = {
+    "openrouter": "OpenRouter",
+    "openai": "OpenAI",
+    "anthropic": "Anthropic",
+    "openai-codex": "OpenAI Codex",
+    "claude-code": "Claude Code",
+}
+PROVIDER_MODEL_CATALOG_FALLBACKS: Dict[str, List[str]] = {
+    "openrouter": [DEFAULT_OPENROUTER_MODEL],
+    "openai": [
+        DEFAULT_OPENAI_MODEL,
+        "gpt-5.2",
+        "gpt-5.1-codex-mini",
+    ],
+    "anthropic": [
+        DEFAULT_ANTHROPIC_MODEL,
+        "claude-3-7-sonnet-latest",
+    ],
+    "openai-codex": [
+        DEFAULT_CODEX_RUNTIME_MODEL,
+        "gpt-5.2-codex",
+        "gpt-5.1-codex-max",
+        "gpt-5.2",
+        "gpt-5.1-codex-mini",
+    ],
+    "claude-code": [
+        DEFAULT_ANTHROPIC_MODEL,
+        "claude-3-7-sonnet-latest",
+    ],
+}
 ONBOARD_PROVIDER_CHOICES = onboarding.ONBOARD_PROVIDER_CHOICES
 PROFILE_VERBOSITY_CHOICES = ("concise", "balanced", "detailed")
 PROFILE_PROVIDER_CHOICES = onboarding.PROFILE_PROVIDER_CHOICES
@@ -4351,8 +4383,10 @@ def _write_secret_api_key(path: Path, env_var: str, value: str) -> None:
 def _default_model_for_provider(provider: str) -> str:
     if provider == "openrouter":
         return DEFAULT_OPENROUTER_MODEL
-    if provider in ("openai", "openai-codex"):
+    if provider == "openai":
         return DEFAULT_OPENAI_MODEL
+    if provider == "openai-codex":
+        return DEFAULT_CODEX_RUNTIME_MODEL
     return DEFAULT_ANTHROPIC_MODEL
 
 
@@ -4399,6 +4433,106 @@ def _is_zero_pricing(value: Any) -> bool:
     return False
 
 
+def _dedupe_models(models: List[str], limit: int = PROVIDER_MODEL_CATALOG_LIMIT) -> List[str]:
+    seen: set[str] = set()
+    ordered: List[str] = []
+    for raw in models:
+        model_id = str(raw).strip()
+        if not model_id or model_id in seen:
+            continue
+        seen.add(model_id)
+        ordered.append(model_id)
+        if len(ordered) >= limit:
+            break
+    return ordered
+
+
+def _prioritize_models(models: List[str], preferred: List[str]) -> List[str]:
+    normalized = _dedupe_models(models, limit=max(PROVIDER_MODEL_CATALOG_LIMIT * 4, 16))
+    if not normalized:
+        return []
+    preferred_set = set(preferred)
+    head = [model for model in preferred if model in normalized]
+    tail = sorted([model for model in normalized if model not in preferred_set], key=str.lower)
+    return _dedupe_models(head + tail)
+
+
+def _is_openai_reasoning_model(model_id: str) -> bool:
+    normalized = model_id.lower()
+    blocked_tokens = (
+        "embedding",
+        "whisper",
+        "tts",
+        "transcribe",
+        "moderation",
+        "dall",
+        "image",
+        "video",
+    )
+    if any(token in normalized for token in blocked_tokens):
+        return False
+    return normalized.startswith(("gpt-", "o1", "o3", "o4", "chatgpt"))
+
+
+def _fetch_openai_models(api_key: str) -> List[str]:
+    if not api_key:
+        return []
+    req = urllib.request.Request(
+        "https://api.openai.com/v1/models",
+        headers={"Authorization": f"Bearer {api_key}"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=12) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, TimeoutError):
+        return []
+
+    data = payload.get("data", [])
+    if not isinstance(data, list):
+        return []
+
+    models: List[str] = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        model_id = str(item.get("id", "")).strip()
+        if model_id and _is_openai_reasoning_model(model_id):
+            models.append(model_id)
+    return _dedupe_models(models, limit=64)
+
+
+def _fetch_anthropic_models(api_key: str) -> List[str]:
+    if not api_key:
+        return []
+    req = urllib.request.Request(
+        "https://api.anthropic.com/v1/models",
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+        },
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=12) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, TimeoutError):
+        return []
+
+    data = payload.get("data", [])
+    if not isinstance(data, list):
+        return []
+
+    models: List[str] = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        model_id = str(item.get("id", "")).strip()
+        if model_id:
+            models.append(model_id)
+    return _dedupe_models(models, limit=64)
+
+
 def _fetch_openrouter_free_models(api_key: str) -> List[str]:
     if not api_key:
         return []
@@ -4433,34 +4567,106 @@ def _fetch_openrouter_free_models(api_key: str) -> List[str]:
             completion = pricing.get("completion")
             if _is_zero_pricing(prompt) and _is_zero_pricing(completion):
                 free.append(model_id)
-    seen = set()
-    uniq = []
-    for model in sorted(free):
-        if model in seen:
-            continue
-        uniq.append(model)
-        seen.add(model)
-    return uniq[:8]
+    return _dedupe_models(sorted(free))
 
 
-def _select_openrouter_model(
-    api_key: str,
+def _seed_api_key_for_provider(
+    cfg_path: Path,
+    provider: str,
+    explicit_api_key: Optional[str],
+    secret_store_override: Optional[str],
+) -> str:
+    provided = explicit_api_key.strip() if isinstance(explicit_api_key, str) else ""
+    if provided:
+        return provided
+    env_var = {
+        "openrouter": "OPENROUTER_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "openai-codex": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+        "claude-code": "ANTHROPIC_API_KEY",
+    }.get(provider, "")
+    if not env_var:
+        return ""
+    env_value = os.environ.get(env_var, "").strip()
+    if env_value:
+        return env_value
+    secret_store = _resolve_secret_store(cfg_path, secret_store_override)
+    return _read_secret_api_key(secret_store, env_var)
+
+
+def _provider_model_catalog(provider: str, api_key: str) -> Tuple[List[str], str]:
+    fallback = _dedupe_models(PROVIDER_MODEL_CATALOG_FALLBACKS.get(provider, []))
+    if provider == "openrouter":
+        live_models = _fetch_openrouter_free_models(api_key)
+        if live_models:
+            preferred = [DEFAULT_OPENROUTER_MODEL] + live_models
+            return _prioritize_models(preferred, preferred), "live OpenRouter API catalog"
+        return fallback, "curated OpenRouter catalog"
+
+    if provider in ("openai", "openai-codex"):
+        live_models = _fetch_openai_models(api_key)
+        if live_models:
+            preferred = PROVIDER_MODEL_CATALOG_FALLBACKS.get("openai-codex", []) + PROVIDER_MODEL_CATALOG_FALLBACKS.get(
+                "openai", []
+            )
+            return _prioritize_models(live_models, preferred), "live OpenAI API catalog"
+        if provider == "openai-codex":
+            return fallback or _dedupe_models(PROVIDER_MODEL_CATALOG_FALLBACKS.get("openai", [])), "curated Codex catalog"
+        return fallback, "curated OpenAI catalog"
+
+    if provider in ("anthropic", "claude-code"):
+        live_models = _fetch_anthropic_models(api_key)
+        if live_models:
+            preferred = PROVIDER_MODEL_CATALOG_FALLBACKS.get("claude-code", []) + PROVIDER_MODEL_CATALOG_FALLBACKS.get(
+                "anthropic", []
+            )
+            return _prioritize_models(live_models, preferred), "live Anthropic API catalog"
+        if provider == "claude-code":
+            return fallback or _dedupe_models(PROVIDER_MODEL_CATALOG_FALLBACKS.get("anthropic", [])), "curated Claude catalog"
+        return fallback, "curated Anthropic catalog"
+
+    return fallback, "curated catalog"
+
+
+def _select_provider_model(
+    provider: str,
+    *,
+    cfg_path: Path,
     explicit_model: Optional[str],
+    explicit_api_key: Optional[str],
+    secret_store_override: Optional[str],
     non_interactive: bool,
 ) -> str:
     if explicit_model and explicit_model.strip():
         return explicit_model.strip()
-    if non_interactive:
-        return DEFAULT_OPENROUTER_MODEL
 
-    free_models = _fetch_openrouter_free_models(api_key)
-    options: List[Tuple[str, str]] = [("openrouter/auto", "openrouter/auto (recommended)")]
-    for model in free_models:
-        options.append((model, f"{model} (detected free model)"))
+    default_model = _default_model_for_provider(provider)
+    seed_key = _seed_api_key_for_provider(
+        cfg_path=cfg_path,
+        provider=provider,
+        explicit_api_key=explicit_api_key,
+        secret_store_override=secret_store_override,
+    )
+    catalog, source = _provider_model_catalog(provider, seed_key)
+
+    if source.startswith("live"):
+        print(f"[ok] loaded provider model catalog ({source})")
+    else:
+        print(f"[info] using fallback model catalog ({source})")
+
+    options: List[Tuple[str, str]] = [(default_model, f"{default_model} (recommended)")]
+    for model in catalog:
+        if model == default_model:
+            continue
+        options.append((model, f"{model} ({source})"))
+        if len(options) >= PROVIDER_MODEL_CATALOG_LIMIT:
+            break
     options.append(("__custom__", "Custom model id"))
 
+    provider_label = PROVIDER_DISPLAY_NAMES.get(provider, provider)
     selection = _prompt_choice(
-        "Choose your OpenRouter model:",
+        f"Choose your {provider_label} model:",
         options,
         default_index=0,
         non_interactive=non_interactive,
@@ -4469,7 +4675,7 @@ def _select_openrouter_model(
         return selection
 
     while True:
-        custom = input("Enter OpenRouter model id (example: provider/model:free): ").strip()
+        custom = input("Enter model id: ").strip()
         if custom:
             return custom
         print("Model id cannot be empty.")
@@ -4618,7 +4824,12 @@ def _collect_claude_cli_credentials() -> Tuple[Optional[Dict[str, Any]], str]:
     return onboarding.collect_claude_cli_credentials(_run_command_capture)
 
 
-def _apply_oauth_runtime_defaults(cfg_path: Path, oauth_provider: str) -> bool:
+def _apply_oauth_runtime_defaults(
+    cfg_path: Path,
+    oauth_provider: str,
+    *,
+    codex_model: Optional[str] = None,
+) -> bool:
     return onboarding.apply_oauth_runtime_defaults(
         cfg_path,
         oauth_provider,
@@ -4626,7 +4837,7 @@ def _apply_oauth_runtime_defaults(cfg_path: Path, oauth_provider: str) -> bool:
         normalize_config=_normalize_config,
         write_json=_write_json,
         default_anthropic_model=DEFAULT_ANTHROPIC_MODEL,
-        default_openai_model=DEFAULT_OPENAI_MODEL,
+        default_openai_model=codex_model or DEFAULT_CODEX_RUNTIME_MODEL,
         normalize_bool_default=_normalize_bool_default,
     )
 
@@ -4886,6 +5097,14 @@ def cmd_onboard(args: argparse.Namespace) -> int:
     print(f"[ok] selected provider: {provider}")
 
     if provider == "openai-codex":
+        selected_model = _select_provider_model(
+            provider=provider,
+            cfg_path=cfg_path,
+            explicit_model=args.model,
+            explicit_api_key=args.api_key,
+            secret_store_override=args.secret_store,
+            non_interactive=args.yes,
+        )
         print("OAuth flow selected: OpenAI Codex via Codex CLI")
         print("This opens browser/device auth and links profile into Gaia local auth store.")
         should_start = _prompt_yes_no(
@@ -4905,10 +5124,19 @@ def cmd_onboard(args: argparse.Namespace) -> int:
             gaia_auth_store=args.gaia_auth_store,
             no_prompt=True,
             profile_id=None,
+            model=selected_model,
         )
         return cmd_auth_login(login_args)
 
     if provider == "claude-code":
+        selected_model = _select_provider_model(
+            provider=provider,
+            cfg_path=cfg_path,
+            explicit_model=args.model,
+            explicit_api_key=args.api_key,
+            secret_store_override=args.secret_store,
+            non_interactive=args.yes,
+        )
         print("OAuth flow selected: Claude Code via Claude CLI")
         print("This runs Claude auth login and links profile metadata into Gaia local auth store.")
         should_start = _prompt_yes_no(
@@ -4928,6 +5156,7 @@ def cmd_onboard(args: argparse.Namespace) -> int:
             gaia_auth_store=args.gaia_auth_store,
             no_prompt=True,
             profile_id=None,
+            model=selected_model,
         )
         return cmd_auth_login(login_args)
 
@@ -4941,20 +5170,14 @@ def cmd_onboard(args: argparse.Namespace) -> int:
         print(f"Provider is not configured for API-key onboarding: {provider}", file=sys.stderr)
         return 1
 
-    provider_model: Optional[str] = args.model
-    if provider == "openrouter":
-        seed_key = (
-            (args.api_key.strip() if isinstance(args.api_key, str) else "")
-            or os.environ.get(api_key_env, "").strip()
-            or _read_secret_api_key(_resolve_secret_store(cfg_path, args.secret_store), api_key_env)
-        )
-        provider_model = _select_openrouter_model(
-            api_key=seed_key,
-            explicit_model=args.model,
-            non_interactive=args.yes,
-        )
-    elif not provider_model or not provider_model.strip():
-        provider_model = _default_model_for_provider(provider)
+    provider_model = _select_provider_model(
+        provider=provider,
+        cfg_path=cfg_path,
+        explicit_model=args.model,
+        explicit_api_key=args.api_key,
+        secret_store_override=args.secret_store,
+        non_interactive=args.yes,
+    )
 
     rc = _configure_api_key_provider(
         cfg_path=cfg_path,
@@ -4981,6 +5204,8 @@ def cmd_auth_login(args: argparse.Namespace) -> int:
     _ensure_config_exists(cfg_path)
     provider = str(args.provider).strip().lower()
     source = str(args.source).strip().lower()
+    selected_model = str(getattr(args, "model", "")).strip()
+    runtime_aligned_model = ""
 
     if provider not in AUTH_PROVIDER_CHOICES:
         print(f"Unsupported OAuth provider: {provider}", file=sys.stderr)
@@ -5049,6 +5274,25 @@ def cmd_auth_login(args: argparse.Namespace) -> int:
         print(f"Supported sources: {', '.join(AUTH_SOURCE_CHOICES)}", file=sys.stderr)
         return 1
 
+    if provider == "openai-codex":
+        cfg = _ensure_config_exists(cfg_path)
+        reasoning = cfg.get("reasoning", {})
+        reasoning = reasoning if isinstance(reasoning, dict) else {}
+        aligned_provider = str(reasoning.get("provider", "")).strip().lower()
+        aligned_model = str(reasoning.get("model", "")).strip()
+        explicit_override = _normalize_bool_default(reasoning.get("explicit_provider_override", False), False)
+
+        if runtime_aligned:
+            runtime_aligned_model = aligned_model or DEFAULT_CODEX_RUNTIME_MODEL
+
+        if selected_model and aligned_provider == "openai" and not explicit_override:
+            if aligned_model != selected_model:
+                reasoning["model"] = selected_model
+                cfg["reasoning"] = reasoning
+                _write_json(cfg_path, _normalize_config(cfg))
+            runtime_aligned = True
+            runtime_aligned_model = selected_model
+
     store = _load_gaia_auth_store(gaia_auth_store)
     profiles = store.get("profiles", {}) if isinstance(store, dict) else {}
     credential = profiles.get(profile_id) if isinstance(profiles, dict) else {}
@@ -5061,7 +5305,11 @@ def cmd_auth_login(args: argparse.Namespace) -> int:
     print(f"     store:    {gaia_auth_store}")
     print(f"     expires:  {expiry}")
     if runtime_aligned:
-        print("[ok] Runtime defaults aligned for OAuth provider: openai/gpt-4.1-mini")
+        effective_model = runtime_aligned_model or _default_model_for_provider(provider)
+        if provider == "openai-codex":
+            print(f"[ok] Runtime defaults aligned for OAuth provider: openai/{effective_model}")
+        else:
+            print(f"[ok] Runtime defaults aligned for OAuth provider: {provider}/{effective_model}")
     print("")
     if source == "codex-cli":
         print("Note: credentials are stored in local Gaia auth store, not in this repository.")
@@ -5120,7 +5368,7 @@ def cmd_auth_link(args: argparse.Namespace) -> int:
     print(f"     profile:  {profile_id}")
     print(f"     store:    {gaia_auth_store}")
     if runtime_aligned:
-        print("[ok] Runtime defaults aligned for OAuth provider: openai/gpt-4.1-mini")
+        print(f"[ok] Runtime defaults aligned for OAuth provider: openai/{DEFAULT_CODEX_RUNTIME_MODEL}")
     return 0
 
 
@@ -12233,7 +12481,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     # runtime-compatible provider defaults unless an explicit override exists.
     if not args.reasoning_provider and _apply_oauth_runtime_defaults(cfg_path, active_profile_provider):
         cfg = _ensure_config_exists(cfg_path)
-        print("[ok] aligned runtime defaults from linked OAuth profile: openai/gpt-4.1-mini")
+        print(f"[ok] aligned runtime defaults from linked OAuth profile: openai/{DEFAULT_CODEX_RUNTIME_MODEL}")
 
     cmd = [
         "python3",
@@ -12286,7 +12534,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     if effective_provider == "openai-codex" and active_profile_provider == "openai-codex":
         effective_provider = "openai"
         if not effective_model or effective_model == DEFAULT_ANTHROPIC_MODEL:
-            effective_model = DEFAULT_OPENAI_MODEL
+            effective_model = DEFAULT_CODEX_RUNTIME_MODEL
         print("[warn] mapped runtime provider openai-codex -> openai for run compatibility")
     elif effective_provider not in RUNTIME_REASONING_PROVIDER_CHOICES:
         print(
@@ -12317,7 +12565,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         if issue in ("anthropic-package", "anthropic-key"):
             effective_provider = "openai"
             if not effective_model or effective_model == DEFAULT_ANTHROPIC_MODEL:
-                effective_model = DEFAULT_OPENAI_MODEL
+                effective_model = DEFAULT_CODEX_RUNTIME_MODEL
             print(
                 "[warn] anthropic runtime dependencies are unavailable; "
                 "falling back to linked OAuth OpenAI provider."
