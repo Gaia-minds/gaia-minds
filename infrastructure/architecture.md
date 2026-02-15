@@ -1133,6 +1133,35 @@ Lane: `Refactor tools/gaia-assistant.py into modular command packages` (`#106`)
 - No policy or capability model changes were introduced in this lane.
 - Parser behavior parity is validated through smoke/UAT/check gates before merge.
 
+## Phase 3 Delta: Onboarding/Auth Surface Extraction (2026-02-15)
+
+Lane: `Refactor onboarding/auth surfaces out of tools/gaia-assistant.py` (`#131`)
+
+### Runtime/module boundary changes
+
+- Added dedicated onboarding/auth helper module:
+  - `tools/gaia_assistant_onboarding.py`
+- Extracted provider registry defaults and OAuth profile-link helper flows into
+  the new module, including:
+  - provider metadata defaults
+  - Codex OAuth credential parsing/profile-id derivation
+  - linked profile lookup and runtime token availability checks
+  - runtime dependency preflight helper logic used by `gaia run`
+- `tools/gaia-assistant.py` remains the command entrypoint and delegates these
+  helper paths through wrapper functions.
+
+### Packaging and entrypoint compatibility
+
+- Existing launcher path remains unchanged:
+  - `bin/gaia.js` still executes `tools/gaia-assistant.py`
+- npm package payload includes extracted onboarding module:
+  - `package.json` -> `files[]` includes `tools/gaia_assistant_onboarding.py`
+
+### Safety/quality notes
+
+- CLI command names and parser surfaces are unchanged.
+- Behavior parity is enforced through smoke/UAT/check gates.
+
 ---
 
 ## Open Technical Questions
