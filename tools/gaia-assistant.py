@@ -137,6 +137,14 @@ POLICY_RISK_CHOICES = ("low", "medium", "high", "critical")
 POLICY_SOURCE_CHOICES = ("project", "local", "path", "unknown")
 POLICY_SCOPE_CHOICES = ("standard", "restricted", "admin")
 POLICY_DEFAULT_SCOPE = "standard"
+DELEGATION_CONTRACT_SCHEMA_VERSION = 1
+DELEGATION_DECISION_CHOICES = ("delegate", "confirm", "fallback", "deny")
+DELEGATION_FALLBACK_STRATEGY_CHOICES = ("single_agent", "defer")
+DELEGATION_HIGH_RISK_DELEGATE_MIN_CONFIDENCE = 0.9
+DELEGATION_CONFIDENCE_THRESHOLDS: Dict[str, Dict[str, float]] = {
+    "low": {"delegate": 0.7, "confirm": 0.45},
+    "medium": {"delegate": 0.8, "confirm": 0.6},
+}
 DEFAULT_CAPABILITY_LEVELS = {
     "file_read": "safe",
     "file_write": "safe",
@@ -3591,6 +3599,288 @@ def _infer_policy_tool_from_command(command_text: str, command_tokens: List[str]
     if lowered and lowered[0] in ("sh", "bash", "zsh", "python", "python3", "node"):
         return "shell_exec"
     return "file_read"
+
+
+def _normalize_delegation_risk(value: Any) -> str:
+    token = str(value).strip().lower()
+    if token in POLICY_RISK_CHOICES:
+        return token
+    return "medium"
+
+
+def _normalize_delegation_decision(value: Any, *, default_value: str = "fallback") -> str:
+    token = str(value).strip().lower()
+    if token in DELEGATION_DECISION_CHOICES:
+        return token
+    return default_value if default_value in DELEGATION_DECISION_CHOICES else "fallback"
+
+
+def _normalize_delegation_fallback_strategy(
+    value: Any,
+    *,
+    default_value: str = "single_agent",
+) -> str:
+    token = str(value).strip().lower()
+    if token in DELEGATION_FALLBACK_STRATEGY_CHOICES:
+        return token
+    if default_value in DELEGATION_FALLBACK_STRATEGY_CHOICES:
+        return default_value
+    return "single_agent"
+
+
+def _normalize_delegation_identifier_list(value: Any) -> List[str]:
+    tokens: List[str] = []
+    if isinstance(value, str):
+        tokens = [item.strip().lower() for item in value.split(",")]
+    elif isinstance(value, list):
+        tokens = [str(item).strip().lower() for item in value]
+    deduped: List[str] = []
+    seen: set[str] = set()
+    for token in tokens:
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        deduped.append(token)
+    return deduped
+
+
+def _normalize_delegation_confidence(value: Any, *, default_value: float = 0.0) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        parsed = float(default_value)
+    return round(min(max(parsed, 0.0), 1.0), 3)
+
+
+def _delegation_threshold_profile(risk_level: str) -> Dict[str, float]:
+    normalized = _normalize_delegation_risk(risk_level)
+    if normalized in DELEGATION_CONFIDENCE_THRESHOLDS:
+        return dict(DELEGATION_CONFIDENCE_THRESHOLDS[normalized])
+    if normalized == "high":
+        return {
+            "delegate": DELEGATION_HIGH_RISK_DELEGATE_MIN_CONFIDENCE,
+            "confirm": DELEGATION_HIGH_RISK_DELEGATE_MIN_CONFIDENCE,
+        }
+    return {}
+
+
+def evaluate_delegation_contract_v1(contract: Dict[str, Any]) -> Dict[str, Any]:
+    payload: Dict[str, Any] = contract if isinstance(contract, dict) else {}
+
+    task_id = str(payload.get("task_id", "")).strip() or "task-unknown"
+    intent_class = str(payload.get("intent_class", "")).strip() or "general"
+    risk_level = _normalize_delegation_risk(payload.get("risk_level", "medium"))
+    estimated_confidence = _normalize_delegation_confidence(
+        payload.get("estimated_confidence", 0.0),
+        default_value=0.0,
+    )
+
+    required_capabilities = _normalize_delegation_identifier_list(payload.get("required_capabilities", []))
+    if "available_capabilities" in payload:
+        available_capabilities = _normalize_delegation_identifier_list(payload.get("available_capabilities", []))
+    else:
+        available_capabilities = list(required_capabilities)
+    available_capability_set = set(available_capabilities)
+    missing_capabilities = [
+        capability for capability in required_capabilities if capability not in available_capability_set
+    ]
+
+    candidate_specialists = _normalize_delegation_identifier_list(payload.get("candidate_specialists", []))
+
+    policy_decision = str(payload.get("policy_decision", "allow")).strip().lower()
+    if policy_decision not in POLICY_DECISION_CHOICES:
+        policy_decision = "allow"
+
+    sandbox_escalation_required = _normalize_bool_default(
+        payload.get("sandbox_escalation_required", False),
+        False,
+    )
+    sandbox_approved = _normalize_bool_default(payload.get("sandbox_approved", False), False)
+    specialist_ambiguity = _normalize_bool_default(payload.get("specialist_ambiguity", False), False)
+    human_confirmed = _normalize_bool_default(payload.get("human_confirmed", False), False)
+
+    fallback_preference = _normalize_delegation_fallback_strategy(
+        payload.get("fallback_strategy", "single_agent"),
+        default_value="single_agent",
+    )
+    escalation_unapproved_mode = str(payload.get("escalation_unapproved_mode", "fallback")).strip().lower()
+    if escalation_unapproved_mode not in ("confirm", "fallback"):
+        escalation_unapproved_mode = "fallback"
+
+    thresholds = _delegation_threshold_profile(risk_level)
+    delegate_threshold = float(thresholds.get("delegate", 0.0))
+    confirm_threshold = float(thresholds.get("confirm", 0.0))
+
+    decision = "fallback"
+    decision_reason = "delegation confidence did not meet threshold for this risk class."
+    fallback_strategy = fallback_preference
+    explanations: List[str] = []
+
+    if risk_level == "critical":
+        decision = "deny"
+        fallback_strategy = "defer"
+        decision_reason = "critical-risk tasks are denied by delegation contract v1."
+        explanations.append("risk_level=critical hard-deny rule applied")
+    elif missing_capabilities:
+        decision = "deny"
+        fallback_strategy = "defer"
+        decision_reason = (
+            "required capabilities are missing: " + ", ".join(missing_capabilities)
+        )
+        explanations.append("missing required capabilities triggers deny")
+    elif policy_decision == "deny":
+        decision = "deny"
+        fallback_strategy = "defer"
+        decision_reason = "policy decision denied delegation."
+        explanations.append("policy deny override applied")
+    elif sandbox_escalation_required and not sandbox_approved:
+        if escalation_unapproved_mode == "confirm":
+            decision = "confirm"
+            decision_reason = "sandbox escalation approval required before delegation."
+            explanations.append("sandbox escalation requires approval; routed to confirmation")
+        else:
+            decision = "fallback"
+            decision_reason = "sandbox escalation approval missing; using fallback execution path."
+            explanations.append("sandbox escalation requires approval; fallback default applied")
+    elif specialist_ambiguity:
+        decision = "fallback"
+        decision_reason = "specialist ambiguity unresolved; fallback to single-agent synthesis."
+        explanations.append("cross-domain ambiguity triggers fallback")
+    elif not candidate_specialists:
+        decision = "fallback"
+        decision_reason = "no candidate specialists available; fallback to single-agent path."
+        explanations.append("delegate requires at least one candidate specialist")
+    elif risk_level == "high":
+        if (
+            estimated_confidence >= DELEGATION_HIGH_RISK_DELEGATE_MIN_CONFIDENCE
+            and human_confirmed
+        ):
+            decision = "delegate"
+            decision_reason = (
+                "high-risk confidence threshold met and explicit human confirmation provided."
+            )
+            explanations.append("high-risk delegate gate satisfied")
+        elif estimated_confidence >= DELEGATION_HIGH_RISK_DELEGATE_MIN_CONFIDENCE:
+            decision = "confirm"
+            decision_reason = "high-risk delegation requires explicit human confirmation."
+            explanations.append("high-risk confidence met without explicit confirmation")
+        else:
+            decision = "fallback"
+            decision_reason = (
+                f"high-risk confidence {estimated_confidence:.3f} is below "
+                f"{DELEGATION_HIGH_RISK_DELEGATE_MIN_CONFIDENCE:.3f}; fallback required."
+            )
+            explanations.append("high-risk below threshold falls back")
+    else:
+        if estimated_confidence >= delegate_threshold:
+            decision = "delegate"
+            decision_reason = (
+                f"{risk_level}-risk confidence {estimated_confidence:.3f} met "
+                f"delegate threshold {delegate_threshold:.3f}."
+            )
+            explanations.append("delegate threshold met")
+        elif estimated_confidence >= confirm_threshold:
+            decision = "confirm"
+            decision_reason = (
+                f"{risk_level}-risk confidence {estimated_confidence:.3f} met "
+                f"confirm threshold {confirm_threshold:.3f}."
+            )
+            explanations.append("confirm threshold met")
+        else:
+            decision = "fallback"
+            decision_reason = (
+                f"{risk_level}-risk confidence {estimated_confidence:.3f} is below "
+                f"confirm threshold {confirm_threshold:.3f}; fallback required."
+            )
+            explanations.append("below confirm threshold falls back")
+
+    if decision == "delegate" and policy_decision == "confirm":
+        decision = "confirm"
+        decision_reason = "policy decision requires confirmation before delegation."
+        explanations.append("policy confirm override applied")
+
+    if decision == "deny":
+        fallback_strategy = "defer"
+
+    return {
+        "schema_version": DELEGATION_CONTRACT_SCHEMA_VERSION,
+        "contract_id": "delegation.contract.v1",
+        "task_id": task_id,
+        "intent_class": intent_class,
+        "risk_level": risk_level,
+        "estimated_confidence": estimated_confidence,
+        "required_capabilities": required_capabilities,
+        "available_capabilities": available_capabilities,
+        "missing_capabilities": missing_capabilities,
+        "candidate_specialists": candidate_specialists,
+        "policy_decision": policy_decision,
+        "sandbox_escalation_required": sandbox_escalation_required,
+        "sandbox_approved": sandbox_approved,
+        "specialist_ambiguity": specialist_ambiguity,
+        "human_confirmed": human_confirmed,
+        "decision": decision,
+        "decision_reason": decision_reason,
+        "fallback_strategy": fallback_strategy,
+        "thresholds": thresholds,
+        "explanations": explanations,
+    }
+
+
+def emit_delegation_decision_trace(
+    trace_dir: Path,
+    decision_payload: Dict[str, Any],
+    *,
+    correlation_id: str = "",
+    input_summary: str = "",
+    duration_ms: float = 0.0,
+    permission_level: str = "safe",
+) -> Dict[str, Any]:
+    decision = _normalize_delegation_decision(decision_payload.get("decision", "fallback"))
+    fallback_strategy = _normalize_delegation_fallback_strategy(
+        decision_payload.get("fallback_strategy", "single_agent"),
+        default_value="single_agent",
+    )
+    if decision == "deny":
+        fallback_strategy = "defer"
+
+    task_id = str(decision_payload.get("task_id", "")).strip() or "task-unknown"
+    intent_class = str(decision_payload.get("intent_class", "")).strip() or "general"
+    risk_level = _normalize_delegation_risk(decision_payload.get("risk_level", "medium"))
+    policy_decision = str(decision_payload.get("policy_decision", "allow")).strip().lower()
+    if policy_decision not in POLICY_DECISION_CHOICES:
+        policy_decision = "allow"
+
+    decision_reason = str(decision_payload.get("decision_reason", "")).strip()
+    trace_input = input_summary.strip() or f"task_id={task_id} intent={intent_class}"
+    trace_output = f"{decision} ({fallback_strategy})"
+
+    metadata = _with_trace_metadata(
+        {
+            "task_id": task_id,
+            "intent_class": intent_class,
+            "risk_level": risk_level,
+            "decision": decision,
+            "decision_reason": decision_reason,
+            "fallback_strategy": fallback_strategy,
+            "estimated_confidence": decision_payload.get("estimated_confidence", 0.0),
+            "required_capabilities": decision_payload.get("required_capabilities", []),
+            "missing_capabilities": decision_payload.get("missing_capabilities", []),
+            "candidate_specialists": decision_payload.get("candidate_specialists", []),
+            "contract_id": decision_payload.get("contract_id", "delegation.contract.v1"),
+        },
+        correlation_id=correlation_id or task_id,
+        policy_decision=policy_decision,
+    )
+    return _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="delegation_decision",
+        input_summary=trace_input,
+        output_summary=trace_output,
+        duration_ms=duration_ms,
+        permission_level=permission_level,
+        status="blocked" if decision == "deny" else "ok",
+        metadata=metadata,
+    )
 
 
 def _evaluate_policy_decision(
