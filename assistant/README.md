@@ -103,6 +103,11 @@ gaia onboard --provider openai --api-key "$OPENAI_API_KEY" --model gpt-4.1-mini 
 gaia onboard --provider openai-codex --yes
 ```
 
+After successful Codex OAuth onboarding, Gaia auto-aligns runtime defaults to
+`openai/gpt-4.1-mini` unless you've already set an explicit provider override.
+`gaia run` also performs provider dependency preflight and will load a linked
+OAuth token for OpenAI runtime when available.
+
 Gaia still supports explicit auth commands if you prefer manual control.
 For Codex OAuth:
 

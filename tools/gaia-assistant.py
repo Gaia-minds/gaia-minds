@@ -12,6 +12,7 @@ import base64
 import getpass
 import hashlib
 import html
+import importlib.util
 import json
 import os
 import re
@@ -52,6 +53,7 @@ DEFAULT_OPENROUTER_MODEL = "openrouter/auto"
 ONBOARD_PROVIDER_CHOICES = ("openrouter", "openai", "anthropic", "openai-codex")
 PROFILE_VERBOSITY_CHOICES = ("concise", "balanced", "detailed")
 PROFILE_PROVIDER_CHOICES = ("openrouter", "openai", "anthropic", "openai-codex")
+RUNTIME_REASONING_PROVIDER_CHOICES = ("anthropic", "openai", "openrouter")
 RESPONSE_PROFILE_CHOICES = ("auto", "concise", "balanced", "detailed")
 RESPONSE_PROFILE_DEFAULT = "balanced"
 RESPONSE_PROFILE_SYSTEM_PROMPTS: Dict[str, str] = {
@@ -277,6 +279,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "reasoning": {
         "provider": "anthropic",
         "model": DEFAULT_ANTHROPIC_MODEL,
+        "explicit_provider_override": False,
     },
     "secrets": {
         "store_path": str(DEFAULT_SECRET_STORE),
@@ -436,6 +439,10 @@ def _normalize_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     reasoning = cfg.setdefault("reasoning", {})
     reasoning.setdefault("provider", "anthropic")
     reasoning.setdefault("model", DEFAULT_ANTHROPIC_MODEL)
+    reasoning["explicit_provider_override"] = _normalize_bool_default(
+        reasoning.get("explicit_provider_override", False),
+        False,
+    )
 
     secrets = cfg.setdefault("secrets", {})
     secrets.setdefault("store_path", str(DEFAULT_SECRET_STORE))
@@ -4356,12 +4363,18 @@ def _write_secret_api_key(path: Path, env_var: str, value: str) -> None:
 def _default_model_for_provider(provider: str) -> str:
     if provider == "openrouter":
         return DEFAULT_OPENROUTER_MODEL
-    if provider == "openai":
+    if provider in ("openai", "openai-codex"):
         return DEFAULT_OPENAI_MODEL
     return DEFAULT_ANTHROPIC_MODEL
 
 
-def _set_reasoning_config(cfg_path: Path, provider: str, model: Optional[str]) -> None:
+def _set_reasoning_config(
+    cfg_path: Path,
+    provider: str,
+    model: Optional[str],
+    *,
+    explicit_provider_override: bool,
+) -> None:
     cfg = _ensure_config_exists(cfg_path)
     reasoning = cfg.setdefault("reasoning", {})
     if not isinstance(reasoning, dict):
@@ -4373,6 +4386,7 @@ def _set_reasoning_config(cfg_path: Path, provider: str, model: Optional[str]) -
         reasoning["model"] = model.strip()
     else:
         reasoning["model"] = _default_model_for_provider(provider)
+    reasoning["explicit_provider_override"] = bool(explicit_provider_override)
     _write_json(cfg_path, cfg)
 
 
@@ -4518,7 +4532,12 @@ def _configure_api_key_provider(
     else:
         print(f"[warn] {api_key_env} not stored; keep it exported in your shell.")
 
-    _set_reasoning_config(cfg_path, provider, model)
+    _set_reasoning_config(
+        cfg_path,
+        provider,
+        model,
+        explicit_provider_override=True,
+    )
     print("[ok] reasoning provider configured")
     print(f"     provider: {provider}")
     print(f"     model:    {model or _default_model_for_provider(provider)}")
@@ -4683,14 +4702,73 @@ def _codex_login() -> int:
     return subprocess.run(cmd).returncode
 
 
+def _can_auto_align_codex_runtime_defaults(cfg: Dict[str, Any]) -> bool:
+    reasoning = cfg.get("reasoning", {})
+    reasoning = reasoning if isinstance(reasoning, dict) else {}
+    profile = cfg.get("profile", {})
+    profile = profile if isinstance(profile, dict) else {}
+
+    if _normalize_bool_default(reasoning.get("explicit_provider_override", False), False):
+        return False
+
+    current_provider = str(reasoning.get("provider", "")).strip().lower()
+    current_model = str(reasoning.get("model", "")).strip()
+    current_profile_provider = str(profile.get("default_provider", "")).strip().lower()
+
+    # Respect user-selected runtime choices; only auto-align untouched defaults.
+    has_provider_override = current_provider not in ("", "anthropic")
+    has_model_override = bool(current_model and current_model != DEFAULT_ANTHROPIC_MODEL)
+    has_profile_provider_override = current_profile_provider not in ("", "anthropic", "openai-codex")
+    return not (has_provider_override or has_model_override or has_profile_provider_override)
+
+
+def _apply_oauth_runtime_defaults(cfg_path: Path, oauth_provider: str) -> bool:
+    if oauth_provider != "openai-codex":
+        return False
+
+    cfg = _ensure_config_exists(cfg_path)
+    if not _can_auto_align_codex_runtime_defaults(cfg):
+        return False
+
+    reasoning = cfg.setdefault("reasoning", {})
+    if not isinstance(reasoning, dict):
+        reasoning = {}
+        cfg["reasoning"] = reasoning
+    profile = cfg.setdefault("profile", {})
+    if not isinstance(profile, dict):
+        profile = {}
+        cfg["profile"] = profile
+
+    changed = False
+    if str(reasoning.get("provider", "")).strip().lower() != "openai":
+        reasoning["provider"] = "openai"
+        changed = True
+
+    existing_model = str(reasoning.get("model", "")).strip()
+    if not existing_model or existing_model == DEFAULT_ANTHROPIC_MODEL:
+        if existing_model != DEFAULT_OPENAI_MODEL:
+            reasoning["model"] = DEFAULT_OPENAI_MODEL
+            changed = True
+
+    profile_provider = str(profile.get("default_provider", "")).strip().lower()
+    if profile_provider in ("", "anthropic", "openai-codex") and profile_provider != "openai":
+        profile["default_provider"] = "openai"
+        changed = True
+
+    if changed:
+        reasoning["explicit_provider_override"] = False
+        _write_json(cfg_path, _normalize_config(cfg))
+    return changed
+
+
 def _import_codex_profile_to_gaia(
     cfg_path: Path,
     provider: str,
     codex_auth_path: Path,
     gaia_auth_store: Path,
-) -> Tuple[int, str]:
+) -> Tuple[int, str, bool]:
     if provider != "openai-codex":
-        return 1, ""
+        return 1, "", False
     credential = _read_codex_cli_credentials(codex_auth_path)
     if credential is None:
         print(
@@ -4698,7 +4776,7 @@ def _import_codex_profile_to_gaia(
             f"Expected auth file: {codex_auth_path}",
             file=sys.stderr,
         )
-        return 1, ""
+        return 1, "", False
 
     store = _load_gaia_auth_store(gaia_auth_store)
     profiles = store.setdefault("profiles", {})
@@ -4710,7 +4788,8 @@ def _import_codex_profile_to_gaia(
     profiles[profile_id] = credential
     _save_gaia_auth_store(gaia_auth_store, store)
     _link_profile(cfg_path, provider, profile_id, "gaia-local", gaia_auth_store)
-    return 0, profile_id
+    runtime_aligned = _apply_oauth_runtime_defaults(cfg_path, provider)
+    return 0, profile_id, runtime_aligned
 
 
 def _read_linked_credential(active_profile: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], str]:
@@ -4744,6 +4823,48 @@ def _read_linked_credential(active_profile: Dict[str, Any]) -> Tuple[Optional[Di
         )
 
     return credential, ""
+
+
+def _linked_openai_oauth_access_token(cfg: Dict[str, Any]) -> Tuple[str, str]:
+    auth_cfg = cfg.get("auth", {})
+    auth_cfg = auth_cfg if isinstance(auth_cfg, dict) else {}
+    active_profile = auth_cfg.get("active_profile")
+    if not isinstance(active_profile, dict):
+        return "", "no linked OAuth profile in launcher config"
+
+    provider = str(active_profile.get("provider", "")).strip().lower()
+    if provider != "openai-codex":
+        return "", "linked profile is not openai-codex"
+
+    credential, error = _read_linked_credential(active_profile)
+    if credential is None:
+        return "", error
+    if _is_expired(credential):
+        return "", "linked OAuth profile is expired"
+
+    access_token = str(credential.get("access", "")).strip()
+    if not access_token:
+        return "", "linked OAuth profile access token is missing"
+    return access_token, ""
+
+
+def _provider_runtime_dependency_issue(provider: str, env: Dict[str, str]) -> Optional[str]:
+    normalized = str(provider).strip().lower()
+    if normalized == "anthropic":
+        if importlib.util.find_spec("anthropic") is None:
+            return "anthropic-package"
+        if not env.get("ANTHROPIC_API_KEY", "").strip():
+            return "anthropic-key"
+        return None
+    if normalized == "openai":
+        if not env.get("OPENAI_API_KEY", "").strip():
+            return "openai-key"
+        return None
+    if normalized == "openrouter":
+        if not env.get("OPENROUTER_API_KEY", "").strip():
+            return "openrouter-key"
+        return None
+    return "unsupported-provider"
 
 
 def cmd_init(args: argparse.Namespace) -> int:
@@ -4809,8 +4930,13 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         cfg = _normalize_config(cfg)
         reasoning_cfg = cfg.get("reasoning", {})
         reasoning_provider = ""
+        reasoning_override_locked = False
         if isinstance(reasoning_cfg, dict):
             reasoning_provider = str(reasoning_cfg.get("provider", "")).strip()
+            reasoning_override_locked = _normalize_bool_default(
+                reasoning_cfg.get("explicit_provider_override", False),
+                False,
+            )
             print(
                 "[ok] reasoning config: "
                 f"{reasoning_cfg.get('provider', '?')}/{reasoning_cfg.get('model', '?')}"
@@ -4822,10 +4948,13 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         openrouter = os.environ.get("OPENROUTER_API_KEY", "").strip() or _read_secret_api_key(
             secret_store, "OPENROUTER_API_KEY"
         )
-        if anth or oai or openrouter:
-            print("[ok] at least one API auth credential is available (env or secret store)")
+        oauth_token, oauth_error = _linked_openai_oauth_access_token(cfg)
+        oauth_runtime_ready = bool(oauth_token)
+
+        if anth or oai or openrouter or oauth_runtime_ready:
+            print("[ok] at least one runtime credential is available (env/secret-store/OAuth)")
         else:
-            print("[warn] no API credentials found (env or secret store)")
+            print("[warn] no runtime credentials found (env, secret store, or linked OAuth)")
             print("       expected: ANTHROPIC_API_KEY / OPENAI_API_KEY / OPENROUTER_API_KEY")
 
         active = cfg.get("auth", {}).get("active_profile")
@@ -4846,6 +4975,22 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                     print(f"[warn] linked OAuth profile is expired: {profile_id} (expires={expiry})")
                 else:
                     print(f"[ok] linked OAuth profile found: {profile_id} (expires={expiry})")
+                    if oauth_runtime_ready:
+                        print("[ok] linked OAuth token can satisfy OpenAI runtime preflight")
+            if reasoning_provider == "openai" and not oauth_runtime_ready and not oai:
+                print(f"[warn] OpenAI runtime credential is missing: {oauth_error}")
+                print(f"       run `{_launcher_hint()} auth login --provider openai-codex --source codex-cli`")
+            active_provider = str(active.get("provider", "")).strip().lower()
+            if reasoning_provider == "anthropic" and active_provider == "openai-codex":
+                if reasoning_override_locked:
+                    print("[info] anthropic runtime provider is explicitly overridden")
+                    print("       linked openai-codex OAuth profile remains available as fallback")
+                else:
+                    print("[warn] reasoning provider is anthropic while linked OAuth profile is openai-codex")
+                    print(
+                        f"       run `{_launcher_hint()} run` to apply OAuth fallback, "
+                        "or `gaia config set provider openai`"
+                    )
 
     if not AGENT_CONFIG_PATH.exists():
         problems += 1
@@ -4996,7 +5141,12 @@ def cmd_auth_login(args: argparse.Namespace) -> int:
 
         codex_auth_path = _resolve_codex_auth_path(args.codex_auth_path)
         gaia_auth_store = _resolve_gaia_auth_store(cfg_path, args.gaia_auth_store)
-        rc, profile_id = _import_codex_profile_to_gaia(cfg_path, provider, codex_auth_path, gaia_auth_store)
+        rc, profile_id, runtime_aligned = _import_codex_profile_to_gaia(
+            cfg_path,
+            provider,
+            codex_auth_path,
+            gaia_auth_store,
+        )
         if rc != 0:
             return rc
 
@@ -5011,6 +5161,8 @@ def cmd_auth_login(args: argparse.Namespace) -> int:
         print(f"     profile:  {profile_id}")
         print(f"     store:    {gaia_auth_store}")
         print(f"     expires:  {expiry}")
+        if runtime_aligned:
+            print("[ok] Runtime defaults aligned for OAuth provider: openai/gpt-4.1-mini")
         print("")
         print("Note: credentials are stored in local Gaia auth store, not in this repository.")
         return 0
@@ -5029,13 +5181,20 @@ def cmd_auth_link(args: argparse.Namespace) -> int:
     if source == "codex-cli":
         codex_auth_path = _resolve_codex_auth_path(args.codex_auth_path)
         gaia_auth_store = _resolve_gaia_auth_store(cfg_path, args.gaia_auth_store)
-        rc, profile_id = _import_codex_profile_to_gaia(cfg_path, provider, codex_auth_path, gaia_auth_store)
+        rc, profile_id, runtime_aligned = _import_codex_profile_to_gaia(
+            cfg_path,
+            provider,
+            codex_auth_path,
+            gaia_auth_store,
+        )
         if rc != 0:
             return rc
         print("[ok] Imported and linked Codex OAuth profile into Gaia local store")
         print(f"     provider: {provider}")
         print(f"     profile:  {profile_id}")
         print(f"     store:    {gaia_auth_store}")
+        if runtime_aligned:
+            print("[ok] Runtime defaults aligned for OAuth provider: openai/gpt-4.1-mini")
         return 0
 
     print(f"Unsupported auth source: {source}", file=sys.stderr)
@@ -5482,6 +5641,7 @@ def cmd_config_set(args: argparse.Namespace) -> int:
             cfg["reasoning"] = reasoning
         reasoning["provider"] = normalized
         reasoning["model"] = _default_model_for_provider(normalized)
+        reasoning["explicit_provider_override"] = True
 
     _write_json(cfg_path, _normalize_config(cfg))
     _write_action_trace(
@@ -12131,6 +12291,16 @@ def cmd_run(args: argparse.Namespace) -> int:
         )
         return 1
 
+    active_profile = cfg.get("auth", {}).get("active_profile")
+    active_profile = active_profile if isinstance(active_profile, dict) else {}
+    active_profile_provider = str(active_profile.get("provider", "")).strip().lower()
+
+    # Ensure old launcher configs linked to OAuth profiles converge to the
+    # runtime-compatible provider defaults unless an explicit override exists.
+    if not args.reasoning_provider and _apply_oauth_runtime_defaults(cfg_path, active_profile_provider):
+        cfg = _ensure_config_exists(cfg_path)
+        print("[ok] aligned runtime defaults from linked OAuth profile: openai/gpt-4.1-mini")
+
     cmd = [
         "python3",
         str(AGENT_LOOP_PATH),
@@ -12155,15 +12325,143 @@ def cmd_run(args: argparse.Namespace) -> int:
             env[env_var] = stored
             loaded_from_secret.append(env_var)
 
+    oauth_error = ""
+    loaded_from_oauth = False
+    oauth_access_token, oauth_error = _linked_openai_oauth_access_token(cfg)
+    if oauth_access_token and not env.get("OPENAI_API_KEY", "").strip():
+        env["OPENAI_API_KEY"] = oauth_access_token
+        loaded_from_oauth = True
+
     reasoning_cfg = cfg.get("reasoning", {})
     reasoning_cfg = reasoning_cfg if isinstance(reasoning_cfg, dict) else {}
+    reasoning_override_locked = _normalize_bool_default(
+        reasoning_cfg.get("explicit_provider_override", False),
+        False,
+    )
     profile_cfg = cfg.get("profile", {})
     profile_cfg = profile_cfg if isinstance(profile_cfg, dict) else {}
-    profile_provider = str(profile_cfg.get("default_provider", "")).strip()
-    configured_provider = str(reasoning_cfg.get("provider", "")).strip()
+    profile_provider = str(profile_cfg.get("default_provider", "")).strip().lower()
+    configured_provider = str(reasoning_cfg.get("provider", "")).strip().lower()
     configured_model = str(reasoning_cfg.get("model", "")).strip()
-    effective_provider = str(args.reasoning_provider or configured_provider or profile_provider).strip()
+    effective_provider = str(args.reasoning_provider or configured_provider or profile_provider).strip().lower()
     effective_model = str(args.reasoning_model or configured_model).strip()
+
+    if not effective_provider:
+        effective_provider = "anthropic"
+
+    if effective_provider == "openai-codex" and active_profile_provider == "openai-codex":
+        effective_provider = "openai"
+        if not effective_model or effective_model == DEFAULT_ANTHROPIC_MODEL:
+            effective_model = DEFAULT_OPENAI_MODEL
+        print("[warn] mapped runtime provider openai-codex -> openai for run compatibility")
+    elif effective_provider not in RUNTIME_REASONING_PROVIDER_CHOICES:
+        print(
+            f"Unsupported runtime reasoning provider in launcher config: {effective_provider}",
+            file=sys.stderr,
+        )
+        print(
+            "Supported runtime providers: "
+            + ", ".join(RUNTIME_REASONING_PROVIDER_CHOICES),
+            file=sys.stderr,
+        )
+        print(
+            f"Hint: run `{_launcher_hint()} config set provider openai` "
+            "(or anthropic/openrouter).",
+            file=sys.stderr,
+        )
+        return 1
+
+    # If a linked OAuth profile exists and anthropic deps are not ready,
+    # prefer OAuth-compatible OpenAI runtime unless user explicitly overrode.
+    if (
+        not args.reasoning_provider
+        and not reasoning_override_locked
+        and active_profile_provider == "openai-codex"
+        and effective_provider == "anthropic"
+    ):
+        issue = _provider_runtime_dependency_issue(effective_provider, env)
+        if issue in ("anthropic-package", "anthropic-key"):
+            effective_provider = "openai"
+            if not effective_model or effective_model == DEFAULT_ANTHROPIC_MODEL:
+                effective_model = DEFAULT_OPENAI_MODEL
+            print(
+                "[warn] anthropic runtime dependencies are unavailable; "
+                "falling back to linked OAuth OpenAI provider."
+            )
+
+    if not args.dry_run:
+        issue = _provider_runtime_dependency_issue(effective_provider, env)
+        if issue == "anthropic-package":
+            print(
+                "Reasoning provider is 'anthropic' but the 'anthropic' package is missing.",
+                file=sys.stderr,
+            )
+            print("Install it: pip install anthropic  (or pip install -r requirements.txt)", file=sys.stderr)
+            if active_profile_provider == "openai-codex":
+                print(
+                    f"Fallback: run `{_launcher_hint()} run --reasoning-provider openai` "
+                    "to use the linked OAuth profile.",
+                    file=sys.stderr,
+                )
+            return 1
+        if issue == "anthropic-key":
+            print(
+                "Reasoning provider is 'anthropic' but ANTHROPIC_API_KEY is not set.",
+                file=sys.stderr,
+            )
+            print(
+                f"Set it, or run `{_launcher_hint()} onboard --provider anthropic --api-key \"$ANTHROPIC_API_KEY\"`.",
+                file=sys.stderr,
+            )
+            if active_profile_provider == "openai-codex":
+                print(
+                    f"Fallback: run `{_launcher_hint()} run --reasoning-provider openai` "
+                    "to use the linked OAuth profile.",
+                    file=sys.stderr,
+                )
+            return 1
+        if issue == "openai-key":
+            print(
+                "Reasoning provider is 'openai' but OPENAI_API_KEY is not set.",
+                file=sys.stderr,
+            )
+            if active_profile_provider == "openai-codex":
+                print(
+                    "Linked OAuth profile exists but could not provide an OpenAI runtime token: "
+                    f"{oauth_error}.",
+                    file=sys.stderr,
+                )
+                print(
+                    f"Remediation: run `{_launcher_hint()} auth login --provider openai-codex --source codex-cli`.",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    f"Set OPENAI_API_KEY, or run `{_launcher_hint()} onboard --provider openai --api-key \"$OPENAI_API_KEY\"`.",
+                    file=sys.stderr,
+                )
+            return 1
+        if issue == "openrouter-key":
+            print(
+                "Reasoning provider is 'openrouter' but OPENROUTER_API_KEY is not set.",
+                file=sys.stderr,
+            )
+            print(
+                f"Set OPENROUTER_API_KEY, or run `{_launcher_hint()} onboard --provider openrouter --api-key \"$OPENROUTER_API_KEY\"`.",
+                file=sys.stderr,
+            )
+            return 1
+        if issue == "unsupported-provider":
+            print(
+                f"Unsupported runtime reasoning provider: {effective_provider}",
+                file=sys.stderr,
+            )
+            print(
+                "Supported runtime providers: "
+                + ", ".join(RUNTIME_REASONING_PROVIDER_CHOICES),
+                file=sys.stderr,
+            )
+            return 1
 
     if args.track != "auto":
         env["GAIA_ACTIVE_TRACK_OVERRIDE"] = args.track
@@ -12199,9 +12497,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     print(f"Profile timezone: {profile_tz or 'UTC'}")
     if loaded_from_secret:
         print(f"Loaded API credentials from secret store: {', '.join(loaded_from_secret)}")
+    if loaded_from_oauth:
+        print("Loaded OpenAI runtime token from linked OAuth profile.")
 
-    active_profile = cfg.get("auth", {}).get("active_profile")
-    if isinstance(active_profile, dict):
+    if active_profile:
         print(
             "Auth profile: "
             f"{active_profile.get('provider', '?')}/{active_profile.get('profile_id', '?')} "
