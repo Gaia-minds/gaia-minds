@@ -25,11 +25,12 @@ current active sprint window.
 - `Phase 3 Signal-Derived Hypothesis Candidate Integration` (`#113`, PR #128)
 - `Sprint OAuth onboarding activation + provider preflight fix` (`#134`, PR #136)
 - `Sprint onboarding/auth surface extraction` (`#131`, PR #137)
+- `Sprint Claude Code OAuth onboarding/auth integration` (`#130`, PR #138)
+- `Sprint governance/state sync reset for docs and status surfaces` (`#129`)
 
 ## In Progress
 
-- `#129` Governance/state sync reset (autonomous onboarding prompt + role-resolution protocol alignment) — owner `@TonyThePredictor`.
-- `#130` Add Claude Code OAuth onboarding in `gaia onboard` / `gaia auth` — owner `@TonyThePredictor`.
+_Nothing in progress._
 
 ## Next Up (Ordered Queue)
 
@@ -38,7 +39,7 @@ current active sprint window.
 
 ## Planned Next Wave
 
-- Follow-on architecture lane for provider-adapter boundaries if `#131` reveals additional extraction required.
+- Next planning round to be opened after release lane `#133` closes.
 
 ## Blocked
 

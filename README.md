@@ -32,7 +32,7 @@ npm run gaia -- run --mode single --dry-run
 
 See `assistant/README.md` for full runtime and release docs.
 
-## Current Status (As Of February 14, 2026)
+## Current Status (As Of February 15, 2026)
 
 - npm package is live: `@gaia-minds/assistant-cli@0.3.0`
 - Global CLI (`gaia`) supports onboarding, auth status, doctor, and dry-run loop execution
@@ -41,6 +41,7 @@ See `assistant/README.md` for full runtime and release docs.
   - OpenAI (API key)
   - Anthropic (API key)
   - OpenAI Codex OAuth (`codex login --device-auth`)
+  - Claude Code OAuth (`claude auth login`)
 - Runtime reasoning provider supports `anthropic`, `openai`, and `openrouter`
 - Self-evolution loop runs in two tracks:
   - `assistant` (user-facing improvements)

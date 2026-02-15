@@ -41,6 +41,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Follow-on hardening issue set seeded from `#115`: provenance admission gate (`#122`) and obfuscation-aware validator/fixture expansion (`#123`)
 
 ### Changed
+- Governance/state docs are now synchronized to current stabilization queue reality: merged onboarding lanes (`#134`, `#131`, `#130`) are recorded as delivered, immediate priorities point to remaining lanes (`#132`, `#133`), and next checkpoint is explicitly dated (`README.md`, `CONTRIBUTING.md`, `STATUS.md`, `ROADMAP.md`) (`#129`)
 - Quick onboarding/operator protocol guidance now supports autonomous main-role selection (`planner` vs `contributor`) when unattended execution is explicitly requested, with aligned wording across `README.md` and `infrastructure/agent-execution-protocol.md` (`#129`)
 - Sprint state docs now track only active queue lanes and include the user-reported OAuth onboarding continuity fix lane (`#134`) before onboarding expansion/release work (`STATUS.md`, `ROADMAP.md`)
 - Phase 3 immediate priorities were reset from stale completed items to the active stabilization queue (`#129`-`#134`) with explicit merge order and release dependency gating (`ROADMAP.md`)

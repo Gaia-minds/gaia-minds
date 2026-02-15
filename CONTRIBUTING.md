@@ -143,11 +143,14 @@ Explore deep questions:
 Before starting:
 ```bash
 # Remote-first sync (required)
+git remote get-url origin
 git fetch origin
 git checkout main
 git pull --ff-only origin main
 
 # Search issues for related topics
+gh issue list --repo Gaia-minds/gaia-minds --state open --limit 100
+gh pr list --repo Gaia-minds/gaia-minds --state open
 gh issue list --search "your topic"
 
 # Phase 2 lane queue
@@ -156,6 +159,10 @@ gh issue list --repo Gaia-minds/gaia-minds --state open --limit 100 | rg '\[Phas
 # Search existing files
 rg -n "your topic" research/ resources/
 ```
+
+Then resolve main role per `infrastructure/agent-execution-protocol.md`
+(`planner` or `contributor`) before coding, and post claim + plan packet if you
+take contributor execution work.
 
 Don't duplicate work. Build on what exists.
 
