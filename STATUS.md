@@ -28,6 +28,7 @@ current active sprint window.
 - `Sprint Claude Code OAuth onboarding/auth integration` (`#130`, PR #138)
 - `Sprint governance/state sync reset for docs and status surfaces` (`#129`)
 - `Sprint live preview rebuild from executable Gaia traces` (`#132`)
+- npm release `@gaia-minds/assistant-cli@0.4.0` (`#133`, tag `v0.4.0`)
 
 ## In Progress
 
@@ -35,11 +36,11 @@ _Nothing in progress._
 
 ## Next Up (Ordered Queue)
 
-1. `#133` Prepare next npm release after stabilization lanes merge.
+_Nothing queued._
 
 ## Planned Next Wave
 
-- Next planning round to be opened after release lane `#133` closes.
+- Open the next planning round to seed post-release assistant/framework priorities.
 
 ## Blocked
 

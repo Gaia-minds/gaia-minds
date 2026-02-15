@@ -9,6 +9,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- _Nothing yet._
+
+### Changed
+- _Nothing yet._
+
+### Removed
+- _Nothing yet._
+
+## [0.4.0] - 2026-02-15
+
+### Added
+- Release-readiness and QA evaluation evidence reports for npm `0.4.0` go/no-go and rollback-safe publish gating (`infrastructure/release-readiness-2026-02-15-v0.4.0.md`, `infrastructure/qa-evaluation-2026-02-15-v0.4.0.md`, `#133`)
 - Deterministic live-preview asset generator for assistant docs (`tools/generate-live-preview-assets.py`, `make live-preview-assets`, `make live-preview-assets-check`) that executes onboarding/chat/feedback/memory/traces command flow and writes normalized transcript evidence (`assistant/assets/gaia-assistant-live-preview-transcript.md`) (`#132`)
 - Claude Code OAuth onboarding/auth support in Gaia assistant surfaces (`gaia onboard --provider claude-code`, `gaia auth login --provider claude-code --source claude-cli`) with metadata-only profile linkage and deterministic status rendering (`tools/gaia-assistant.py`, `tools/gaia_assistant_parser.py`, `tools/gaia_assistant_onboarding.py`, `#130`)
 - Deterministic UAT coverage + governance record for Claude OAuth onboarding/auth command surfaces (`assistant/uat-scenarios.json`, `assistant/feature-catalog.json`, `assistant/uat-policy.md`, `docs/uat-changes/2026-02-15-claude-oauth-onboarding-surface.md`, `#130`)
