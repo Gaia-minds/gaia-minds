@@ -229,19 +229,32 @@ Recommended merge order:
 Execution queue (post-effort-selector planning round; opened February 15, 2026):
 
 - `#154` Expose model capability metadata in `gaia models list` (delivered; PR #159)
-- `#155` Add onboarding compatibility guardrails for model+effort combinations
-- `#157` Phase 4 kickoff: delegation contract and coordinator design
+- `#155` Add onboarding compatibility guardrails for model+effort combinations (delivered; PR #160)
+- `#157` Phase 4 kickoff: delegation contract and coordinator design (delivered)
 - `#156` Prepare npm release `@gaia-minds/assistant-cli@0.5.0`
 
 Recommended merge order:
 
-1. `#155` compatibility guardrails (reusing `#154` outputs)
-2. `#157` Phase 4 kickoff design lane (parallel-safe)
-3. `#156` release lane after stabilization lanes are merged
+1. `#156` release lane after stabilization lanes are merged
+
+Execution queue (Phase 4 implementation seed from `#157`; opened February 15, 2026):
+
+- `#161` Implement delegation contract evaluator v1
+- `#162` Build coordinator planner and specialist registry v1
+- `#163` Implement delegated execution and synthesis path
+- `#164` Add delegation QA matrix and rollout gates
+
+Recommended merge order:
+
+1. `#161` contract evaluator baseline
+2. `#162` coordinator planner/registry integration
+3. `#163` delegated execution and synthesis runtime path
+4. `#164` QA matrix and rollout gate before default enablement
 
 Planning artifact:
 
 - `infrastructure/planning-round-2026-02-15-post-effort-selector-queue.md`
+- `infrastructure/phase4-kickoff-delegation-contract-v1.md`
 
 Claude Code OAuth implementation notes (for `#130`):
 
@@ -266,7 +279,7 @@ Exit criteria:
 ## Phase 4: Multi-Agent Assistant Runtime
 
 Timeline: March 22 to April 12, 2026
-Status: Planned
+Status: Kickoff designed; implementation queue seeded (`#161`-`#164`)
 
 Assistant track outcomes:
 

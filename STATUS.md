@@ -32,6 +32,7 @@ current active sprint window.
 - `[Sprint][Assistant] Add model effort selector across onboarding/config/runtime` (`#147`)
 - `[Sprint][Assistant] Expose model capability metadata in gaia models list` (`#154`, PR #159)
 - `[Sprint][Assistant] Add onboarding compatibility guardrails for model and effort` (`#155`)
+- `[Sprint][Framework] Phase 4 kickoff: delegation contract and coordinator design` (`#157`)
 
 ## In Progress
 
@@ -39,8 +40,11 @@ _No active in-progress lane._
 
 ## Next Up (Ordered Queue)
 
-1. `#157` `[Sprint][Framework] Phase 4 kickoff: delegation contract and coordinator design`
-2. `#156` `[Sprint][Framework] Prepare npm release @gaia-minds/assistant-cli@0.5.0`
+1. `#156` `[Sprint][Framework] Prepare npm release @gaia-minds/assistant-cli@0.5.0`
+2. `#161` `[Sprint][Framework][Phase 4] Implement delegation contract evaluator v1`
+3. `#162` `[Sprint][Framework][Phase 4] Build coordinator planner and specialist registry v1`
+4. `#163` `[Sprint][Framework][Phase 4] Implement delegated execution and synthesis path`
+5. `#164` `[Sprint][Framework][Phase 4] Add delegation QA matrix and rollout gates`
 
 ## Planned Next Wave
 
