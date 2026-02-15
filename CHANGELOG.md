@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- Deterministic live-preview asset generator for assistant docs (`tools/generate-live-preview-assets.py`, `make live-preview-assets`, `make live-preview-assets-check`) that executes onboarding/chat/feedback/memory/traces command flow and writes normalized transcript evidence (`assistant/assets/gaia-assistant-live-preview-transcript.md`) (`#132`)
 - Claude Code OAuth onboarding/auth support in Gaia assistant surfaces (`gaia onboard --provider claude-code`, `gaia auth login --provider claude-code --source claude-cli`) with metadata-only profile linkage and deterministic status rendering (`tools/gaia-assistant.py`, `tools/gaia_assistant_parser.py`, `tools/gaia_assistant_onboarding.py`, `#130`)
 - Deterministic UAT coverage + governance record for Claude OAuth onboarding/auth command surfaces (`assistant/uat-scenarios.json`, `assistant/feature-catalog.json`, `assistant/uat-policy.md`, `docs/uat-changes/2026-02-15-claude-oauth-onboarding-surface.md`, `#130`)
 - Planning-round artifact for governance/onboarding stabilization sequencing with issue queue `#129`-`#134`, dependency order, and gate expectations (`infrastructure/planning-round-2026-02-14-governance-onboarding-release-reset.md`)
@@ -41,6 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Follow-on hardening issue set seeded from `#115`: provenance admission gate (`#122`) and obfuscation-aware validator/fixture expansion (`#123`)
 
 ### Changed
+- README live-preview assets now render from executable traces (including onboarding + trace-linkage steps) instead of handcrafted copy, and freshness docs now point to the reproducible generator/check workflow (`README.md`, `assistant/README.md`, `assistant/assets/gaia-assistant-terminal.svg`, `assistant/assets/gaia-assistant-demo-animated.svg`, `#132`)
 - Governance/state docs are now synchronized to current stabilization queue reality: merged onboarding lanes (`#134`, `#131`, `#130`) are recorded as delivered, immediate priorities point to remaining lanes (`#132`, `#133`), and next checkpoint is explicitly dated (`README.md`, `CONTRIBUTING.md`, `STATUS.md`, `ROADMAP.md`) (`#129`)
 - Quick onboarding/operator protocol guidance now supports autonomous main-role selection (`planner` vs `contributor`) when unattended execution is explicitly requested, with aligned wording across `README.md` and `infrastructure/agent-execution-protocol.md` (`#129`)
 - Sprint state docs now track only active queue lanes and include the user-reported OAuth onboarding continuity fix lane (`#134`) before onboarding expansion/release work (`STATUS.md`, `ROADMAP.md`)

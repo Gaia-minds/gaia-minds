@@ -1,4 +1,4 @@
-.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy quality-matrix compatibility-matrix benchmark memory-benchmark memory-summary-benchmark memory-quality benchmark-trend hypothesis-validate hypothesis-run hypothesis-dry-run hypothesis-hold-fixture hypothesis-failure-fixture hypothesis-signals-candidate-fixture token-budget-fixtures reliability-checkpoint reliability-checkpoint-check reliability-checkpoint-simulate-breach reliability-drift reliability-drift-check reliability-drift-simulate hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
+.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy quality-matrix compatibility-matrix live-preview-assets live-preview-assets-check benchmark memory-benchmark memory-summary-benchmark memory-quality benchmark-trend hypothesis-validate hypothesis-run hypothesis-dry-run hypothesis-hold-fixture hypothesis-failure-fixture hypothesis-signals-candidate-fixture token-budget-fixtures reliability-checkpoint reliability-checkpoint-check reliability-checkpoint-simulate-breach reliability-drift reliability-drift-check reliability-drift-simulate hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
 
 HYPOTHESIS_OUTPUT_ROOT ?= /tmp/gaia-hypothesis-evals
 RELIABILITY_CHECKPOINT_ROOT ?= /tmp/gaia-reliability-checkpoints
@@ -16,7 +16,7 @@ generate-indexes:
 check-indexes:
 	python3 ./tools/generate-indexes.py --check
 
-check-all: docs-check check-indexes compatibility-matrix
+check-all: docs-check check-indexes compatibility-matrix live-preview-assets-check
 	@echo ""
 	@echo "All checks passed."
 
@@ -34,6 +34,12 @@ quality-matrix:
 
 compatibility-matrix:
 	python3 ./tools/compatibility-matrix.py --baseline ./assistant/compatibility-matrix-baseline.json --matrix-out ./assistant/compatibility-matrix.md --check
+
+live-preview-assets:
+	python3 ./tools/generate-live-preview-assets.py
+
+live-preview-assets-check:
+	python3 ./tools/generate-live-preview-assets.py --check
 
 benchmark:
 	python3 ./tools/benchmark.py

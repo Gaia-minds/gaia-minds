@@ -61,16 +61,27 @@ gaia doctor
 README live-preview assets are refreshed to match current CLI behavior and are
 mapped to this source-of-truth command flow:
 
-1. `gaia doctor`
-2. `gaia chat --response-profile concise`
-3. `gaia feedback record --label not-helpful --session-id <session> --trace-id <trace> ...`
-4. `gaia memory summarize --subject user:preview --response-profile concise --json`
-5. `gaia traces --type feedback_record --last 1`
+1. `gaia onboard --provider openai --api-key <preview-openai-key> --model gpt-4.1-mini --yes`
+2. `gaia doctor`
+3. `gaia chat --response-profile concise`
+4. `gaia traces --type chat_turn --last 1 --json`
+5. `gaia feedback record --label not-helpful --session-id <session> --trace-id <trace> --correction "..."`
+6. `gaia memory add --type user_long --subject user:preview ...`
+7. `gaia memory summarize --subject user:preview --response-profile concise --json`
+8. `gaia traces --type feedback_record --last 1`
+
+Generation command (runs executable flow + normalizes dynamic ids/timestamps):
+
+```bash
+python3 tools/generate-live-preview-assets.py
+python3 tools/generate-live-preview-assets.py --check
+```
 
 Asset mapping:
 
 - Terminal snapshot: `assistant/assets/gaia-assistant-terminal.svg`
 - Animated walkthrough: `assistant/assets/gaia-assistant-demo-animated.svg`
+- Normalized transcript: `assistant/assets/gaia-assistant-live-preview-transcript.md`
 
 ## Provider Onboarding
 

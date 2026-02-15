@@ -1,53 +1,54 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="820" viewBox="0 0 1280 820" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="980" viewBox="0 0 1280 980" fill="none">
   <defs>
     <style>
       .frame { fill: #0B1220; }
       .panel { fill: #101A2E; stroke: #2A3C64; }
       .titlebar { fill: #172440; }
       .title { fill: #D8E5FF; font-size: 20px; font-family: monospace; }
-      .cmd { fill: #8CE99A; font-size: 19px; font-family: monospace; }
-      .ok { fill: #8CE99A; font-size: 17px; font-family: monospace; }
-      .warn { fill: #F7D070; font-size: 17px; font-family: monospace; }
-      .text { fill: #CBD9F8; font-size: 17px; font-family: monospace; }
+      .cmd { fill: #8CE99A; font-size: 16px; font-family: monospace; }
+      .ok { fill: #8CE99A; font-size: 16px; font-family: monospace; }
+      .warn { fill: #F7D070; font-size: 16px; font-family: monospace; }
+      .text { fill: #CBD9F8; font-size: 16px; font-family: monospace; }
       .meta { fill: #9AB6E9; font-size: 16px; font-family: monospace; }
     </style>
   </defs>
 
-  <rect class="frame" width="1280" height="820" rx="20"/>
-  <rect class="panel" x="34" y="28" width="1212" height="764" rx="16"/>
+  <rect class="frame" width="1280" height="980" rx="20"/>
+  <rect class="panel" x="34" y="28" width="1212" height="924" rx="16"/>
   <rect class="titlebar" x="34" y="28" width="1212" height="54" rx="16"/>
   <circle cx="72" cy="55" r="8" fill="#FF5F57"/>
   <circle cx="100" cy="55" r="8" fill="#FEBC2E"/>
   <circle cx="128" cy="55" r="8" fill="#28C840"/>
-  <text x="160" y="62" class="title">gaia assistant live preview (current CLI capability surfaces)</text>
+  <text x="160" y="62" class="title">gaia assistant live preview (generated from executable command traces)</text>
 
-  <text x="64" y="122" class="cmd">$ gaia doctor</text>
-  <text x="64" y="150" class="ok">[ok]</text>
-  <text x="118" y="150" class="text">required command found: python3</text>
-  <text x="64" y="176" class="ok">[ok]</text>
-  <text x="118" y="176" class="text">optional command found: codex</text>
-  <text x="64" y="202" class="warn">[warn]</text>
-  <text x="136" y="202" class="text">launcher config not found yet - run `gaia init` or `gaia onboard`</text>
-
-  <text x="64" y="248" class="cmd">$ gaia chat --response-profile concise</text>
-  <text x="64" y="276" class="text">Started session: s20260214162721-fe6476</text>
-  <text x="64" y="302" class="text">Response profile: concise (override)</text>
-  <text x="64" y="328" class="text">gaia&gt; [local-openai][profile=concise] Need concise updates</text>
-
-  <text x="64" y="374" class="cmd">$ gaia feedback record --label not-helpful --session-id &lt;session&gt; --trace-id &lt;trace&gt;</text>
-  <text x="64" y="402" class="text">feedback_id=fb20260214162721-bfb4e2 label=not-helpful session+trace linked</text>
-
-  <text x="64" y="448" class="cmd">$ gaia memory summarize --subject user:preview --response-profile concise --json</text>
-  <text x="64" y="476" class="text">summary_memory_id=m20260214162722-42e55a selected_source_count=2</text>
-  <text x="64" y="502" class="text">response_profile=concise summary_event_id=ms20260214162722-a61fea</text>
-
-  <text x="64" y="548" class="cmd">$ gaia traces --type feedback_record --last 1</text>
-  <text x="64" y="576" class="text">2026-02-14T16:27:21Z | feedback_record | safe | ok | saved fb20260214162721-bfb4e2</text>
-
-  <rect x="64" y="616" width="1150" height="148" rx="12" fill="#0D1628" stroke="#33507E"/>
-  <text x="88" y="652" class="title">Capability coverage shown</text>
-  <text x="88" y="680" class="meta">- chat response profiles (auto/concise/balanced/detailed)</text>
-  <text x="88" y="706" class="meta">- deterministic feedback capture (`gaia feedback record/list`) with session + trace linkage</text>
-  <text x="88" y="732" class="meta">- memory summarize workflow (`gaia memory summarize`) with source-count metadata</text>
-  <text x="88" y="758" class="meta">- trace inspection for governance/audit (`gaia traces` filters)</text>
+  <text x="64" y="122" class="cmd">$ gaia onboard --provider openai --api-key &lt;preview-openai-key&gt; --model gpt-4.1-mini --yes</text>
+  <text x="64" y="147" class="ok">[ok] selected provider: openai</text>
+  <text x="64" y="172" class="ok">[ok] reasoning provider configured</text>
+  <text x="64" y="197" class="text">model:    gpt-4.1-mini</text>
+  <text x="64" y="222" class="cmd">$ gaia doctor</text>
+  <text x="64" y="247" class="ok">[ok] required command found: python3</text>
+  <text x="64" y="272" class="ok">[ok] reasoning config: openai/gpt-4.1-mini</text>
+  <text x="64" y="297" class="text">Doctor finished with no blocking problems.</text>
+  <text x="64" y="322" class="cmd">$ gaia chat --response-profile concise</text>
+  <text x="64" y="347" class="text">Started session: &lt;session-id&gt;</text>
+  <text x="64" y="372" class="text">Response profile: concise (override)</text>
+  <text x="64" y="397" class="text">gaia&gt; [local-openai][profile=concise] Need concise updates</text>
+  <text x="64" y="422" class="cmd">$ gaia traces --type chat_turn --last 1 --json</text>
+  <text x="64" y="447" class="text">trace_id=&lt;trace-id&gt; action=chat_turn status=ok profile=concise</text>
+  <text x="64" y="472" class="cmd">$ gaia feedback record --label not-helpful --session-id &lt;session-id&gt; --trace-id &lt;trace-id&gt; --correction &quot;Need tighter action bullets&quot;</text>
+  <text x="64" y="497" class="text">&lt;feedback-id&gt; not helpful session=&lt;session-id&gt; trace=&lt;trace-id&gt;</text>
+  <text x="64" y="522" class="cmd">$ gaia memory add --type user_long --subject user:preview --content &quot;User prefers concise actionable updates.&quot; --summary &quot;concise preference seed&quot; --consent-scope user --confidence 0.9 --importance 0.8</text>
+  <text x="64" y="547" class="text">&lt;seed-memory-id&gt; user_long user:preview consent=user ttl=P180D</text>
+  <text x="64" y="572" class="cmd">$ gaia memory summarize --subject user:preview --response-profile concise --json</text>
+  <text x="64" y="597" class="text">summary_memory_id=&lt;summary-memory-id&gt; selected_source_count=1</text>
+  <text x="64" y="622" class="text">response_profile=concise summary_event_id=&lt;summary-event-id&gt;</text>
+  <text x="64" y="647" class="cmd">$ gaia traces --type feedback_record --last 1</text>
+  <text x="64" y="672" class="text">&lt;timestamp&gt; | feedback_record      | safe      | ok      | -        | saved &lt;feedback-id&gt;</text>
+  <rect x="64" y="713" width="1150" height="188" rx="12" fill="#0D1628" stroke="#33507E"/>
+  <text x="88" y="749" class="title">Capability coverage shown</text>
+  <text x="88" y="777" class="meta">- onboarding flow with provider setup (`gaia onboard`)</text>
+  <text x="88" y="803" class="meta">- concise profile chat behavior (`gaia chat --response-profile concise`)</text>
+  <text x="88" y="829" class="meta">- trace visibility for linked feedback (`gaia traces` + trace id linkage)</text>
+  <text x="88" y="855" class="meta">- deterministic feedback capture (`gaia feedback record`)</text>
+  <text x="88" y="881" class="meta">- memory summarize with traceable summary metadata (`gaia memory summarize`)</text>
 </svg>
