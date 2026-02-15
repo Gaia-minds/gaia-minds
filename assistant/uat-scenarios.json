@@ -34,6 +34,12 @@
       "command": "json=$(node ./bin/gaia.js models list --provider openai-codex --json) && source=$(printf '%s' \"$json\" | python3 -c \"import json,sys; payload=json.load(sys.stdin); print(payload.get('source', ''))\") && [[ \"$source\" == \"live\" || \"$source\" == \"curated\" ]] && model0=$(printf '%s' \"$json\" | python3 -c \"import json,sys; payload=json.load(sys.stdin); models=payload.get('models', []); print(models[0] if models else '')\") && [[ \"$model0\" == \"gpt-5.3-codex\" ]] && text=$(node ./bin/gaia.js models list --provider openai-codex) && [[ \"$text\" == *\"provider: openai-codex\"* ]] && [[ \"$text\" == *\"source:\"* ]]"
     },
     {
+      "id": "models_list_capability_metadata",
+      "description": "Model catalog JSON/text surfaces include normalized effort capability metadata",
+      "expect_exit": 0,
+      "command": "json=$(node ./bin/gaia.js models list --provider openai-codex --json) && capability_ok=$(printf '%s' \"$json\" | python3 -c \"import json,sys; payload=json.load(sys.stdin); models=payload.get('models', []); caps=payload.get('model_capabilities', []); ok=bool(models) and bool(caps) and isinstance(caps[0].get('supports_effort', None), bool) and isinstance(caps[0].get('effort_levels', None), list) and caps[0].get('id')==models[0]; print('ok' if ok else 'bad')\") && [[ \"$capability_ok\" == \"ok\" ]] && text=$(node ./bin/gaia.js models list --provider openai-codex) && [[ \"$text\" == *\"capability source:\"* ]] && [[ \"$text\" == *\"effort:\"* ]]"
+    },
+    {
       "id": "doctor_command",
       "description": "Doctor command runs without blocking errors",
       "expect_exit": 0,

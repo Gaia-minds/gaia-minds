@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- Model capability metadata in `gaia models list` outputs (`supports_effort`, `effort_levels`, `capability_source`) with deterministic provider/model derivation rules (`#154`)
+- Deterministic UAT coverage for model capability metadata output contract (`models_list_capability_metadata`) and governance record (`docs/uat-changes/2026-02-15-model-capability-metadata-coverage.md`) (`#154`)
 - Provider-aware reasoning effort selector across onboarding/config/runtime (`reasoning.effort`, `gaia onboard --effort`, `gaia run --reasoning-effort`) with deterministic runtime payload mapping for supported provider/model combinations (`#147`)
 - Deterministic runtime effort regression check harness and UAT scenario/governance coverage (`tools/runtime-effort-check.sh`, `assistant/uat-scenarios.json`, `assistant/feature-catalog.json`, `docs/uat-changes/2026-02-15-reasoning-effort-selector-coverage.md`, `#147`)
 

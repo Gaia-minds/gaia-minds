@@ -5,7 +5,7 @@
     {"path": "init", "scenarios": ["init_force"]},
     {"path": "onboard", "scenarios": ["onboard_openai_nostore", "onboard_claude_code_oauth"]},
     {"path": "models", "scenarios": ["models_list_source_disclosure"]},
-    {"path": "models list", "scenarios": ["models_list_source_disclosure"]},
+    {"path": "models list", "scenarios": ["models_list_source_disclosure", "models_list_capability_metadata"]},
     {"path": "doctor", "scenarios": ["doctor_command"]},
     {"path": "config", "scenarios": ["cli_help_surface"]},
     {"path": "config set", "scenarios": ["config_set_get_name", "provider_twin_openai", "signals_extraction_privacy_controls", "signals_skill_first_triage_matrix", "skills_provenance_admission_modes", "skills_obfuscation_validation_hardening"]},

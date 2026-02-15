@@ -33,14 +33,13 @@ current active sprint window.
 
 ## In Progress
 
-_Nothing in progress._
+- `#154` `[Sprint][Assistant] Expose model capability metadata in gaia models list` (@nunopratas)
 
 ## Next Up (Ordered Queue)
 
-1. `#154` `[Sprint][Assistant] Expose model capability metadata in gaia models list`
-2. `#155` `[Sprint][Assistant] Add onboarding compatibility guardrails for model and effort`
-3. `#157` `[Sprint][Framework] Phase 4 kickoff: delegation contract and coordinator design`
-4. `#156` `[Sprint][Framework] Prepare npm release @gaia-minds/assistant-cli@0.5.0`
+1. `#155` `[Sprint][Assistant] Add onboarding compatibility guardrails for model and effort`
+2. `#157` `[Sprint][Framework] Phase 4 kickoff: delegation contract and coordinator design`
+3. `#156` `[Sprint][Framework] Prepare npm release @gaia-minds/assistant-cli@0.5.0`
 
 ## Planned Next Wave
 
