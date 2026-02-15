@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "description": "Deterministic coordinator delegated execution + synthesis fixture matrix.",
+  "cases": [
+    {
+      "id": "gate_disabled_single_agent_fallback",
+      "description": "when delegation gate is disabled, delegated decisions route to deterministic single-agent fallback",
+      "cfg": {
+        "runtime": {
+          "delegation_enabled": false,
+          "delegation_mode": "off",
+          "delegation_dispatch_max_attempts": 2
+        }
+      },
+      "input": {
+        "plan_id": "fixture-exec-off",
+        "correlation_id": "fixture:exec:off",
+        "user_request": "Research provider options and produce a rollout checklist.",
+        "subtasks": [
+          {
+            "title": "Collect provider options",
+            "intent_class": "research",
+            "risk_level": "low",
+            "required_capabilities": ["file_read", "network_request"],
+            "policy_decision": "allow"
+          },
+          {
+            "title": "Draft rollout checklist",
+            "intent_class": "planning",
+            "risk_level": "medium",
+            "required_capabilities": ["file_write"],
+            "policy_decision": "allow"
+          }
+        ]
+      },
+      "expect": {
+        "runtime_enabled": false,
+        "task_count": 2,
+        "execution_modes": ["single_agent", "single_agent"],
+        "decisions": ["delegate", "delegate"],
+        "result_statuses": ["ok", "ok"],
+        "synthesis_status": "mixed",
+        "fallback_count": 2,
+        "deferred_count": 0,
+        "trace_counts": {
+          "delegation_plan_created": 1,
+          "delegation_decision": 2,
+          "delegation_fallback": 2,
+          "specialist_result": 2,
+          "delegation_synthesis": 1
+        },
+        "trace_absent": ["specialist_dispatch"]
+      }
+    },
+    {
+      "id": "delegate_success_synthesis",
+      "description": "enabled coordinator path dispatches specialists and synthesizes delegated outputs",
+      "cfg": {
+        "runtime": {
+          "delegation_enabled": true,
+          "delegation_mode": "coordinator_v1",
+          "delegation_dispatch_max_attempts": 2
+        }
+      },
+      "input": {
+        "plan_id": "fixture-exec-success",
+        "correlation_id": "fixture:exec:success",
+        "user_request": "Research provider limits and draft rollout checklist.",
+        "specialist_registry": [
+          {
+            "specialist_id": "research",
+            "capabilities": ["file_read", "memory_read", "network_request"],
+            "risk_envelope": "medium",
+            "cost_hint": "medium",
+            "latency_hint": "medium",
+            "base_confidence": 0.92
+          },
+          {
+            "specialist_id": "planning",
+            "capabilities": ["file_read", "file_write", "memory_read"],
+            "risk_envelope": "high",
+            "cost_hint": "low",
+            "latency_hint": "low",
+            "base_confidence": 0.9
+          }
+        ],
+        "subtasks": [
+          {
+            "title": "Collect provider quota and limits",
+            "intent_class": "research",
+            "risk_level": "low",
+            "required_capabilities": ["file_read", "network_request"],
+            "policy_decision": "allow"
+          },
+          {
+            "title": "Draft rollout checklist",
+            "intent_class": "planning",
+            "risk_level": "medium",
+            "required_capabilities": ["file_write", "memory_read"],
+            "policy_decision": "allow"
+          }
+        ]
+      },
+      "expect": {
+        "runtime_enabled": true,
+        "task_count": 2,
+        "execution_modes": ["delegated", "delegated"],
+        "decisions": ["delegate", "delegate"],
+        "result_statuses": ["ok", "ok"],
+        "synthesis_status": "ok",
+        "fallback_count": 0,
+        "deferred_count": 0,
+        "trace_counts": {
+          "delegation_plan_created": 1,
+          "delegation_decision": 2,
+          "specialist_dispatch": 2,
+          "specialist_result": 2,
+          "delegation_synthesis": 1
+        },
+        "trace_absent": ["delegation_fallback"]
+      }
+    },
+    {
+      "id": "dispatch_failure_and_deny_fallbacks",
+      "description": "dispatch failure retries once then falls back, and deny paths defer deterministically",
+      "cfg": {
+        "runtime": {
+          "delegation_enabled": true,
+          "delegation_mode": "coordinator_v1",
+          "delegation_dispatch_max_attempts": 2
+        }
+      },
+      "input": {
+        "plan_id": "fixture-exec-fail",
+        "correlation_id": "fixture:exec:fail",
+        "dispatch_failure_budget": {
+          "fixture-exec-fail:task-1": 2
+        },
+        "user_request": "Run shell checks and perform critical cleanup.",
+        "specialist_registry": [
+          {
+            "specialist_id": "operations",
+            "capabilities": ["shell_exec", "network_request", "file_write"],
+            "risk_envelope": "high",
+            "cost_hint": "medium",
+            "latency_hint": "medium",
+            "base_confidence": 0.95
+          },
+          {
+            "specialist_id": "planning",
+            "capabilities": ["file_read", "file_write"],
+            "risk_envelope": "medium",
+            "cost_hint": "low",
+            "latency_hint": "low",
+            "base_confidence": 0.82
+          }
+        ],
+        "subtasks": [
+          {
+            "title": "Run shell health checks",
+            "intent_class": "operations",
+            "risk_level": "medium",
+            "required_capabilities": ["shell_exec"],
+            "policy_decision": "allow",
+            "fallback_strategy": "single_agent"
+          },
+          {
+            "title": "Delete legacy workspace artifacts",
+            "intent_class": "operations",
+            "risk_level": "critical",
+            "required_capabilities": ["delete_files"],
+            "policy_decision": "allow"
+          }
+        ]
+      },
+      "expect": {
+        "runtime_enabled": true,
+        "task_count": 2,
+        "execution_modes": ["single_agent", "defer"],
+        "decisions": ["delegate", "deny"],
+        "result_statuses": ["ok", "deferred"],
+        "synthesis_status": "mixed",
+        "fallback_count": 2,
+        "deferred_count": 1,
+        "trace_counts": {
+          "delegation_plan_created": 1,
+          "delegation_decision": 2,
+          "specialist_dispatch": 2,
+          "specialist_result": 4,
+          "delegation_fallback": 2,
+          "delegation_synthesis": 1
+        },
+        "trace_absent": []
+      }
+    }
+  ]
+}

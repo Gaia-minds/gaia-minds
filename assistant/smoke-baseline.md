@@ -16,7 +16,7 @@ Expected artifact:
 
 ## Baseline Expectations
 
-Total tests: `29`
+Total tests: `30`
 
 1. `cli_startup` -> pass
 2. `config_read_write` -> pass
@@ -44,9 +44,10 @@ Total tests: `29`
 24. `policy_engine_gating_and_allowlists` -> pass
 25. `delegation_contract_v1_matrix` -> pass
 26. `coordinator_planner_registry_v1_matrix` -> pass
-27. `quality_matrix_guardrails` -> pass
-28. `traces_filtering_and_correlation` -> pass
-29. `provider_fallback` -> pass
+27. `delegated_execution_synthesis_v1_matrix` -> pass
+28. `quality_matrix_guardrails` -> pass
+29. `traces_filtering_and_correlation` -> pass
+30. `provider_fallback` -> pass
 
 ## Notes
 
