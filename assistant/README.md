@@ -7,7 +7,7 @@ It supports the following provider auth patterns:
 1. Subscription OAuth flows (for providers that support it in your environment)
 2. Direct API key access
 
-Current npm release: `@gaia-minds/assistant-cli@0.4.0`
+Current npm release: `@gaia-minds/assistant-cli@0.5.0`
 
 ## Quick Start
 
@@ -926,7 +926,7 @@ Recommended handoff protocol:
 1. Ensure npm auth is configured in repository settings:
    - preferred: npm Trusted Publisher for this repo/workflow
    - fallback: repository secret `NPM_TOKEN`
-2. Bump version in `package.json` and create a tag like `v0.4.0`.
+2. Bump version in `package.json` and create a tag like `v0.5.0`.
 3. Push the version commit and tag.
 4. GitHub Action `.github/workflows/npm-publish.yml` validates and publishes.
 5. For rehearsal, run workflow manually with `dry_run=true`.

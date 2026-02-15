@@ -9,6 +9,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- _Nothing yet._
+
+### Changed
+- _Nothing yet._
+
+### Removed
+- _Nothing yet._
+
+## [0.5.0] - 2026-02-15
+
+### Added
+- Release-readiness and QA evaluation evidence reports for npm `0.5.0` go/no-go and rollback-safe publish gating (`infrastructure/release-readiness-2026-02-15-v0.5.0.md`, `infrastructure/qa-evaluation-2026-02-15-v0.5.0.md`, `#156`)
 - Model capability metadata in `gaia models list` outputs (`supports_effort`, `effort_levels`, `capability_source`) with deterministic provider/model derivation rules (`#154`)
 - Deterministic UAT coverage for model capability metadata output contract (`models_list_capability_metadata`) and governance record (`docs/uat-changes/2026-02-15-model-capability-metadata-coverage.md`) (`#154`)
 - Deterministic onboarding compatibility guardrails for unsupported model+effort selections with explicit remediation guidance (`#155`)

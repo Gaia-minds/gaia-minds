@@ -1,6 +1,6 @@
 {
   "name": "@gaia-minds/assistant-cli",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "npm-first CLI wrapper for the Gaia standalone assistant runtime",
   "author": "Gaia Minds Contributors",
   "license": "MIT",

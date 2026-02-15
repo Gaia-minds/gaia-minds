@@ -34,9 +34,11 @@ Technical foundations and operational guidance.
 - [QA Evaluation Report](qa-evaluation-2026-02-14-skills-obfuscation-hardening.md) — Updated: 2026-02-14
 - [QA Evaluation Report: Release v0.3.0](qa-evaluation-2026-02-14-v0.3.0.md) — Date: February 14, 2026 Issue: `#108` Evaluator: Codex (`gaia-qa-evaluator` sub-role)
 - [QA Evaluation Report: Release v0.4.0](qa-evaluation-2026-02-15-v0.4.0.md) — Date: February 15, 2026 Issue: `#133` Evaluator: Codex (`gaia-qa-evaluator` sub-role)
+- [QA Evaluation Report: Release v0.5.0](qa-evaluation-2026-02-15-v0.5.0.md) — Date: February 15, 2026 Issue: `#156` Evaluator: Codex (`gaia-qa-evaluator` sub-role)
 - [QA Evaluation Template](qa-evaluation-template.md) — Updated: February 8, 2026
 - [Release Readiness Report: v0.3.0](release-readiness-2026-02-14-v0.3.0.md) — Date: February 14, 2026 Issue: `#108` Main role: `contributor` Sub-role gates: `gaia-release-manager`, `gaia-qa-evaluator`
 - [Release Readiness Report: v0.4.0](release-readiness-2026-02-15-v0.4.0.md) — Date: February 15, 2026 Issue: `#133` Main role: `contributor` Sub-role gates: `gaia-release-manager`, `gaia-qa-evaluator`
+- [Release Readiness Report: v0.5.0](release-readiness-2026-02-15-v0.5.0.md) — Date: February 15, 2026 Issue: `#156` Main role: `contributor` Sub-role gates: `gaia-release-manager`, `gaia-qa-evaluator`
 - [Release Readiness Template](release-readiness-template.md) — Updated: February 13, 2026
 - [Reliability Drift Report v1](reliability-drift-report-v1.md) — Updated: February 13, 2026
 - [Reliability Triage Workflow](reliability-triage-workflow.md) — Updated: February 13, 2026
