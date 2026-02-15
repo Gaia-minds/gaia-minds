@@ -104,6 +104,19 @@ are available (OpenAI, Anthropic, OpenRouter) and falls back to a curated list
 when live catalog retrieval is not possible (for example Codex/Claude CLI-only
 OAuth flows). You can always bypass prompts with `--model <model-id>`.
 
+To inspect model catalogs before onboarding or config changes:
+
+```bash
+# List one provider with source disclosure
+gaia models list --provider openai-codex
+
+# Machine-readable output
+gaia models list --provider openai-codex --json
+
+# Inspect all supported providers
+gaia models list
+```
+
 Direct non-interactive examples:
 
 ```bash

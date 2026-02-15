@@ -62,6 +62,7 @@ def build_parser(ctx: Dict[str, Any]) -> argparse.ArgumentParser:
     cmd_memory_retrieve = ctx["cmd_memory_retrieve"]
     cmd_memory_summarize = ctx["cmd_memory_summarize"]
     cmd_memory_update = ctx["cmd_memory_update"]
+    cmd_models_list = ctx["cmd_models_list"]
     cmd_note = ctx["cmd_note"]
     cmd_onboard = ctx["cmd_onboard"]
     cmd_plan = ctx["cmd_plan"]
@@ -150,6 +151,30 @@ def build_parser(ctx: Dict[str, Any]) -> argparse.ArgumentParser:
     )
     onboard.add_argument("--yes", action="store_true", help="Skip onboarding confirmations")
     onboard.set_defaults(func=cmd_onboard)
+
+    models = sub.add_parser("models", help="Inspect provider model catalogs")
+    models_sub = models.add_subparsers(dest="models_command", required=True)
+
+    models_list = models_sub.add_parser("list", help="List provider model options with source provenance")
+    models_list.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")
+    models_list.add_argument(
+        "--secret-store",
+        default=None,
+        help="Path to local secrets.json store (optional override)",
+    )
+    models_list.add_argument(
+        "--provider",
+        choices=list(ONBOARD_PROVIDER_CHOICES),
+        default=None,
+        help="Provider to inspect (all providers when omitted)",
+    )
+    models_list.add_argument(
+        "--api-key",
+        default=None,
+        help="Optional API key override (requires --provider)",
+    )
+    models_list.add_argument("--json", dest="as_json", action="store_true", help="Emit JSON output")
+    models_list.set_defaults(func=cmd_models_list)
 
     doctor = sub.add_parser("doctor", help="Validate local environment and auth readiness")
     doctor.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Config JSON path")

@@ -28,6 +28,12 @@
       "command": "python3 -c 'import os, pathlib; p = pathlib.Path(os.environ[\"GAIA_ASSISTANT_HOME\"]) / \"tmp-bin\" / \"claude\"; p.parent.mkdir(parents=True, exist_ok=True); p.write_text(\"#!/usr/bin/env bash\\nset -euo pipefail\\nif [[ \\\"${1:-}\\\" == \\\"auth\\\" && \\\"${2:-}\\\" == \\\"login\\\" ]]; then\\n  exit 0\\nfi\\nif [[ \\\"${1:-}\\\" == \\\"auth\\\" && \\\"${2:-}\\\" == \\\"status\\\" && \\\"${3:-}\\\" == \\\"--json\\\" ]]; then\\n  printf \\\"%s\\\\n\\\" \\\"{\\\\\\\"authenticated\\\\\\\": true, \\\\\\\"email\\\\\\\": \\\\\\\"claude-uat@example.com\\\\\\\", \\\\\\\"account_id\\\\\\\": \\\\\\\"claude-uat-account\\\\\\\", \\\\\\\"organization\\\\\\\": \\\\\\\"gaia-minds\\\\\\\", \\\\\\\"plan\\\\\\\": \\\\\\\"pro\\\\\\\"}\\\"\\n  exit 0\\nfi\\necho \\\"unexpected args: $*\\\" >&2\\nexit 1\\n\", encoding=\"utf-8\"); p.chmod(0o755)' && PATH=\"$GAIA_ASSISTANT_HOME/tmp-bin:$PATH\" node ./bin/gaia.js onboard --provider claude-code --yes >/dev/null && status_out=$(node ./bin/gaia.js auth status) && [[ \"$status_out\" == *\"provider:  claude-code\"* ]] && [[ \"$status_out\" == *\"email:     claude-uat@example.com\"* ]]"
     },
     {
+      "id": "models_list_source_disclosure",
+      "description": "Model catalog inspection emits provider source provenance in text and JSON output",
+      "expect_exit": 0,
+      "command": "json=$(node ./bin/gaia.js models list --provider openai-codex --json) && source=$(printf '%s' \"$json\" | python3 -c \"import json,sys; payload=json.load(sys.stdin); print(payload.get('source', ''))\") && [[ \"$source\" == \"live\" || \"$source\" == \"curated\" ]] && model0=$(printf '%s' \"$json\" | python3 -c \"import json,sys; payload=json.load(sys.stdin); models=payload.get('models', []); print(models[0] if models else '')\") && [[ \"$model0\" == \"gpt-5.3-codex\" ]] && text=$(node ./bin/gaia.js models list --provider openai-codex) && [[ \"$text\" == *\"provider: openai-codex\"* ]] && [[ \"$text\" == *\"source:\"* ]]"
+    },
+    {
       "id": "doctor_command",
       "description": "Doctor command runs without blocking errors",
       "expect_exit": 0,
