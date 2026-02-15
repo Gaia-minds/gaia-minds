@@ -226,6 +226,24 @@ Recommended merge order:
 
 1. Queue delivered; open next planning round to define the next execution set.
 
+Execution queue (post-effort-selector planning round; opened February 15, 2026):
+
+- `#154` Expose model capability metadata in `gaia models list`
+- `#155` Add onboarding compatibility guardrails for model+effort combinations
+- `#157` Phase 4 kickoff: delegation contract and coordinator design
+- `#156` Prepare npm release `@gaia-minds/assistant-cli@0.5.0`
+
+Recommended merge order:
+
+1. `#154` capability metadata contract
+2. `#155` compatibility guardrails (reusing `#154` outputs)
+3. `#157` Phase 4 kickoff design lane (parallel-safe)
+4. `#156` release lane after stabilization lanes are merged
+
+Planning artifact:
+
+- `infrastructure/planning-round-2026-02-15-post-effort-selector-queue.md`
+
 Claude Code OAuth implementation notes (for `#130`):
 
 - Use official Claude CLI auth commands (`claude auth login`, `claude auth status --json`) as onboarding/status surfaces.

@@ -37,11 +37,15 @@ _Nothing in progress._
 
 ## Next Up (Ordered Queue)
 
-_Nothing queued._
+1. `#154` `[Sprint][Assistant] Expose model capability metadata in gaia models list`
+2. `#155` `[Sprint][Assistant] Add onboarding compatibility guardrails for model and effort`
+3. `#157` `[Sprint][Framework] Phase 4 kickoff: delegation contract and coordinator design`
+4. `#156` `[Sprint][Framework] Prepare npm release @gaia-minds/assistant-cli@0.5.0`
 
 ## Planned Next Wave
 
-- Open the next planning round to seed post-release assistant/framework priorities.
+- Execute planning artifact `infrastructure/planning-round-2026-02-15-post-effort-selector-queue.md`.
+- Close/supersede stale planning PR `#148` after the new planning round lands.
 
 ## Blocked
 
