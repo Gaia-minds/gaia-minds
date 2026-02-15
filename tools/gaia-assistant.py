@@ -4730,6 +4730,48 @@ def _provider_model_catalog(provider: str, api_key: str) -> Tuple[List[str], str
     return fallback, "curated catalog"
 
 
+def _openai_model_supports_effort(model_id: str) -> bool:
+    normalized = str(model_id).strip().lower()
+    return normalized.startswith(("gpt-5", "o1", "o3", "o4"))
+
+
+def _openrouter_model_supports_effort(model_id: str) -> bool:
+    normalized = str(model_id).strip().lower()
+    if not normalized or normalized == "openrouter/auto":
+        return False
+    markers = ("gpt-5", "o1", "o3", "o4", "grok", "claude-opus-4-6")
+    return any(marker in normalized for marker in markers)
+
+
+def _anthropic_model_supports_effort(model_id: str) -> bool:
+    normalized = str(model_id).strip().lower()
+    return "claude-opus-4-6" in normalized
+
+
+def _model_capability_entry(provider: str, model_id: str, capability_source: str) -> Dict[str, Any]:
+    supports_effort = False
+    effort_levels: List[str] = []
+    if provider in ("openai", "openai-codex"):
+        supports_effort = _openai_model_supports_effort(model_id)
+        if supports_effort:
+            effort_levels = list(REASONING_EFFORT_CHOICES)
+    elif provider == "openrouter":
+        supports_effort = _openrouter_model_supports_effort(model_id)
+        if supports_effort:
+            effort_levels = list(REASONING_EFFORT_CHOICES)
+    elif provider in ("anthropic", "claude-code"):
+        supports_effort = _anthropic_model_supports_effort(model_id)
+        if supports_effort:
+            effort_levels = ["low", "medium", "high"]
+
+    return {
+        "id": model_id,
+        "supports_effort": supports_effort,
+        "effort_levels": effort_levels,
+        "capability_source": capability_source,
+    }
+
+
 def _provider_model_catalog_snapshot(
     provider: str,
     *,
@@ -4747,6 +4789,11 @@ def _provider_model_catalog_snapshot(
     source = "live" if source_detail.startswith("live") else "curated"
     default_model = _default_model_for_provider(provider)
     ordered_models = _dedupe_models([default_model, *catalog], limit=PROVIDER_MODEL_CATALOG_LIMIT)
+    capability_source = "derived-provider-contract-v1"
+    model_capabilities = [
+        _model_capability_entry(provider, model_id, capability_source)
+        for model_id in ordered_models
+    ]
     fallback_reason = ""
     guidance = ""
 
@@ -4777,6 +4824,8 @@ def _provider_model_catalog_snapshot(
         "guidance": guidance,
         "default_model": default_model,
         "models": ordered_models,
+        "capability_source": capability_source,
+        "model_capabilities": model_capabilities,
     }
 
 
@@ -5144,9 +5193,20 @@ def cmd_models_list(args: argparse.Namespace) -> int:
         guidance = str(entry.get("guidance", "")).strip()
         default_model = str(entry.get("default_model", "")).strip()
         models = [str(item).strip() for item in entry.get("models", []) if str(item).strip()]
+        capability_source = str(entry.get("capability_source", "derived-provider-contract-v1")).strip()
+        capabilities_raw = entry.get("model_capabilities", [])
+        capabilities_raw = capabilities_raw if isinstance(capabilities_raw, list) else []
+        capabilities: Dict[str, Dict[str, Any]] = {}
+        for item in capabilities_raw:
+            if not isinstance(item, dict):
+                continue
+            model_id = str(item.get("id", "")).strip()
+            if model_id:
+                capabilities[model_id] = item
 
         print(f"provider: {provider} ({provider_label})")
         print(f"source:   {source} ({source_detail})")
+        print(f"capability source: {capability_source}")
         if fallback_reason:
             print(f"reason:   {fallback_reason}")
         if guidance:
@@ -5154,7 +5214,15 @@ def cmd_models_list(args: argparse.Namespace) -> int:
         print("models:")
         for model in models:
             marker = " (recommended)" if model == default_model else ""
-            print(f"  - {model}{marker}")
+            capability = capabilities.get(model, {})
+            supports_effort = bool(capability.get("supports_effort", False))
+            effort_levels_raw = capability.get("effort_levels", [])
+            effort_levels_raw = effort_levels_raw if isinstance(effort_levels_raw, list) else []
+            effort_levels = [str(level).strip() for level in effort_levels_raw if str(level).strip()]
+            effort_note = "unsupported"
+            if supports_effort and effort_levels:
+                effort_note = ",".join(effort_levels)
+            print(f"  - {model}{marker} [effort: {effort_note}]")
     return 0
 
 
