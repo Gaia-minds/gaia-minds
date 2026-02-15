@@ -821,6 +821,8 @@ Runtime module layout note:
 
 - CLI entrypoint remains `tools/gaia-assistant.py`
 - parser/command registration is extracted to `tools/gaia_assistant_parser.py`
+- onboarding/auth provider registry + profile-link helpers are extracted to
+  `tools/gaia_assistant_onboarding.py`
 
 The self-evolution loop planner supports Anthropic, OpenAI, and OpenRouter in
 non-dry runs. Tier-2 LLM alignment checks currently run only with Anthropic;
