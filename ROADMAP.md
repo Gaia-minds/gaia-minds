@@ -220,11 +220,11 @@ Execution queue (governance + onboarding stabilization sprint reset):
 - `#131` Refactor onboarding/auth surfaces out of `tools/gaia-assistant.py` (delivered; PR #137)
 - `#130` Add Claude Code OAuth onboarding path to `gaia onboard` + `gaia auth` (delivered; PR #138)
 - `#132` Rebuild live preview from reproducible real Gaia interaction traces (delivered)
-- `#133` Prepare next npm release after stabilization lanes merge (queued; release gate)
+- `#133` Prepare next npm release after stabilization lanes merge (delivered; tag `v0.4.0`)
 
 Recommended merge order:
 
-1. `#133` (release preparation and publish)
+1. Queue delivered; open next planning round to define the next execution set.
 
 Claude Code OAuth implementation notes (for `#130`):
 
@@ -333,8 +333,7 @@ Framework KPIs:
 
 Next checkpoint date: February 22, 2026.
 
-1. Complete release lane (`#133`) with full readiness packet and validated npm publish.
-2. Run the next planning round immediately after `#133` to seed the next framework/assistant queue.
+1. Run the next planning round to seed the next framework/assistant queue.
 
 ## Milestones Log
 
@@ -360,5 +359,6 @@ Next checkpoint date: February 22, 2026.
 | 2026-02-14 | Signal-driven follow-on queue completed | Issues #111, #112, #113, #115, #122, #123 merged |
 | 2026-02-14 | Governance/onboarding stabilization sprint queue opened | Issues #129, #130, #131, #132, #133, #134 |
 | 2026-02-15 | Onboarding stabilization implementation lanes merged | Issues #129, #130, #131, #132, #134 merged; release gate #133 remains |
+| 2026-02-15 | npm CLI release published (`0.4.0`) | Issue #133 + tag `v0.4.0` |
 
 This roadmap is a living document and should be updated at least weekly.
