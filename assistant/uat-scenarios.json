@@ -22,6 +22,12 @@
       "command": "node ./bin/gaia.js onboard --provider openai --api-key test-key --model gpt-4.1-mini --effort high --yes --no-store-api-key >/dev/null && effort=$(node ./bin/gaia.js config get effort) && [[ \"$effort\" == \"high\" ]]"
     },
     {
+      "id": "onboard_effort_compatibility_warning",
+      "description": "Onboarding emits deterministic compatibility guidance when model+effort is unsupported",
+      "expect_exit": 0,
+      "command": "out=$(node ./bin/gaia.js onboard --provider openai --api-key test-key --model gpt-4.1-mini --effort high --yes --no-store-api-key 2>&1) && [[ \"$out\" == *\"[warn] onboarding compatibility: effort 'high' is unsupported for openai/gpt-4.1-mini.\"* ]] && [[ \"$out\" == *\"runtime will ignore this effort value and use provider/model defaults.\"* ]] && [[ \"$out\" == *\"models list --provider openai\"* ]]"
+    },
+    {
       "id": "onboard_claude_code_oauth",
       "description": "Claude Code OAuth onboarding path links metadata deterministically",
       "expect_exit": 0,

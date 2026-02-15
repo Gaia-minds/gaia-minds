@@ -30,16 +30,17 @@ current active sprint window.
 - `Sprint live preview rebuild from executable Gaia traces` (`#132`)
 - npm release `@gaia-minds/assistant-cli@0.4.0` (`#133`, tag `v0.4.0`)
 - `[Sprint][Assistant] Add model effort selector across onboarding/config/runtime` (`#147`)
+- `[Sprint][Assistant] Expose model capability metadata in gaia models list` (`#154`, PR #159)
+- `[Sprint][Assistant] Add onboarding compatibility guardrails for model and effort` (`#155`)
 
 ## In Progress
 
-- `#154` `[Sprint][Assistant] Expose model capability metadata in gaia models list` (@nunopratas)
+_No active in-progress lane._
 
 ## Next Up (Ordered Queue)
 
-1. `#155` `[Sprint][Assistant] Add onboarding compatibility guardrails for model and effort`
-2. `#157` `[Sprint][Framework] Phase 4 kickoff: delegation contract and coordinator design`
-3. `#156` `[Sprint][Framework] Prepare npm release @gaia-minds/assistant-cli@0.5.0`
+1. `#157` `[Sprint][Framework] Phase 4 kickoff: delegation contract and coordinator design`
+2. `#156` `[Sprint][Framework] Prepare npm release @gaia-minds/assistant-cli@0.5.0`
 
 ## Planned Next Wave
 

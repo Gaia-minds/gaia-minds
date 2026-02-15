@@ -139,6 +139,7 @@ run_supported="$(
 [[ "$run_supported" == *"Reasoning provider: openai (from launcher config)"* ]]
 [[ "$run_supported" == *"Reasoning model: gpt-5.3-codex (from launcher config)"* ]]
 [[ "$run_supported" == *"Reasoning effort: high (from launcher config)"* ]]
+[[ "$run_supported" != *"run startup compatibility: effort"* ]]
 [[ "$run_supported" == *"Applied reasoning effort: provider=openai model=gpt-5.3-codex effort=high"* ]]
 [[ "$run_supported" == *"No actions proposed this cycle."* ]]
 
@@ -166,5 +167,8 @@ run_unsupported="$(
 [[ "$run_unsupported" == *"Reasoning provider: openai (from launcher config)"* ]]
 [[ "$run_unsupported" == *"Reasoning model: gpt-4.1-mini (from launcher config)"* ]]
 [[ "$run_unsupported" == *"Reasoning effort: high (from launcher config)"* ]]
+[[ "$run_unsupported" == *"[warn] run startup compatibility: effort 'high' is unsupported for openai/gpt-4.1-mini."* ]]
+[[ "$run_unsupported" == *"[warn] run startup compatibility: runtime will ignore this effort value and use provider/model defaults."* ]]
+[[ "$run_unsupported" == *"[hint] run startup compatibility: run"*"--provider openai"* ]]
 [[ "$run_unsupported" == *"Reasoning effort not applied: provider=openai model=gpt-4.1-mini effort=high (unsupported provider/model)"* ]]
 [[ "$run_unsupported" == *"No actions proposed this cycle."* ]]

@@ -228,17 +228,16 @@ Recommended merge order:
 
 Execution queue (post-effort-selector planning round; opened February 15, 2026):
 
-- `#154` Expose model capability metadata in `gaia models list`
+- `#154` Expose model capability metadata in `gaia models list` (delivered; PR #159)
 - `#155` Add onboarding compatibility guardrails for model+effort combinations
 - `#157` Phase 4 kickoff: delegation contract and coordinator design
 - `#156` Prepare npm release `@gaia-minds/assistant-cli@0.5.0`
 
 Recommended merge order:
 
-1. `#154` capability metadata contract
-2. `#155` compatibility guardrails (reusing `#154` outputs)
-3. `#157` Phase 4 kickoff design lane (parallel-safe)
-4. `#156` release lane after stabilization lanes are merged
+1. `#155` compatibility guardrails (reusing `#154` outputs)
+2. `#157` Phase 4 kickoff design lane (parallel-safe)
+3. `#156` release lane after stabilization lanes are merged
 
 Planning artifact:
 

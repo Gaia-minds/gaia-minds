@@ -3,7 +3,7 @@
   "description": "Feature-to-UAT coverage map for Gaia assistant and evolution actions.",
   "commands": [
     {"path": "init", "scenarios": ["init_force"]},
-    {"path": "onboard", "scenarios": ["onboard_openai_nostore", "onboard_claude_code_oauth"]},
+    {"path": "onboard", "scenarios": ["onboard_openai_nostore", "onboard_effort_compatibility_warning", "onboard_claude_code_oauth"]},
     {"path": "models", "scenarios": ["models_list_source_disclosure"]},
     {"path": "models list", "scenarios": ["models_list_source_disclosure", "models_list_capability_metadata"]},
     {"path": "doctor", "scenarios": ["doctor_command"]},
