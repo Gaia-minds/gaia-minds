@@ -51,6 +51,8 @@ DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
 DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
 DEFAULT_CODEX_RUNTIME_MODEL = "gpt-5.3-codex"
 DEFAULT_OPENROUTER_MODEL = "openrouter/auto"
+DEFAULT_REASONING_FAILOVER_ORDER = ("openai", "openrouter", "anthropic")
+DEFAULT_REASONING_FAILOVER_HARD_ERRORS = ("quota", "auth")
 PROVIDER_MODEL_CATALOG_LIMIT = 8
 PROVIDER_DISPLAY_NAMES: Dict[str, str] = {
     "openrouter": "OpenRouter",
@@ -314,6 +316,16 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "provider": "anthropic",
         "model": DEFAULT_ANTHROPIC_MODEL,
         "explicit_provider_override": False,
+        "failover": {
+            "enabled": True,
+            "hard_error_classes": list(DEFAULT_REASONING_FAILOVER_HARD_ERRORS),
+            "order": list(DEFAULT_REASONING_FAILOVER_ORDER),
+            "models": {
+                "anthropic": DEFAULT_ANTHROPIC_MODEL,
+                "openai": DEFAULT_OPENAI_MODEL,
+                "openrouter": DEFAULT_OPENROUTER_MODEL,
+            },
+        },
     },
     "secrets": {
         "store_path": str(DEFAULT_SECRET_STORE),
@@ -463,6 +475,55 @@ def _normalize_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         reasoning.get("explicit_provider_override", False),
         False,
     )
+    failover_cfg = reasoning.setdefault("failover", {})
+    if not isinstance(failover_cfg, dict):
+        failover_cfg = {}
+        reasoning["failover"] = failover_cfg
+    failover_cfg["enabled"] = _normalize_bool_default(failover_cfg.get("enabled", True), True)
+    hard_classes_raw = failover_cfg.get("hard_error_classes", list(DEFAULT_REASONING_FAILOVER_HARD_ERRORS))
+    if isinstance(hard_classes_raw, str):
+        hard_classes_tokens = [token.strip().lower() for token in hard_classes_raw.split(",")]
+    elif isinstance(hard_classes_raw, list):
+        hard_classes_tokens = [str(token).strip().lower() for token in hard_classes_raw]
+    else:
+        hard_classes_tokens = list(DEFAULT_REASONING_FAILOVER_HARD_ERRORS)
+    hard_classes: List[str] = []
+    for token in hard_classes_tokens:
+        if token in DEFAULT_REASONING_FAILOVER_HARD_ERRORS and token not in hard_classes:
+            hard_classes.append(token)
+    if not hard_classes:
+        hard_classes = list(DEFAULT_REASONING_FAILOVER_HARD_ERRORS)
+    failover_cfg["hard_error_classes"] = hard_classes
+
+    order_raw = failover_cfg.get("order", list(DEFAULT_REASONING_FAILOVER_ORDER))
+    if isinstance(order_raw, str):
+        order_tokens = [token.strip().lower() for token in order_raw.split(",")]
+    elif isinstance(order_raw, list):
+        order_tokens = [str(token).strip().lower() for token in order_raw]
+    else:
+        order_tokens = list(DEFAULT_REASONING_FAILOVER_ORDER)
+    normalized_order: List[str] = []
+    for provider in order_tokens:
+        if provider in RUNTIME_REASONING_PROVIDER_CHOICES and provider not in normalized_order:
+            normalized_order.append(provider)
+    if not normalized_order:
+        normalized_order = list(DEFAULT_REASONING_FAILOVER_ORDER)
+    failover_cfg["order"] = normalized_order
+
+    models_raw = failover_cfg.get("models", {})
+    if not isinstance(models_raw, dict):
+        models_raw = {}
+    normalized_models: Dict[str, str] = {}
+    default_models = {
+        "anthropic": DEFAULT_ANTHROPIC_MODEL,
+        "openai": DEFAULT_OPENAI_MODEL,
+        "openrouter": DEFAULT_OPENROUTER_MODEL,
+    }
+    for provider in RUNTIME_REASONING_PROVIDER_CHOICES:
+        value = str(models_raw.get(provider, default_models.get(provider, ""))).strip()
+        if value:
+            normalized_models[provider] = value
+    failover_cfg["models"] = normalized_models
 
     secrets = cfg.setdefault("secrets", {})
     secrets.setdefault("store_path", str(DEFAULT_SECRET_STORE))
@@ -12628,6 +12689,45 @@ def cmd_run(args: argparse.Namespace) -> int:
         reasoning_cfg.get("explicit_provider_override", False),
         False,
     )
+    failover_cfg = reasoning_cfg.get("failover", {})
+    failover_cfg = failover_cfg if isinstance(failover_cfg, dict) else {}
+    failover_enabled = _normalize_bool_default(failover_cfg.get("enabled", True), True)
+    hard_errors_raw = failover_cfg.get("hard_error_classes", list(DEFAULT_REASONING_FAILOVER_HARD_ERRORS))
+    if isinstance(hard_errors_raw, str):
+        hard_errors_tokens = [token.strip().lower() for token in hard_errors_raw.split(",")]
+    elif isinstance(hard_errors_raw, list):
+        hard_errors_tokens = [str(token).strip().lower() for token in hard_errors_raw]
+    else:
+        hard_errors_tokens = list(DEFAULT_REASONING_FAILOVER_HARD_ERRORS)
+    failover_hard_errors: List[str] = []
+    for token in hard_errors_tokens:
+        if token in DEFAULT_REASONING_FAILOVER_HARD_ERRORS and token not in failover_hard_errors:
+            failover_hard_errors.append(token)
+    if not failover_hard_errors:
+        failover_hard_errors = list(DEFAULT_REASONING_FAILOVER_HARD_ERRORS)
+
+    order_raw = failover_cfg.get("order", list(DEFAULT_REASONING_FAILOVER_ORDER))
+    if isinstance(order_raw, str):
+        order_tokens = [token.strip().lower() for token in order_raw.split(",")]
+    elif isinstance(order_raw, list):
+        order_tokens = [str(token).strip().lower() for token in order_raw]
+    else:
+        order_tokens = list(DEFAULT_REASONING_FAILOVER_ORDER)
+    failover_order: List[str] = []
+    for provider_name in order_tokens:
+        if provider_name in RUNTIME_REASONING_PROVIDER_CHOICES and provider_name not in failover_order:
+            failover_order.append(provider_name)
+    if not failover_order:
+        failover_order = list(DEFAULT_REASONING_FAILOVER_ORDER)
+
+    models_raw = failover_cfg.get("models", {})
+    models_raw = models_raw if isinstance(models_raw, dict) else {}
+    failover_models: Dict[str, str] = {}
+    for provider_name in RUNTIME_REASONING_PROVIDER_CHOICES:
+        model_value = str(models_raw.get(provider_name, "")).strip()
+        if model_value:
+            failover_models[provider_name] = model_value
+
     profile_cfg = cfg.get("profile", {})
     profile_cfg = profile_cfg if isinstance(profile_cfg, dict) else {}
     profile_provider = str(profile_cfg.get("default_provider", "")).strip().lower()
@@ -12681,6 +12781,13 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     if not args.dry_run:
         issue = _provider_runtime_dependency_issue(effective_provider, env)
+        if issue and failover_enabled:
+            print(
+                f"[warn] primary runtime provider preflight issue detected ({issue}); "
+                "continuing because failover is enabled.",
+                file=sys.stderr,
+            )
+            issue = None
         if issue == "anthropic-package":
             print(
                 "Reasoning provider is 'anthropic' but the 'anthropic' package is missing.",
@@ -12759,6 +12866,14 @@ def cmd_run(args: argparse.Namespace) -> int:
         env["GAIA_REASONING_PROVIDER"] = effective_provider
     if effective_model:
         env["GAIA_REASONING_MODEL"] = effective_model
+    env["GAIA_REASONING_FAILOVER_ENABLED"] = "1" if failover_enabled else "0"
+    env["GAIA_REASONING_FAILOVER_HARD_ERRORS"] = ",".join(failover_hard_errors)
+    env["GAIA_REASONING_FAILOVER_ORDER"] = ",".join(failover_order)
+    if failover_models:
+        env["GAIA_REASONING_FAILOVER_MODELS"] = ",".join(
+            f"{provider}={model}"
+            for provider, model in sorted(failover_models.items())
+        )
     env["GAIA_AGENT_MEMORY_DIR"] = str(state_dir)
     env["GAIA_ASSISTANT_VERBOSITY"] = str(profile_cfg.get("verbosity", "balanced")).strip() or "balanced"
     profile_tz = str(profile_cfg.get("timezone", "UTC")).strip()
@@ -12780,6 +12895,11 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"Reasoning model override: {args.reasoning_model}")
     elif effective_model:
         print(f"Reasoning model: {effective_model} (from launcher config)")
+    print(
+        "Reasoning failover: "
+        f"{'enabled' if failover_enabled else 'disabled'} "
+        f"(classes={','.join(failover_hard_errors)}, order={','.join(failover_order)})"
+    )
     profile_name = str(profile_cfg.get("name", "")).strip()
     if profile_name:
         print(f"Profile name: {profile_name}")

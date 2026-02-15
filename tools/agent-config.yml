@@ -28,6 +28,14 @@ reasoning:
     openrouter: "openrouter/auto"
   max_tokens: 4096
   temperature: 0.3  # low for consistent reasoning
+  failover:
+    enabled: true
+    hard_error_classes: ["quota", "auth"]
+    order: ["openai", "openrouter", "anthropic"]
+    models:
+      anthropic: "claude-sonnet-4-5-20250929"
+      openai: "gpt-4.1-mini"
+      openrouter: "openrouter/auto"
   openai:
     base_url: "https://api.openai.com/v1"
     timeout_seconds: 120

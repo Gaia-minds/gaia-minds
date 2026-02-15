@@ -826,6 +826,18 @@ npm run gaia -- run --mode single --reasoning-provider openai --reasoning-model 
 npm run gaia -- run --mode single --reasoning-provider openrouter --reasoning-model openrouter/auto
 ```
 
+Runtime hard-error failover:
+
+- Gaia now supports deterministic failover across providers on configured hard
+  error classes (`quota`, `auth`), including `insufficient_quota`-style
+  failures.
+- Default order is `openai -> openrouter -> anthropic` (excluding the active
+  provider).
+- `gaia run` prints failover policy details at startup and agent-loop logs
+  explicit trigger/attempt/success-or-exhausted events.
+- Launcher config path: `reasoning.failover` in `~/.gaia-assistant/config.json`
+  (`enabled`, `hard_error_classes`, `order`, `models`).
+
 OpenRouter quick setup:
 
 ```bash
