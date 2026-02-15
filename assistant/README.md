@@ -94,10 +94,15 @@ gaia onboard
 The wizard lets you choose provider and connection style:
 
 1. `openrouter` -> API key + model selection
-2. `openai` -> API key
-3. `anthropic` -> API key
-4. `openai-codex` -> OAuth via Codex CLI
-5. `claude-code` -> OAuth via Claude CLI
+2. `openai` -> API key + model selection
+3. `anthropic` -> API key + model selection
+4. `openai-codex` -> OAuth via Codex CLI + model selection
+5. `claude-code` -> OAuth via Claude CLI + model selection
+
+For model selection, Gaia tries to load a live provider catalog when credentials
+are available (OpenAI, Anthropic, OpenRouter) and falls back to a curated list
+when live catalog retrieval is not possible (for example Codex/Claude CLI-only
+OAuth flows). You can always bypass prompts with `--model <model-id>`.
 
 Direct non-interactive examples:
 
@@ -119,7 +124,7 @@ gaia onboard --provider claude-code --yes
 ```
 
 After successful Codex OAuth onboarding, Gaia auto-aligns runtime defaults to
-`openai/gpt-4.1-mini` unless you've already set an explicit provider override.
+`openai/gpt-5.3-codex` unless you've already set an explicit provider override.
 `gaia run` also performs provider dependency preflight and will load a linked
 OAuth token for OpenAI runtime when available.
 
