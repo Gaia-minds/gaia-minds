@@ -32,19 +32,28 @@ current active sprint window.
 
 ## In Progress
 
-_Nothing in progress._
+- `#142` `[Sprint][Assistant] Add provider model selector and live catalog retrieval`
+  - owner: `@TonyThePredictor`
+  - PR: `#143` (`issue-142-provider-model-selector`)
+  - current blocker: CI policy gates failing (`self-evolution-evidence`, `uat-policy`) pending closeout updates
 
 ## Next Up (Ordered Queue)
 
-_Nothing queued._
+1. `#144` `[Sprint][Assistant] Research provider model discovery contracts (Codex/Claude/OpenAI/Anthropic/OpenRouter)`
+2. `#145` `[Sprint][Assistant] Add provider model catalog inspection command`
+3. `#146` `[Sprint][Assistant] Add runtime failover for provider quota/auth hard failures`
+4. `#147` `[Sprint][Assistant] Add model effort selector across onboarding/config/runtime`
 
 ## Planned Next Wave
 
-- Open the next planning round to seed post-release assistant/framework priorities.
+- Execute planning artifact `infrastructure/planning-round-2026-02-15-post-model-selector-queue.md`.
+- After `#145` and `#146` merge, run next planning checkpoint for release/readiness prioritization.
 
 ## Blocked
 
-_Nothing blocked._
+- `#142` merge is blocked on PR `#143` policy checks:
+  - `self-evolution-evidence` (missing checklist lines in PR body)
+  - `uat-policy` (missing UAT change record + justification section)
 
 ## How to Use This File
 

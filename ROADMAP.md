@@ -226,6 +226,26 @@ Recommended merge order:
 
 1. Queue delivered; open next planning round to define the next execution set.
 
+Execution queue (post-model-selector planning round; opened February 15, 2026):
+
+- `#142` closeout + merge for provider model selector lane (PR `#143` policy-gate remediation)
+- `#144` Research provider model discovery contracts (Codex/Claude/OpenAI/Anthropic/OpenRouter)
+- `#145` Add provider model catalog inspection command
+- `#146` Add runtime failover for provider quota/auth hard failures
+- `#147` Add model effort selector across onboarding/config/runtime
+
+Recommended merge order:
+
+1. `#142` closeout and merge (PR `#143`)
+2. `#144` research contract
+3. `#145` catalog inspection command
+4. `#146` runtime failover
+5. `#147` effort selector
+
+Planning artifact:
+
+- `infrastructure/planning-round-2026-02-15-post-model-selector-queue.md`
+
 Claude Code OAuth implementation notes (for `#130`):
 
 - Use official Claude CLI auth commands (`claude auth login`, `claude auth status --json`) as onboarding/status surfaces.
