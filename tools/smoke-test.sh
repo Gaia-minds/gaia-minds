@@ -468,6 +468,13 @@ PY
     [[ \"\$delegation_out\" == *'\"status\": \"pass\"'* ]]
   "
 
+  run_test "coordinator_planner_registry_v1_matrix" bash -lc "
+    bash \"${ROOT_DIR}/tools/coordinator-planner-check.sh\" >/tmp/coordinator-planner-smoke.out 2>&1 &&
+    planner_out=\$(cat /tmp/coordinator-planner-smoke.out) &&
+    [[ \"\$planner_out\" == *'\"suite\": \"coordinator-planner-v1\"'* ]] &&
+    [[ \"\$planner_out\" == *'\"status\": \"pass\"'* ]]
+  "
+
   run_test "quality_matrix_guardrails" bash -lc "
     python3 \"${ROOT_DIR}/tools/quality-matrix.py\" \
       --manifest \"${ROOT_DIR}/assistant/fixtures/skills/manifest.json\" \

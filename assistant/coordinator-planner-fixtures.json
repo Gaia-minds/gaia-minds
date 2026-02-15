@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "registry_schema_version": 1,
+  "description": "Coordinator planner + specialist registry v1 deterministic fixture matrix.",
+  "cases": [
+    {
+      "id": "stable_rankings_and_delegate_decisions",
+      "description": "planner decomposes into bounded tasks, ranks specialists deterministically, and invokes evaluator",
+      "input": {
+        "plan_id": "fixture-coord-plan-a",
+        "user_request": "Research provider limits and draft rollout checklist.",
+        "intent_class": "research",
+        "risk_level": "medium",
+        "max_candidates": 3,
+        "specialist_registry": [
+          {
+            "specialist_id": "research",
+            "display_name": "Research Specialist",
+            "capabilities": ["file_read", "memory_read", "network_request"],
+            "risk_envelope": "medium",
+            "cost_hint": "medium",
+            "latency_hint": "medium",
+            "base_confidence": 0.92
+          },
+          {
+            "specialist_id": "planning",
+            "display_name": "Planning Specialist",
+            "capabilities": ["file_read", "file_write", "memory_read"],
+            "risk_envelope": "high",
+            "cost_hint": "low",
+            "latency_hint": "low",
+            "base_confidence": 0.9
+          },
+          {
+            "specialist_id": "operations",
+            "display_name": "Operations Specialist",
+            "capabilities": ["file_write", "shell_exec", "network_request"],
+            "risk_envelope": "high",
+            "cost_hint": "high",
+            "latency_hint": "high",
+            "base_confidence": 0.74
+          }
+        ],
+        "subtasks": [
+          {
+            "title": "Collect provider quota and limits",
+            "intent_class": "research",
+            "risk_level": "low",
+            "required_capabilities": ["file_read", "network_request"],
+            "policy_decision": "allow"
+          },
+          {
+            "title": "Draft rollout checklist",
+            "intent_class": "planning",
+            "risk_level": "medium",
+            "required_capabilities": ["file_write", "memory_read"],
+            "policy_decision": "allow"
+          }
+        ]
+      },
+      "expect": {
+        "task_count": 2,
+        "task_ids": [
+          "fixture-coord-plan-a:task-1",
+          "fixture-coord-plan-a:task-2"
+        ],
+        "top_specialists": ["research", "planning"],
+        "decisions": ["delegate", "delegate"]
+      }
+    },
+    {
+      "id": "safety_override_paths",
+      "description": "planner packets preserve deny/fallback safety outcomes from evaluator",
+      "input": {
+        "plan_id": "fixture-coord-plan-b",
+        "user_request": "Perform high-risk cleanup and shell checks.",
+        "intent_class": "operations",
+        "risk_level": "high",
+        "max_candidates": 2,
+        "specialist_registry": [
+          {
+            "specialist_id": "operations",
+            "display_name": "Operations Specialist",
+            "capabilities": ["file_write", "shell_exec", "network_request"],
+            "risk_envelope": "high",
+            "cost_hint": "medium",
+            "latency_hint": "medium",
+            "base_confidence": 0.86
+          },
+          {
+            "specialist_id": "planning",
+            "display_name": "Planning Specialist",
+            "capabilities": ["file_read", "file_write", "memory_read"],
+            "risk_envelope": "medium",
+            "cost_hint": "low",
+            "latency_hint": "low",
+            "base_confidence": 0.82
+          }
+        ],
+        "subtasks": [
+          {
+            "title": "Delete legacy workspace artifacts",
+            "intent_class": "operations",
+            "risk_level": "high",
+            "required_capabilities": ["delete_files"],
+            "policy_decision": "allow"
+          },
+          {
+            "title": "Run shell health checks",
+            "intent_class": "operations",
+            "risk_level": "medium",
+            "required_capabilities": ["shell_exec"],
+            "policy_decision": "allow",
+            "sandbox_escalation_required": true,
+            "sandbox_approved": false
+          }
+        ]
+      },
+      "expect": {
+        "task_count": 2,
+        "task_ids": [
+          "fixture-coord-plan-b:task-1",
+          "fixture-coord-plan-b:task-2"
+        ],
+        "top_specialists": ["operations", "operations"],
+        "decisions": ["deny", "fallback"]
+      }
+    }
+  ]
+}

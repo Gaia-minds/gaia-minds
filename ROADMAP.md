@@ -240,15 +240,14 @@ Recommended merge order:
 Execution queue (Phase 4 implementation seed from `#157`; opened February 15, 2026):
 
 - `#161` Implement delegation contract evaluator v1 (delivered)
-- `#162` Build coordinator planner and specialist registry v1
+- `#162` Build coordinator planner and specialist registry v1 (delivered)
 - `#163` Implement delegated execution and synthesis path
 - `#164` Add delegation QA matrix and rollout gates
 
 Recommended merge order:
 
-1. `#162` coordinator planner/registry integration
-2. `#163` delegated execution and synthesis runtime path
-3. `#164` QA matrix and rollout gate before default enablement
+1. `#163` delegated execution and synthesis runtime path
+2. `#164` QA matrix and rollout gate before default enablement
 
 Planning artifact:
 
@@ -278,7 +277,7 @@ Exit criteria:
 ## Phase 4: Multi-Agent Assistant Runtime
 
 Timeline: March 22 to April 12, 2026
-Status: Kickoff designed; lane A delivered (`#161`), lanes `#162`-`#164` pending
+Status: Kickoff designed; lanes A-B delivered (`#161`, `#162`), lanes `#163`-`#164` pending
 
 Assistant track outcomes:
 

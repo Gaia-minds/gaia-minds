@@ -145,6 +145,11 @@ DELEGATION_CONFIDENCE_THRESHOLDS: Dict[str, Dict[str, float]] = {
     "low": {"delegate": 0.7, "confirm": 0.45},
     "medium": {"delegate": 0.8, "confirm": 0.6},
 }
+SPECIALIST_HINT_CHOICES = ("low", "medium", "high")
+SPECIALIST_REGISTRY_SCHEMA_VERSION = 1
+COORDINATOR_PLAN_SCHEMA_VERSION = 1
+COORDINATOR_MAX_SUBTASKS_DEFAULT = 4
+COORDINATOR_MAX_CANDIDATES_DEFAULT = 3
 DEFAULT_CAPABILITY_LEVELS = {
     "file_read": "safe",
     "file_write": "safe",
@@ -3879,6 +3884,437 @@ def emit_delegation_decision_trace(
         duration_ms=duration_ms,
         permission_level=permission_level,
         status="blocked" if decision == "deny" else "ok",
+        metadata=metadata,
+    )
+
+
+def _default_specialist_registry_v1() -> List[Dict[str, Any]]:
+    return [
+        {
+            "specialist_id": "research",
+            "display_name": "Research Specialist",
+            "capabilities": ["file_read", "memory_read", "network_request"],
+            "risk_envelope": "medium",
+            "cost_hint": "medium",
+            "latency_hint": "medium",
+            "base_confidence": 0.86,
+        },
+        {
+            "specialist_id": "planning",
+            "display_name": "Planning Specialist",
+            "capabilities": ["file_read", "file_write", "memory_read"],
+            "risk_envelope": "high",
+            "cost_hint": "low",
+            "latency_hint": "low",
+            "base_confidence": 0.84,
+        },
+        {
+            "specialist_id": "operations",
+            "display_name": "Operations Specialist",
+            "capabilities": ["file_write", "network_request", "shell_exec"],
+            "risk_envelope": "high",
+            "cost_hint": "high",
+            "latency_hint": "high",
+            "base_confidence": 0.74,
+        },
+    ]
+
+
+def _normalize_specialist_registry_v1(registry_payload: Any) -> List[Dict[str, Any]]:
+    entries = registry_payload if isinstance(registry_payload, list) else _default_specialist_registry_v1()
+    normalized: List[Dict[str, Any]] = []
+    seen: set[str] = set()
+    for idx, raw_entry in enumerate(entries):
+        if not isinstance(raw_entry, dict):
+            continue
+        specialist_id = str(raw_entry.get("specialist_id", "")).strip().lower()
+        if not specialist_id:
+            specialist_id = f"specialist-{idx + 1}"
+        if specialist_id in seen:
+            continue
+        seen.add(specialist_id)
+
+        capabilities = _normalize_delegation_identifier_list(raw_entry.get("capabilities", []))
+        if not capabilities:
+            capabilities = ["file_read"]
+        risk_envelope = _normalize_delegation_risk(raw_entry.get("risk_envelope", "medium"))
+        cost_hint = str(raw_entry.get("cost_hint", "medium")).strip().lower()
+        if cost_hint not in SPECIALIST_HINT_CHOICES:
+            cost_hint = "medium"
+        latency_hint = str(raw_entry.get("latency_hint", "medium")).strip().lower()
+        if latency_hint not in SPECIALIST_HINT_CHOICES:
+            latency_hint = "medium"
+        base_confidence = _normalize_delegation_confidence(
+            raw_entry.get("base_confidence", 0.7),
+            default_value=0.7,
+        )
+        normalized.append(
+            {
+                "specialist_id": specialist_id,
+                "display_name": str(raw_entry.get("display_name", "")).strip() or specialist_id,
+                "capabilities": capabilities,
+                "risk_envelope": risk_envelope,
+                "cost_hint": cost_hint,
+                "latency_hint": latency_hint,
+                "base_confidence": base_confidence,
+            }
+        )
+    if not normalized:
+        return _default_specialist_registry_v1()
+    return normalized
+
+
+def _normalize_coordinator_subtask_v1(
+    raw_subtask: Dict[str, Any],
+    *,
+    fallback_intent_class: str,
+    fallback_risk_level: str,
+    fallback_required_capabilities: List[str],
+    fallback_policy_decision: str,
+    fallback_sandbox_escalation_required: bool,
+    fallback_sandbox_approved: bool,
+    fallback_human_confirmed: bool,
+    fallback_strategy: str,
+    index: int,
+) -> Dict[str, Any]:
+    title = str(raw_subtask.get("title", "")).strip() or f"Task {index + 1}"
+    intent_class = str(raw_subtask.get("intent_class", "")).strip() or fallback_intent_class
+    risk_level = _normalize_delegation_risk(raw_subtask.get("risk_level", fallback_risk_level))
+    required_capabilities = _normalize_delegation_identifier_list(
+        raw_subtask.get("required_capabilities", fallback_required_capabilities)
+    )
+    policy_decision = str(raw_subtask.get("policy_decision", fallback_policy_decision)).strip().lower()
+    if policy_decision not in POLICY_DECISION_CHOICES:
+        policy_decision = fallback_policy_decision
+    sandbox_escalation_required = _normalize_bool_default(
+        raw_subtask.get("sandbox_escalation_required", fallback_sandbox_escalation_required),
+        fallback_sandbox_escalation_required,
+    )
+    sandbox_approved = _normalize_bool_default(
+        raw_subtask.get("sandbox_approved", fallback_sandbox_approved),
+        fallback_sandbox_approved,
+    )
+    human_confirmed = _normalize_bool_default(
+        raw_subtask.get("human_confirmed", fallback_human_confirmed),
+        fallback_human_confirmed,
+    )
+    specialist_ambiguity = _normalize_bool_default(raw_subtask.get("specialist_ambiguity", False), False)
+    fallback_strategy = _normalize_delegation_fallback_strategy(
+        raw_subtask.get("fallback_strategy", fallback_strategy),
+        default_value=fallback_strategy,
+    )
+    return {
+        "title": title,
+        "intent_class": intent_class,
+        "risk_level": risk_level,
+        "required_capabilities": required_capabilities,
+        "policy_decision": policy_decision,
+        "sandbox_escalation_required": sandbox_escalation_required,
+        "sandbox_approved": sandbox_approved,
+        "human_confirmed": human_confirmed,
+        "specialist_ambiguity": specialist_ambiguity,
+        "fallback_strategy": fallback_strategy,
+    }
+
+
+def _coordinator_decompose_request_v1(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    max_subtasks = _normalize_int_default(
+        payload.get("max_subtasks", COORDINATOR_MAX_SUBTASKS_DEFAULT),
+        default_value=COORDINATOR_MAX_SUBTASKS_DEFAULT,
+        min_value=1,
+        max_value=8,
+    )
+    fallback_intent_class = str(payload.get("intent_class", "")).strip() or "general"
+    fallback_risk_level = _normalize_delegation_risk(payload.get("risk_level", "medium"))
+    fallback_required_capabilities = _normalize_delegation_identifier_list(payload.get("required_capabilities", []))
+    fallback_policy_decision = str(payload.get("policy_decision", "allow")).strip().lower()
+    if fallback_policy_decision not in POLICY_DECISION_CHOICES:
+        fallback_policy_decision = "allow"
+    fallback_sandbox_escalation_required = _normalize_bool_default(
+        payload.get("sandbox_escalation_required", False),
+        False,
+    )
+    fallback_sandbox_approved = _normalize_bool_default(payload.get("sandbox_approved", False), False)
+    fallback_human_confirmed = _normalize_bool_default(payload.get("human_confirmed", False), False)
+    fallback_strategy = _normalize_delegation_fallback_strategy(
+        payload.get("fallback_strategy", "single_agent"),
+        default_value="single_agent",
+    )
+
+    subtasks: List[Dict[str, Any]] = []
+    raw_subtasks = payload.get("subtasks", [])
+    if isinstance(raw_subtasks, list):
+        for idx, raw_subtask in enumerate(raw_subtasks[:max_subtasks]):
+            if not isinstance(raw_subtask, dict):
+                continue
+            subtasks.append(
+                _normalize_coordinator_subtask_v1(
+                    raw_subtask,
+                    fallback_intent_class=fallback_intent_class,
+                    fallback_risk_level=fallback_risk_level,
+                    fallback_required_capabilities=fallback_required_capabilities,
+                    fallback_policy_decision=fallback_policy_decision,
+                    fallback_sandbox_escalation_required=fallback_sandbox_escalation_required,
+                    fallback_sandbox_approved=fallback_sandbox_approved,
+                    fallback_human_confirmed=fallback_human_confirmed,
+                    fallback_strategy=fallback_strategy,
+                    index=idx,
+                )
+            )
+    if subtasks:
+        return subtasks
+
+    raw_goals = payload.get("goals", [])
+    if isinstance(raw_goals, list):
+        goal_index = 0
+        for goal in raw_goals:
+            title = str(goal).strip()
+            if not title:
+                continue
+            subtasks.append(
+                _normalize_coordinator_subtask_v1(
+                    {"title": title},
+                    fallback_intent_class=fallback_intent_class,
+                    fallback_risk_level=fallback_risk_level,
+                    fallback_required_capabilities=fallback_required_capabilities,
+                    fallback_policy_decision=fallback_policy_decision,
+                    fallback_sandbox_escalation_required=fallback_sandbox_escalation_required,
+                    fallback_sandbox_approved=fallback_sandbox_approved,
+                    fallback_human_confirmed=fallback_human_confirmed,
+                    fallback_strategy=fallback_strategy,
+                    index=goal_index,
+                )
+            )
+            goal_index += 1
+            if goal_index >= max_subtasks:
+                break
+    if subtasks:
+        return subtasks
+
+    request_text = str(payload.get("user_request", "")).strip() or "general request"
+    return [
+        _normalize_coordinator_subtask_v1(
+            {"title": request_text[:160]},
+            fallback_intent_class=fallback_intent_class,
+            fallback_risk_level=fallback_risk_level,
+            fallback_required_capabilities=fallback_required_capabilities,
+            fallback_policy_decision=fallback_policy_decision,
+            fallback_sandbox_escalation_required=fallback_sandbox_escalation_required,
+            fallback_sandbox_approved=fallback_sandbox_approved,
+            fallback_human_confirmed=fallback_human_confirmed,
+            fallback_strategy=fallback_strategy,
+            index=0,
+        )
+    ]
+
+
+def _specialist_scoring_adjustment(hint: str) -> float:
+    if hint == "low":
+        return 0.03
+    if hint == "high":
+        return -0.03
+    return 0.0
+
+
+def _rank_specialists_for_task_v1(
+    task_packet: Dict[str, Any],
+    registry_entries: List[Dict[str, Any]],
+    *,
+    max_candidates: int,
+) -> List[Dict[str, Any]]:
+    required_capabilities = _normalize_delegation_identifier_list(task_packet.get("required_capabilities", []))
+    risk_level = _normalize_delegation_risk(task_packet.get("risk_level", "medium"))
+    ranked: List[Dict[str, Any]] = []
+    for specialist in registry_entries:
+        specialist_id = str(specialist.get("specialist_id", "")).strip().lower()
+        capabilities = _normalize_delegation_identifier_list(specialist.get("capabilities", []))
+        capability_fit = 1.0
+        if required_capabilities:
+            matches = len([item for item in required_capabilities if item in capabilities])
+            capability_fit = matches / len(required_capabilities)
+        capability_fit = round(min(max(capability_fit, 0.0), 1.0), 3)
+        risk_envelope = _normalize_delegation_risk(specialist.get("risk_envelope", "medium"))
+        risk_compatible = _policy_risk_rank(risk_level) <= _policy_risk_rank(risk_envelope)
+        base_confidence = _normalize_delegation_confidence(
+            specialist.get("base_confidence", 0.7),
+            default_value=0.7,
+        )
+        estimated_confidence = round(
+            min(max((base_confidence * 0.6) + (capability_fit * 0.4), 0.0), 1.0),
+            3,
+        )
+        score = (base_confidence * 0.45) + (capability_fit * 0.45)
+        score += _specialist_scoring_adjustment(str(specialist.get("cost_hint", "medium")).strip().lower())
+        score += _specialist_scoring_adjustment(str(specialist.get("latency_hint", "medium")).strip().lower())
+        if not risk_compatible:
+            score -= 0.35
+        score = round(min(max(score, 0.0), 1.0), 3)
+        ranked.append(
+            {
+                "specialist_id": specialist_id,
+                "capabilities": capabilities,
+                "risk_envelope": risk_envelope,
+                "cost_hint": str(specialist.get("cost_hint", "medium")).strip().lower() or "medium",
+                "latency_hint": str(specialist.get("latency_hint", "medium")).strip().lower() or "medium",
+                "base_confidence": base_confidence,
+                "capability_fit": capability_fit,
+                "estimated_confidence": estimated_confidence,
+                "risk_compatible": risk_compatible,
+                "score": score,
+            }
+        )
+    ranked.sort(key=lambda item: (-float(item.get("score", 0.0)), str(item.get("specialist_id", ""))))
+    return ranked[: max(max_candidates, 1)]
+
+
+def plan_coordinator_delegation_v1(payload: Dict[str, Any]) -> Dict[str, Any]:
+    request_payload: Dict[str, Any] = payload if isinstance(payload, dict) else {}
+    user_request = str(request_payload.get("user_request", "")).strip() or "general request"
+    normalized_registry = _normalize_specialist_registry_v1(request_payload.get("specialist_registry"))
+    max_candidates = _normalize_int_default(
+        request_payload.get("max_candidates", COORDINATOR_MAX_CANDIDATES_DEFAULT),
+        default_value=COORDINATOR_MAX_CANDIDATES_DEFAULT,
+        min_value=1,
+        max_value=5,
+    )
+    subtasks = _coordinator_decompose_request_v1(request_payload)
+
+    plan_seed = {
+        "user_request": user_request,
+        "intent_class": request_payload.get("intent_class", "general"),
+        "risk_level": request_payload.get("risk_level", "medium"),
+        "subtasks": subtasks,
+    }
+    seed_raw = json.dumps(plan_seed, sort_keys=True, ensure_ascii=True)
+    derived_plan_id = f"coord-{hashlib.sha1(seed_raw.encode('utf-8')).hexdigest()[:12]}"
+    plan_id = str(request_payload.get("plan_id", "")).strip() or derived_plan_id
+
+    planned_tasks: List[Dict[str, Any]] = []
+    for idx, subtask in enumerate(subtasks):
+        task_id = f"{plan_id}:task-{idx + 1}"
+        ranked = _rank_specialists_for_task_v1(
+            subtask,
+            normalized_registry,
+            max_candidates=max_candidates,
+        )
+        selected = [
+            item
+            for item in ranked
+            if bool(item.get("risk_compatible", False))
+            and (float(item.get("capability_fit", 0.0)) > 0.0 or not subtask.get("required_capabilities"))
+        ]
+        if not selected:
+            selected = list(ranked)
+        selected = selected[:max_candidates]
+        candidate_specialists = [str(item.get("specialist_id", "")).strip() for item in selected if item.get("specialist_id")]
+        available_capability_set: set[str] = set()
+        for item in selected:
+            for capability in _normalize_delegation_identifier_list(item.get("capabilities", [])):
+                available_capability_set.add(capability)
+        available_capabilities = sorted(available_capability_set)
+        estimated_confidence = 0.0
+        if selected:
+            estimated_confidence = _normalize_delegation_confidence(
+                selected[0].get("estimated_confidence", 0.0),
+                default_value=0.0,
+            )
+
+        evaluator_input = {
+            "task_id": task_id,
+            "intent_class": subtask.get("intent_class", "general"),
+            "risk_level": subtask.get("risk_level", "medium"),
+            "estimated_confidence": estimated_confidence,
+            "required_capabilities": subtask.get("required_capabilities", []),
+            "available_capabilities": available_capabilities,
+            "candidate_specialists": candidate_specialists,
+            "policy_decision": subtask.get("policy_decision", "allow"),
+            "sandbox_escalation_required": bool(subtask.get("sandbox_escalation_required", False)),
+            "sandbox_approved": bool(subtask.get("sandbox_approved", False)),
+            "specialist_ambiguity": bool(subtask.get("specialist_ambiguity", False)),
+            "human_confirmed": bool(subtask.get("human_confirmed", False)),
+            "fallback_strategy": subtask.get("fallback_strategy", "single_agent"),
+        }
+        delegation_decision = evaluate_delegation_contract_v1(evaluator_input)
+        planned_tasks.append(
+            {
+                "task_id": task_id,
+                "title": str(subtask.get("title", "")).strip() or f"Task {idx + 1}",
+                "intent_class": str(subtask.get("intent_class", "general")).strip() or "general",
+                "risk_level": _normalize_delegation_risk(subtask.get("risk_level", "medium")),
+                "required_capabilities": _normalize_delegation_identifier_list(
+                    subtask.get("required_capabilities", [])
+                ),
+                "ranked_specialists": [
+                    {
+                        "specialist_id": item.get("specialist_id"),
+                        "score": item.get("score"),
+                        "capability_fit": item.get("capability_fit"),
+                        "estimated_confidence": item.get("estimated_confidence"),
+                        "risk_compatible": item.get("risk_compatible"),
+                    }
+                    for item in ranked
+                ],
+                "candidate_specialists": candidate_specialists,
+                "delegation_decision": delegation_decision,
+            }
+        )
+
+    return {
+        "schema_version": COORDINATOR_PLAN_SCHEMA_VERSION,
+        "contract_id": "coordinator.plan.v1",
+        "plan_id": plan_id,
+        "request_summary": _summarize_text(user_request, max_chars=220),
+        "task_count": len(planned_tasks),
+        "specialist_registry": {
+            "schema_version": SPECIALIST_REGISTRY_SCHEMA_VERSION,
+            "specialists": normalized_registry,
+        },
+        "tasks": planned_tasks,
+    }
+
+
+def emit_coordinator_plan_trace(
+    trace_dir: Path,
+    plan_payload: Dict[str, Any],
+    *,
+    correlation_id: str = "",
+    duration_ms: float = 0.0,
+    permission_level: str = "safe",
+) -> Dict[str, Any]:
+    plan_id = str(plan_payload.get("plan_id", "")).strip() or "coord-plan-unknown"
+    task_count = int(plan_payload.get("task_count", 0) or 0)
+    tasks = plan_payload.get("tasks", [])
+    first_task = tasks[0] if isinstance(tasks, list) and tasks else {}
+    first_decision = {}
+    if isinstance(first_task, dict):
+        first_decision = first_task.get("delegation_decision", {})
+    decision_state = _normalize_delegation_decision(
+        first_decision.get("decision", "fallback"),
+        default_value="fallback",
+    )
+    fallback_strategy = _normalize_delegation_fallback_strategy(
+        first_decision.get("fallback_strategy", "single_agent"),
+        default_value="single_agent",
+    )
+    metadata = _with_trace_metadata(
+        {
+            "plan_id": plan_id,
+            "task_count": task_count,
+            "first_task_id": str(first_task.get("task_id", "")).strip() if isinstance(first_task, dict) else "",
+            "decision": decision_state,
+            "decision_reason": str(first_decision.get("decision_reason", "")).strip(),
+            "fallback_strategy": fallback_strategy,
+            "contract_id": str(plan_payload.get("contract_id", "coordinator.plan.v1")).strip(),
+        },
+        correlation_id=correlation_id or plan_id,
+    )
+    return _write_action_trace(
+        trace_dir=trace_dir,
+        action_type="delegation_plan_created",
+        input_summary=f"plan_id={plan_id}",
+        output_summary=f"tasks={task_count}",
+        duration_ms=duration_ms,
+        permission_level=permission_level,
         metadata=metadata,
     )
 

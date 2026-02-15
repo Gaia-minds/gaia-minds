@@ -1212,6 +1212,46 @@ Lane: `Implement delegation contract evaluator v1` (`#161`)
 - Smoke suite now includes:
   - `delegation_contract_v1_matrix`
 
+## Phase 4 Delta: Coordinator Planner and Specialist Registry v1 (2026-02-15)
+
+Lane: `Build coordinator planner and specialist registry v1` (`#162`)
+
+### Runtime contract additions
+
+- Added coordinator planning entrypoint:
+  - `plan_coordinator_delegation_v1(payload)`
+- Added specialist registry v1 normalization contract:
+  - `_normalize_specialist_registry_v1(...)`
+- Added coordinator trace emitter:
+  - `emit_coordinator_plan_trace(...)`
+- Added deterministic ranking over:
+  - capability fit
+  - base confidence
+  - cost and latency hints
+  - risk-envelope compatibility
+  - lexical specialist-id tie-break
+
+### Registry and planner outputs
+
+- Planner emits bounded subtask decomposition (`max_subtasks` enforced).
+- Each task includes:
+  - ranked specialists
+  - selected candidate specialists
+  - delegation evaluator output (`delegation.contract.v1`)
+- Evaluator invocation consumes coordinator-produced task packets with explicit
+  capability/risk/policy metadata.
+
+### Documentation and fixtures
+
+- Specialist registry schema contract:
+  - `infrastructure/specialist-registry-contract-v1.md`
+- Coordinator planner fixture matrix:
+  - `assistant/coordinator-planner-fixtures.json`
+- Coordinator planner harness:
+  - `tools/coordinator-planner-check.sh`
+- Smoke suite now includes:
+  - `coordinator_planner_registry_v1_matrix`
+
 ---
 
 ## Open Technical Questions
