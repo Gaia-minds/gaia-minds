@@ -51,12 +51,39 @@ jobs:
             assistant/benchmark-trend-history.json
             assistant/benchmark-trend-summary.md
 
+      - name: Run delegation reliability checkpoint
+        id: delegation_checkpoint
+        continue-on-error: true
+        run: |
+          python3 ./tools/reliability-checkpoint-phase4.py --json \
+            > /tmp/delegation-checkpoint-results.json
+          cat /tmp/delegation-checkpoint-results.json
+
+      - name: Update delegation trend history
+        if: always()
+        run: |
+          python3 ./tools/delegation-trend.py \
+            --results /tmp/delegation-checkpoint-results.json \
+            --history ./assistant/delegation-trend-history.json \
+            --summary ./assistant/delegation-trend-summary.md \
+            --runner-status "${{ steps.delegation_checkpoint.outcome }}"
+
+      - name: Upload nightly delegation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: delegation-nightly-${{ github.run_id }}
+          path: |
+            assistant/delegation-trend-history.json
+            assistant/delegation-trend-summary.md
+
       - name: Commit nightly trend updates
         if: always() && github.ref == 'refs/heads/main'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add assistant/benchmark-trend-history.json assistant/benchmark-trend-summary.md
+          git add assistant/delegation-trend-history.json assistant/delegation-trend-summary.md
           if git diff --cached --quiet; then
             echo "No benchmark trend updates to commit."
           else
@@ -64,10 +91,16 @@ jobs:
             git push
           fi
 
-      - name: Fail workflow if benchmark failed
+      - name: Fail workflow if benchmark or delegation checkpoint failed
         if: always()
         run: |
+          failed=0
           if [ "${{ steps.benchmark.outcome }}" != "success" ]; then
             echo "Benchmark step outcome: ${{ steps.benchmark.outcome }}"
-            exit 1
+            failed=1
           fi
+          if [ "${{ steps.delegation_checkpoint.outcome }}" != "success" ]; then
+            echo "Delegation checkpoint step outcome: ${{ steps.delegation_checkpoint.outcome }}"
+            failed=1
+          fi
+          exit $failed

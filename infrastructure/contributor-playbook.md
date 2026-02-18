@@ -88,6 +88,161 @@ Use the specialized skill matching your task type:
 If runtime architecture changed, update `infrastructure/architecture.md`. If it
 did not, say `No architecture delta` in PR notes.
 
+## Phase 4: Delegation Framework Contributor Guide
+
+This section covers how to extend the Phase 4 multi-agent delegation framework
+introduced in issues `#161`–`#164`. The framework lives in three main surfaces:
+
+- **Contract rules** — `assistant/delegation-contract-v1-fixtures.json`
+- **QA matrix** — `assistant/delegation-qa-matrix.json`
+- **Specialists** — registered in `assistant/coordinator-planner-fixtures.json`
+  and dispatched by `tools/gaia-assistant.py:execute_coordinator_delegation_v1`
+
+### Adding or Modifying Contract Rules
+
+1. Read `infrastructure/specialist-registry-contract-v1.md` and
+   `infrastructure/phase4-kickoff-delegation-contract-v1.md` to understand the
+   current contract model (`confidence`, `risk_routing`, `fallback`).
+2. Edit `assistant/delegation-contract-v1-fixtures.json` — add a new fixture
+   case for the rule. Each fixture has:
+   - `id`, `description`, `input` (delegation request shape), `expect` (decision + reason pattern)
+3. Run the contract check to validate:
+   ```
+   make delegation-contract-check
+   ```
+4. If the rule requires a corresponding coordinator planner change, add a fixture
+   to `assistant/coordinator-planner-fixtures.json` and run:
+   ```
+   make delegation-planner-check
+   ```
+5. Add an end-to-end case to `assistant/delegation-qa-matrix.json` covering the
+   new rule path, then run:
+   ```
+   make delegation-qa
+   ```
+   The gate must remain `gate_status=pass`.
+
+Do not merge if `make delegation-qa` shows `gate_status=fail`.
+
+### Extending the QA Matrix
+
+The QA matrix (`assistant/delegation-qa-matrix.json`) is the rollout gate for
+`delegation_enabled=true` by default. Each case covers a specific pipeline path.
+
+Case structure:
+
+```json
+{
+  "id": "qa_e2e_<your_case>",
+  "description": "...",
+  "cfg": { "runtime": { "delegation_enabled": true, "delegation_mode": "coordinator_v1" } },
+  "input": {
+    "plan_id": "...", "correlation_id": "...",
+    "user_request": "...", "subtasks": [...]
+  },
+  "expect": {
+    "runtime_enabled": true,
+    "task_count": 1,
+    "execution_modes": ["delegated"],
+    "decisions": ["delegate"],
+    "result_statuses": ["ok"],
+    "synthesis_status": "ok",
+    "fallback_count": 0,
+    "deferred_count": 0,
+    "required_traces": [
+      "delegation_plan_created", "delegation_decision",
+      "specialist_dispatch", "specialist_result", "delegation_synthesis"
+    ],
+    "absent_traces": []
+  }
+}
+```
+
+Key rules:
+- `risk_level: "critical"` tasks must produce `decision: "deny"` and `execution_mode: "defer"`.
+- `policy_decision: "deny"` tasks must produce `decision: "deny"` regardless of confidence.
+- Cases with `delegation_enabled: false` must produce `execution_modes: ["single_agent", ...]`.
+- All 6 required trace types must appear across the full suite to satisfy `trace_complete=true`.
+
+After adding a case, run `make delegation-qa` and confirm `gate_status=pass`.
+
+### Adding a New Specialist Type
+
+1. Identify the specialist's `specialist_id`, `capabilities`, `risk_envelope`,
+   and `cost_hint`/`latency_hint` from `infrastructure/specialist-registry-contract-v1.md`.
+2. Add the specialist to the relevant coordinator planner fixture in
+   `assistant/coordinator-planner-fixtures.json`.
+3. Add a QA matrix case dispatching to the new specialist (set `intent_class` and
+   `required_capabilities` to match the specialist's profile).
+4. Run all Phase 4 checks:
+   ```
+   make delegation-contract-check
+   make delegation-planner-check
+   make delegation-execution-check
+   make delegation-qa
+   make delegation-checkpoint-check
+   ```
+   All must pass.
+
+### Running Targeted Phase 4 Checks
+
+| Target | What it checks |
+| --- | --- |
+| `make delegation-contract-check` | Contract evaluator fixtures (deny/delegate/fallback decisions) |
+| `make delegation-planner-check` | Coordinator planner fixtures (task decomposition, specialist assignment) |
+| `make delegation-execution-check` | Delegated execution + synthesis fixtures (dispatch, result, synthesis) |
+| `make delegation-qa` | Full end-to-end QA matrix (all 6 cases, rollout gate evaluation) |
+| `make delegation-checkpoint-check` | Phase 4 reliability baseline comparison (exits non-zero on breach) |
+| `make delegation-trend` | Run checkpoint and append to `assistant/delegation-trend-history.json` |
+
+For a single-command check covering QA + baseline:
+
+```
+make delegation-qa && make delegation-checkpoint-check
+```
+
+### Reading Gate Output
+
+`make delegation-qa` prints the full JSON gate result. Look for:
+
+```json
+"gate_result": {
+  "gate_status": "pass",
+  "reason": "all rollout gate thresholds satisfied: qa_pass_rate=100.00% ..."
+}
+```
+
+`make delegation-checkpoint-check` prints a human-readable summary:
+
+```
+delegation reliability checkpoint: PASS
+  qa_pass_rate:            100.00%
+  dispatch_success_rate:   100.00%
+  trace_complete:          True
+  positive_path_fallback:  0.00%
+  positive_path_deferred:  0.00%
+```
+
+If the gate fails, the script exits non-zero and lists breached thresholds. Do
+not merge a PR that breaks the gate.
+
+### Delegation Track: Self-Evolution Evidence
+
+Any change that modifies default delegation behavior (`delegation_enabled`,
+`delegation_mode`, risk routing, or fallback strategy) is a **self-evolution
+item** on the framework track. The PR body must include the full evidence
+contract from `infrastructure/self-evolution-evidence-rubric.md`:
+
+- Baseline evidence: current `make delegation-checkpoint-check` output
+- Delta observed: measured change in `qa_pass_rate`, `dispatch_success_rate`, fallback/deferred rates
+- Thresholds and guardrails: `qa_pass_rate >= 95%`, `dispatch_success_rate >= 90%`, `trace_complete=true`
+- Rollback/fallback: revert default config; single-agent path always preserved
+- Risk notes: confirm no behavioral regression in negative-path cases (deny, defer, gate-off)
+
+The nightly CI (`benchmark-nightly.yml`) runs the delegation checkpoint automatically
+and appends results to `assistant/delegation-trend-history.json`. Check recent trend
+entries if the nightly gate shows a regression before your PR merges.
+
 ## PR Author Checklist
 
 - Declare track: assistant/framework/cross-track.

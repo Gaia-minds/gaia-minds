@@ -1,4 +1,4 @@
-.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy quality-matrix compatibility-matrix live-preview-assets live-preview-assets-check benchmark memory-benchmark memory-summary-benchmark memory-quality benchmark-trend hypothesis-validate hypothesis-run hypothesis-dry-run hypothesis-hold-fixture hypothesis-failure-fixture hypothesis-signals-candidate-fixture token-budget-fixtures reliability-checkpoint reliability-checkpoint-check reliability-checkpoint-simulate-breach reliability-drift reliability-drift-check reliability-drift-simulate hardening-phase1 delegation-contract-check delegation-planner-check delegation-execution-check delegation-qa install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
+.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy quality-matrix compatibility-matrix live-preview-assets live-preview-assets-check benchmark memory-benchmark memory-summary-benchmark memory-quality benchmark-trend hypothesis-validate hypothesis-run hypothesis-dry-run hypothesis-hold-fixture hypothesis-failure-fixture hypothesis-signals-candidate-fixture token-budget-fixtures reliability-checkpoint reliability-checkpoint-check reliability-checkpoint-simulate-breach reliability-drift reliability-drift-check reliability-drift-simulate hardening-phase1 delegation-contract-check delegation-planner-check delegation-execution-check delegation-qa delegation-checkpoint delegation-checkpoint-check delegation-trend install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
 
 HYPOTHESIS_OUTPUT_ROOT ?= /tmp/gaia-hypothesis-evals
 RELIABILITY_CHECKPOINT_ROOT ?= /tmp/gaia-reliability-checkpoints
@@ -109,6 +109,19 @@ delegation-execution-check:
 
 delegation-qa:
 	bash ./tools/delegation-qa-check.sh
+
+delegation-checkpoint:
+	python3 ./tools/reliability-checkpoint-phase4.py
+
+delegation-checkpoint-check:
+	python3 ./tools/reliability-checkpoint-phase4.py --check
+
+delegation-trend:
+	python3 ./tools/reliability-checkpoint-phase4.py --json > /tmp/delegation-checkpoint-results.json && \
+	python3 ./tools/delegation-trend.py \
+	  --results /tmp/delegation-checkpoint-results.json \
+	  --history ./assistant/delegation-trend-history.json \
+	  --summary ./assistant/delegation-trend-summary.md
 
 install-hooks:
 	@ln -sf ../../tools/pre-commit .git/hooks/pre-commit

@@ -1,0 +1,30 @@
+{
+  "entries": [
+    {
+      "actor": "",
+      "checkpoint_status": "pass",
+      "date_utc": "2026-02-18",
+      "dispatch_success_rate": 1.0,
+      "event_name": "",
+      "failed_cases": 0,
+      "gate_status": "pass",
+      "passed_cases": 6,
+      "positive_path_fallback_rate": 0.0,
+      "qa_pass_rate": 1.0,
+      "ref": "",
+      "run_attempt": "",
+      "run_id": "",
+      "runner_status": "unknown",
+      "sha": "",
+      "status": "pass",
+      "suite": "delegation-reliability-checkpoint-phase4",
+      "timestamp_utc": "2026-02-18T13:08:47.083767+00:00",
+      "total_cases": 6,
+      "trace_complete": true,
+      "workflow": ""
+    }
+  ],
+  "schema_version": 1,
+  "suite": "delegation-reliability-checkpoint-phase4",
+  "updated_at": "2026-02-18T13:08:47.083821+00:00"
+}

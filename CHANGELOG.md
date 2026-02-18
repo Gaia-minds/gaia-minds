@@ -20,6 +20,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Delegation rollout gate evaluator v1 (`evaluate_delegation_rollout_gate_v1`) with deterministic qa_pass_rate and dispatch_success_rate thresholds that must be satisfied before multi-agent mode may be enabled by default (`tools/gaia-assistant.py`, `#164`)
 - Delegation QA check script and `delegation-qa` Makefile target that runs the full end-to-end QA matrix and evaluates the rollout gate; gate_status=pass is required to unblock default multi-agent enablement (`tools/delegation-qa-check.sh`, `Makefile`, `#164`)
 - Makefile targets for individual Phase 4 check scripts (`delegation-contract-check`, `delegation-planner-check`, `delegation-execution-check`) for targeted pre-merge validation (`Makefile`, `#164`)
+- Phase 4 delegation performance baseline artifact with quality delta methodology, re-interpreted quality threshold decision (framework correctness + dispatch reliability under stub-mode evaluation), and gate_status=pass evidence anchoring `#172` default-enablement (`assistant/reliability-baseline-phase4.json`, `#171`)
+- Phase 4 delegation reliability checkpoint tool (`tools/reliability-checkpoint-phase4.py`) that validates delegation QA metrics against the baseline thresholds and reports human-readable gate status (`#171`)
+- Makefile targets `delegation-checkpoint` and `delegation-checkpoint-check` for local and CI validation of Phase 4 delegation baseline (`Makefile`, `#171`)
+- Delegation trend tooling (`tools/delegation-trend.py`) and initial history file (`assistant/delegation-trend-history.json`) for nightly checkpoint metric tracking with human-readable summary generation (`#173`)
+- Nightly benchmark workflow extended to run the Phase 4 delegation checkpoint, upload delegation artifacts, commit `delegation-trend-history.json` and `delegation-trend-summary.md` to main on each scheduled run (`.github/workflows/benchmark-nightly.yml`, `#173`)
+- Makefile target `delegation-trend` for local delegation checkpoint + trend append (`Makefile`, `#173`)
+- Phase 4 Delegation Framework contributor guide section in `infrastructure/contributor-playbook.md` covering: adding/modifying contract rules, extending the QA matrix, adding specialist types, running targeted Phase 4 checks, reading gate output, and self-evolution evidence requirements (`#174`)
 
 ### Changed
 - Architecture docs now include the Phase 4 delegation evaluator/runtime delta and trace contract details (`infrastructure/architecture.md`, `#161`)
