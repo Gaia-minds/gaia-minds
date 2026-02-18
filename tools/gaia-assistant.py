@@ -157,6 +157,10 @@ DELEGATION_SYNTHESIS_SCHEMA_VERSION = 1
 COORDINATOR_DISPATCH_MAX_ATTEMPTS_DEFAULT = 2
 COORDINATOR_DISPATCH_MAX_ATTEMPTS_MIN = 1
 COORDINATOR_DISPATCH_MAX_ATTEMPTS_MAX = 3
+DELEGATION_QA_SCHEMA_VERSION = 1
+DELEGATION_ROLLOUT_GATE_SCHEMA_VERSION = 1
+DELEGATION_QA_PASS_RATE_MIN = 0.95
+DELEGATION_QA_DISPATCH_SUCCESS_RATE_MIN = 0.90
 DEFAULT_CAPABILITY_LEVELS = {
     "file_read": "safe",
     "file_write": "safe",
@@ -5026,6 +5030,108 @@ def execute_coordinator_delegation_v1(
         "tasks": task_results,
         "synthesis": synthesis_payload,
         "duration_ms": round(max((time.perf_counter() - started_at) * 1000.0, 0.0), 3),
+    }
+
+
+def evaluate_delegation_rollout_gate_v1(qa_run: Dict[str, Any]) -> Dict[str, Any]:
+    """Evaluate delegation rollout gate from an aggregated QA matrix run.
+
+    Accepts the aggregated metrics dict produced by the delegation QA check
+    script and returns a deterministic gate decision (pass|fail) with a
+    reason string and the full metrics snapshot used for the decision.
+
+    Required qa_run keys:
+      total_cases              -- int   total QA matrix cases run
+      passed_cases             -- int   cases where all assertions matched
+      failed_cases             -- int   cases with at least one mismatch
+      eligible_dispatch_tasks  -- int   tasks where runtime was enabled and
+                                        contract decision was delegate
+      dispatched_tasks         -- int   tasks where execution_mode=delegated
+                                        (successfully dispatched to specialist)
+      trace_complete           -- bool  all required trace types were emitted
+
+    dispatch_success_rate (dispatched_tasks / eligible_dispatch_tasks) is the
+    primary positive-path metric; it ignores deliberately negative-path cases
+    (deny, deferred, disabled) which are validated by the qa_pass_rate.
+    """
+    if not isinstance(qa_run, dict):
+        return {
+            "schema_version": DELEGATION_ROLLOUT_GATE_SCHEMA_VERSION,
+            "contract_id": "delegation.rollout.gate.v1",
+            "gate_status": "fail",
+            "reason": "qa_run payload is not a valid object",
+            "metrics": {},
+        }
+
+    total_cases = int(qa_run.get("total_cases", 0) or 0)
+    passed_cases = int(qa_run.get("passed_cases", 0) or 0)
+    failed_cases = int(qa_run.get("failed_cases", 0) or 0)
+    eligible_dispatch_tasks = int(qa_run.get("eligible_dispatch_tasks", 0) or 0)
+    dispatched_tasks = int(qa_run.get("dispatched_tasks", 0) or 0)
+    trace_complete = bool(qa_run.get("trace_complete", False))
+
+    qa_pass_rate = passed_cases / total_cases if total_cases > 0 else 0.0
+    dispatch_success_rate = (
+        dispatched_tasks / eligible_dispatch_tasks
+        if eligible_dispatch_tasks > 0
+        else 1.0
+    )
+
+    metrics = {
+        "total_cases": total_cases,
+        "passed_cases": passed_cases,
+        "failed_cases": failed_cases,
+        "qa_pass_rate": round(qa_pass_rate, 4),
+        "eligible_dispatch_tasks": eligible_dispatch_tasks,
+        "dispatched_tasks": dispatched_tasks,
+        "dispatch_success_rate": round(dispatch_success_rate, 4),
+        "trace_complete": trace_complete,
+    }
+
+    failures: List[str] = []
+
+    if total_cases == 0:
+        failures.append("no QA matrix cases were run")
+
+    if qa_pass_rate < DELEGATION_QA_PASS_RATE_MIN:
+        failures.append(
+            f"qa_pass_rate {qa_pass_rate:.2%} is below minimum "
+            f"{DELEGATION_QA_PASS_RATE_MIN:.2%} "
+            f"({passed_cases}/{total_cases} cases passed)"
+        )
+
+    if dispatch_success_rate < DELEGATION_QA_DISPATCH_SUCCESS_RATE_MIN:
+        failures.append(
+            f"dispatch_success_rate {dispatch_success_rate:.2%} is below minimum "
+            f"{DELEGATION_QA_DISPATCH_SUCCESS_RATE_MIN:.2%} "
+            f"({dispatched_tasks}/{eligible_dispatch_tasks} eligible tasks dispatched)"
+        )
+
+    if not trace_complete:
+        failures.append(
+            "trace completeness check failed: required delegation trace types missing"
+        )
+
+    if failures:
+        return {
+            "schema_version": DELEGATION_ROLLOUT_GATE_SCHEMA_VERSION,
+            "contract_id": "delegation.rollout.gate.v1",
+            "gate_status": "fail",
+            "reason": "; ".join(failures),
+            "metrics": metrics,
+        }
+
+    return {
+        "schema_version": DELEGATION_ROLLOUT_GATE_SCHEMA_VERSION,
+        "contract_id": "delegation.rollout.gate.v1",
+        "gate_status": "pass",
+        "reason": (
+            f"all rollout gate thresholds satisfied: "
+            f"qa_pass_rate={qa_pass_rate:.2%} "
+            f"dispatch_success_rate={dispatch_success_rate:.2%} "
+            "trace_complete=true"
+        ),
+        "metrics": metrics,
     }
 
 
