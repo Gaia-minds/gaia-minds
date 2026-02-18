@@ -276,7 +276,8 @@ Exit criteria:
 ## Phase 4: Multi-Agent Assistant Runtime
 
 Timeline: March 22 to April 12, 2026
-Status: Implementation lanes A-D delivered (`#161`, `#162`, `#163`, `#164`); QA gate passed; default-enablement decision pending next planning round
+Status: Implementation lanes A-D delivered (`#161`, `#162`, `#163`, `#164`); QA gate passed (gate_status=pass);
+default-enablement DEFERRED pending benchmark evidence from `#171`; `#172` gated on quality threshold
 
 Assistant track outcomes:
 
@@ -298,7 +299,14 @@ Exit criteria:
 ## Phase 5: Scale, Reliability, and Ecosystem
 
 Timeline: April 13 to May 10, 2026
-Status: Planned
+Status: Seeded — first executable items defined in planning round 2026-02-18
+
+First items (executable immediately in parallel with Phase 4 benchmark):
+
+- `#171` Phase 4 delegation benchmark baseline (Phase 4 exit criterion prerequisite)
+- `#172` Phase 4 default-enablement gate (gated on #171)
+- `#173` Nightly delegation benchmark CI integration + trend tracking
+- `#174` Contributor playbook for Phase 4 delegation framework surfaces
 
 Assistant track outcomes:
 

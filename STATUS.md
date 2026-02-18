@@ -45,16 +45,29 @@ _No active in-progress lane._
 
 ## Next Up (Ordered Queue)
 
-_Phase 4 implementation lanes complete. Next: run next planning round to seed Phase 4 default-enablement decision and Phase 5 queue._
+Phase 5 infrastructure and Phase 4 enablement queue (seeded by planning round 2026-02-18):
 
-## Planned Next Wave
-
-- Execute planning artifact `infrastructure/planning-round-2026-02-15-post-effort-selector-queue.md`.
-- Close/supersede stale planning PR `#148` after the new planning round lands.
+1. `#171` `[Phase 4][Benchmark] Establish delegation framework performance baseline`
+   — prerequisite for #172; run Phase 4 delegation pipeline on canonical fixture suite and produce
+   `assistant/reliability-baseline-phase4.json`
+2. `#173` `[Phase 5][Framework] Add nightly delegation benchmark to CI + trend tracking`
+   — parallel with #174; extend nightly workflow and trend history to include delegation metrics
+3. `#174` `[Phase 5][Docs] Add contributor playbook for Phase 4 delegation framework`
+   — parallel with #173; document how to extend contract rules, QA fixtures, and specialists
+4. `#172` `[Phase 4][Enablement] Enable delegation_enabled=true by default`
+   — GATED on #171 benchmark threshold (multi-agent quality >= 80% of single-agent on canonical
+   tasks); full self-evolution evidence rubric required in PR body
 
 ## Blocked
 
-_Nothing blocked._
+- `#172` (default-enablement) is blocked on `#171` (benchmark baseline) delivering threshold
+  evidence. Do not merge until qa_pass_rate >= 95%, dispatch_success_rate >= 90%, and
+  multi-agent quality threshold are confirmed.
+
+## Planned Next Wave
+
+- Close/supersede stale planning PR `#148` if still open.
+- After `#172` merges: npm `0.6.0` release readiness lane.
 
 ## How to Use This File
 
