@@ -1,6 +1,6 @@
 # Status
 
-Updated: February 15, 2026
+Updated: February 18, 2026
 
 ## Current Sprint
 
@@ -37,6 +37,7 @@ current active sprint window.
 - `[Sprint][Framework][Phase 4] Implement delegation contract evaluator v1` (`#161`)
 - `[Sprint][Framework][Phase 4] Build coordinator planner and specialist registry v1` (`#162`)
 - `[Sprint][Framework][Phase 4] Implement delegated execution and synthesis path` (`#163`)
+- `[Sprint][Framework][Phase 4] Add delegation QA matrix and rollout gates` (`#164`)
 
 ## In Progress
 
@@ -44,7 +45,7 @@ _No active in-progress lane._
 
 ## Next Up (Ordered Queue)
 
-1. `#164` `[Sprint][Framework][Phase 4] Add delegation QA matrix and rollout gates`
+_Phase 4 implementation lanes complete. Next: run next planning round to seed Phase 4 default-enablement decision and Phase 5 queue._
 
 ## Planned Next Wave
 

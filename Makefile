@@ -1,4 +1,4 @@
-.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy quality-matrix compatibility-matrix live-preview-assets live-preview-assets-check benchmark memory-benchmark memory-summary-benchmark memory-quality benchmark-trend hypothesis-validate hypothesis-run hypothesis-dry-run hypothesis-hold-fixture hypothesis-failure-fixture hypothesis-signals-candidate-fixture token-budget-fixtures reliability-checkpoint reliability-checkpoint-check reliability-checkpoint-simulate-breach reliability-drift reliability-drift-check reliability-drift-simulate hardening-phase1 install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
+.PHONY: docs-check verify-resources generate-indexes check-indexes check-all test-smoke test-uat uat-policy quality-matrix compatibility-matrix live-preview-assets live-preview-assets-check benchmark memory-benchmark memory-summary-benchmark memory-quality benchmark-trend hypothesis-validate hypothesis-run hypothesis-dry-run hypothesis-hold-fixture hypothesis-failure-fixture hypothesis-signals-candidate-fixture token-budget-fixtures reliability-checkpoint reliability-checkpoint-check reliability-checkpoint-simulate-breach reliability-drift reliability-drift-check reliability-drift-simulate hardening-phase1 delegation-contract-check delegation-planner-check delegation-execution-check delegation-qa install-hooks uninstall-hooks assistant-init assistant-onboard assistant-auth-status assistant-doctor assistant-run-dry
 
 HYPOTHESIS_OUTPUT_ROOT ?= /tmp/gaia-hypothesis-evals
 RELIABILITY_CHECKPOINT_ROOT ?= /tmp/gaia-reliability-checkpoints
@@ -97,6 +97,18 @@ reliability-drift-simulate:
 
 hardening-phase1:
 	python3 ./tools/phase1-hardening.py
+
+delegation-contract-check:
+	bash ./tools/delegation-contract-check.sh
+
+delegation-planner-check:
+	bash ./tools/coordinator-planner-check.sh
+
+delegation-execution-check:
+	bash ./tools/delegated-execution-check.sh
+
+delegation-qa:
+	bash ./tools/delegation-qa-check.sh
 
 install-hooks:
 	@ln -sf ../../tools/pre-commit .git/hooks/pre-commit

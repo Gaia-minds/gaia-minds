@@ -1,0 +1,351 @@
+{
+  "schema_version": 1,
+  "description": "End-to-end delegation QA matrix for rollout gate validation. Covers full pipeline: contract evaluator -> coordinator planner -> execution+synthesis. All cases must pass and aggregate metrics must satisfy rollout gate thresholds before multi-agent mode may be enabled by default.",
+  "rollout_gate_thresholds": {
+    "qa_pass_rate_min": 0.95,
+    "fallback_rate_max": 0.20,
+    "deferred_rate_max": 0.10,
+    "trace_complete_required": true
+  },
+  "required_trace_types": [
+    "delegation_plan_created",
+    "delegation_decision",
+    "specialist_dispatch",
+    "specialist_result",
+    "delegation_fallback",
+    "delegation_synthesis"
+  ],
+  "cases": [
+    {
+      "id": "qa_e2e_low_risk_delegate_success",
+      "description": "end-to-end: low-risk research task delegates successfully and synthesizes ok",
+      "cfg": {
+        "runtime": {
+          "delegation_enabled": true,
+          "delegation_mode": "coordinator_v1",
+          "delegation_dispatch_max_attempts": 2
+        }
+      },
+      "input": {
+        "plan_id": "qa-e2e-low-success",
+        "correlation_id": "qa:e2e:low:success",
+        "user_request": "Summarize available free API tiers for agent runtime use.",
+        "specialist_registry": [
+          {
+            "specialist_id": "research",
+            "capabilities": ["file_read", "memory_read", "network_request"],
+            "risk_envelope": "medium",
+            "cost_hint": "medium",
+            "latency_hint": "medium",
+            "base_confidence": 0.92
+          }
+        ],
+        "subtasks": [
+          {
+            "title": "Collect free-tier API information",
+            "intent_class": "research",
+            "risk_level": "low",
+            "required_capabilities": ["file_read"],
+            "policy_decision": "allow"
+          }
+        ]
+      },
+      "expect": {
+        "runtime_enabled": true,
+        "task_count": 1,
+        "execution_modes": ["delegated"],
+        "decisions": ["delegate"],
+        "result_statuses": ["ok"],
+        "synthesis_status": "ok",
+        "fallback_count": 0,
+        "deferred_count": 0,
+        "required_traces": [
+          "delegation_plan_created",
+          "delegation_decision",
+          "specialist_dispatch",
+          "specialist_result",
+          "delegation_synthesis"
+        ],
+        "absent_traces": ["delegation_fallback"]
+      }
+    },
+    {
+      "id": "qa_e2e_medium_risk_delegate_success",
+      "description": "end-to-end: medium-risk planning task delegates at 0.80+ confidence and synthesizes ok",
+      "cfg": {
+        "runtime": {
+          "delegation_enabled": true,
+          "delegation_mode": "coordinator_v1",
+          "delegation_dispatch_max_attempts": 2
+        }
+      },
+      "input": {
+        "plan_id": "qa-e2e-medium-success",
+        "correlation_id": "qa:e2e:medium:success",
+        "user_request": "Draft a rollout checklist for the Phase 4 delegation feature.",
+        "specialist_registry": [
+          {
+            "specialist_id": "planning",
+            "capabilities": ["file_read", "file_write", "memory_read"],
+            "risk_envelope": "high",
+            "cost_hint": "low",
+            "latency_hint": "low",
+            "base_confidence": 0.90
+          }
+        ],
+        "subtasks": [
+          {
+            "title": "Draft delegation rollout checklist",
+            "intent_class": "planning",
+            "risk_level": "medium",
+            "required_capabilities": ["file_read", "file_write"],
+            "policy_decision": "allow"
+          }
+        ]
+      },
+      "expect": {
+        "runtime_enabled": true,
+        "task_count": 1,
+        "execution_modes": ["delegated"],
+        "decisions": ["delegate"],
+        "result_statuses": ["ok"],
+        "synthesis_status": "ok",
+        "fallback_count": 0,
+        "deferred_count": 0,
+        "required_traces": [
+          "delegation_plan_created",
+          "delegation_decision",
+          "specialist_dispatch",
+          "specialist_result",
+          "delegation_synthesis"
+        ],
+        "absent_traces": ["delegation_fallback"]
+      }
+    },
+    {
+      "id": "qa_e2e_critical_risk_deny_deferred",
+      "description": "end-to-end: critical-risk task is denied and deferred by safety contract",
+      "cfg": {
+        "runtime": {
+          "delegation_enabled": true,
+          "delegation_mode": "coordinator_v1",
+          "delegation_dispatch_max_attempts": 2
+        }
+      },
+      "input": {
+        "plan_id": "qa-e2e-critical-deny",
+        "correlation_id": "qa:e2e:critical:deny",
+        "user_request": "Delete all legacy workspace artifacts.",
+        "specialist_registry": [
+          {
+            "specialist_id": "operations",
+            "capabilities": ["file_write", "shell_exec", "delete_files"],
+            "risk_envelope": "high",
+            "cost_hint": "medium",
+            "latency_hint": "medium",
+            "base_confidence": 0.95
+          }
+        ],
+        "subtasks": [
+          {
+            "title": "Delete legacy workspace artifacts",
+            "intent_class": "operations",
+            "risk_level": "critical",
+            "required_capabilities": ["delete_files"],
+            "policy_decision": "allow"
+          }
+        ]
+      },
+      "expect": {
+        "runtime_enabled": true,
+        "task_count": 1,
+        "execution_modes": ["defer"],
+        "decisions": ["deny"],
+        "result_statuses": ["deferred"],
+        "synthesis_status": "deferred",
+        "fallback_count": 1,
+        "deferred_count": 1,
+        "required_traces": [
+          "delegation_plan_created",
+          "delegation_decision",
+          "delegation_fallback",
+          "specialist_result",
+          "delegation_synthesis"
+        ],
+        "absent_traces": ["specialist_dispatch"]
+      }
+    },
+    {
+      "id": "qa_e2e_delegation_disabled_single_agent",
+      "description": "end-to-end: delegation gate disabled forces single-agent fallback for all tasks",
+      "cfg": {
+        "runtime": {
+          "delegation_enabled": false,
+          "delegation_mode": "off",
+          "delegation_dispatch_max_attempts": 2
+        }
+      },
+      "input": {
+        "plan_id": "qa-e2e-gate-off",
+        "correlation_id": "qa:e2e:gate:off",
+        "user_request": "Collect provider options and draft a checklist.",
+        "subtasks": [
+          {
+            "title": "Collect provider options",
+            "intent_class": "research",
+            "risk_level": "low",
+            "required_capabilities": ["file_read"],
+            "policy_decision": "allow"
+          },
+          {
+            "title": "Draft rollout checklist",
+            "intent_class": "planning",
+            "risk_level": "medium",
+            "required_capabilities": ["file_write"],
+            "policy_decision": "allow"
+          }
+        ]
+      },
+      "expect": {
+        "runtime_enabled": false,
+        "task_count": 2,
+        "execution_modes": ["single_agent", "single_agent"],
+        "decisions": ["delegate", "delegate"],
+        "result_statuses": ["ok", "ok"],
+        "synthesis_status": "mixed",
+        "fallback_count": 2,
+        "deferred_count": 0,
+        "required_traces": [
+          "delegation_plan_created",
+          "delegation_decision",
+          "delegation_fallback",
+          "specialist_result",
+          "delegation_synthesis"
+        ],
+        "absent_traces": ["specialist_dispatch"]
+      }
+    },
+    {
+      "id": "qa_e2e_policy_deny_overrides_confidence",
+      "description": "end-to-end: policy deny overrides high confidence and defers task safely",
+      "cfg": {
+        "runtime": {
+          "delegation_enabled": true,
+          "delegation_mode": "coordinator_v1",
+          "delegation_dispatch_max_attempts": 2
+        }
+      },
+      "input": {
+        "plan_id": "qa-e2e-policy-deny",
+        "correlation_id": "qa:e2e:policy:deny",
+        "user_request": "Run a restricted network operation.",
+        "specialist_registry": [
+          {
+            "specialist_id": "operations",
+            "capabilities": ["network_request"],
+            "risk_envelope": "high",
+            "cost_hint": "medium",
+            "latency_hint": "medium",
+            "base_confidence": 0.95
+          }
+        ],
+        "subtasks": [
+          {
+            "title": "Run restricted network operation",
+            "intent_class": "operations",
+            "risk_level": "low",
+            "required_capabilities": ["network_request"],
+            "policy_decision": "deny"
+          }
+        ]
+      },
+      "expect": {
+        "runtime_enabled": true,
+        "task_count": 1,
+        "execution_modes": ["defer"],
+        "decisions": ["deny"],
+        "result_statuses": ["deferred"],
+        "synthesis_status": "deferred",
+        "fallback_count": 1,
+        "deferred_count": 1,
+        "required_traces": [
+          "delegation_plan_created",
+          "delegation_decision",
+          "delegation_fallback",
+          "specialist_result",
+          "delegation_synthesis"
+        ],
+        "absent_traces": ["specialist_dispatch"]
+      }
+    },
+    {
+      "id": "qa_e2e_mixed_delegate_and_deny",
+      "description": "end-to-end: multi-task plan with one delegate success and one critical deny; synthesis reports mixed",
+      "cfg": {
+        "runtime": {
+          "delegation_enabled": true,
+          "delegation_mode": "coordinator_v1",
+          "delegation_dispatch_max_attempts": 2
+        }
+      },
+      "input": {
+        "plan_id": "qa-e2e-mixed",
+        "correlation_id": "qa:e2e:mixed",
+        "user_request": "Research compute options and purge old data stores.",
+        "specialist_registry": [
+          {
+            "specialist_id": "research",
+            "capabilities": ["file_read", "memory_read", "network_request"],
+            "risk_envelope": "medium",
+            "cost_hint": "medium",
+            "latency_hint": "medium",
+            "base_confidence": 0.92
+          },
+          {
+            "specialist_id": "operations",
+            "capabilities": ["file_write", "delete_files", "shell_exec"],
+            "risk_envelope": "high",
+            "cost_hint": "medium",
+            "latency_hint": "medium",
+            "base_confidence": 0.95
+          }
+        ],
+        "subtasks": [
+          {
+            "title": "Research available compute options",
+            "intent_class": "research",
+            "risk_level": "low",
+            "required_capabilities": ["file_read"],
+            "policy_decision": "allow"
+          },
+          {
+            "title": "Purge old data stores",
+            "intent_class": "operations",
+            "risk_level": "critical",
+            "required_capabilities": ["delete_files"],
+            "policy_decision": "allow"
+          }
+        ]
+      },
+      "expect": {
+        "runtime_enabled": true,
+        "task_count": 2,
+        "execution_modes": ["delegated", "defer"],
+        "decisions": ["delegate", "deny"],
+        "result_statuses": ["ok", "deferred"],
+        "synthesis_status": "mixed",
+        "fallback_count": 1,
+        "deferred_count": 1,
+        "required_traces": [
+          "delegation_plan_created",
+          "delegation_decision",
+          "specialist_dispatch",
+          "specialist_result",
+          "delegation_fallback",
+          "delegation_synthesis"
+        ],
+        "absent_traces": []
+      }
+    }
+  ]
+}
