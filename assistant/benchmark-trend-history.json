@@ -1459,9 +1459,29 @@
       "timestamp_utc": "2026-04-27T06:10:01.039192+00:00",
       "total": 35,
       "workflow": "benchmark-nightly"
+    },
+    {
+      "actor": "TonyThePredictor",
+      "benchmark_status": "pass",
+      "date_utc": "2026-04-28",
+      "event_name": "schedule",
+      "failed": 0,
+      "passed": 35,
+      "ref": "main",
+      "run_attempt": "1",
+      "run_id": "25037057595",
+      "runner_status": "pass",
+      "score_pct": 100.0,
+      "sha": "6fd1252e7da18daef713cd6c8fdeabbbc8b9b617",
+      "status": "pass",
+      "suite": "phase1-quality-benchmark",
+      "target_score_pct": 80.0,
+      "timestamp_utc": "2026-04-28T06:13:47.028670+00:00",
+      "total": 35,
+      "workflow": "benchmark-nightly"
     }
   ],
   "schema_version": 1,
   "suite": "phase1-quality-benchmark",
-  "updated_at": "2026-04-27T06:10:01.039258+00:00"
+  "updated_at": "2026-04-28T06:13:47.028739+00:00"
 }
