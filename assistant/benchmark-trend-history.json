@@ -3,26 +3,6 @@
     {
       "actor": "TonyThePredictor",
       "benchmark_status": "pass",
-      "date_utc": "2026-04-15",
-      "event_name": "schedule",
-      "failed": 0,
-      "passed": 35,
-      "ref": "main",
-      "run_attempt": "1",
-      "run_id": "24438179731",
-      "runner_status": "pass",
-      "score_pct": 100.0,
-      "sha": "7ba29d7766cd4584f600b6e5d8f6f7c5f44582a4",
-      "status": "pass",
-      "suite": "phase1-quality-benchmark",
-      "target_score_pct": 80.0,
-      "timestamp_utc": "2026-04-15T05:32:50.058576+00:00",
-      "total": 35,
-      "workflow": "benchmark-nightly"
-    },
-    {
-      "actor": "TonyThePredictor",
-      "benchmark_status": "pass",
       "date_utc": "2026-04-16",
       "event_name": "schedule",
       "failed": 0,
@@ -1799,9 +1779,29 @@
       "timestamp_utc": "2026-07-13T06:30:08.859905+00:00",
       "total": 35,
       "workflow": "benchmark-nightly"
+    },
+    {
+      "actor": "TonyThePredictor",
+      "benchmark_status": "pass",
+      "date_utc": "2026-07-14",
+      "event_name": "schedule",
+      "failed": 0,
+      "passed": 35,
+      "ref": "main",
+      "run_attempt": "1",
+      "run_id": "29309111240",
+      "runner_status": "pass",
+      "score_pct": 100.0,
+      "sha": "d198a38b705be1211d3d046c2aa09d4316f2158e",
+      "status": "pass",
+      "suite": "phase1-quality-benchmark",
+      "target_score_pct": 80.0,
+      "timestamp_utc": "2026-07-14T05:40:02.382853+00:00",
+      "total": 35,
+      "workflow": "benchmark-nightly"
     }
   ],
   "schema_version": 1,
   "suite": "phase1-quality-benchmark",
-  "updated_at": "2026-07-13T06:30:08.859977+00:00"
+  "updated_at": "2026-07-14T05:40:02.382932+00:00"
 }
